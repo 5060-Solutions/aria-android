@@ -1,0 +1,15 @@
+# Gradle
+.gradle/
+build/
+app/build/
+local.properties
+
+# IDE
+.idea/
+*.iml
+
+# Rust build artifacts
+target/
+
+# OS
+.DS_Store
