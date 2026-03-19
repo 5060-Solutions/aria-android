@@ -44,6 +44,7 @@ data class ProvisioningCredentials(
     val transport: String,
     val voicemail: String,
     val apiUrl: String,
+    val tenantDomain: String,
 )
 
 fun parseProvisioningUri(uriString: String): ProvisioningCredentials? {
@@ -60,6 +61,7 @@ fun parseProvisioningUri(uriString: String): ProvisioningCredentials? {
         val transport = uri.getQueryParameter("transport") ?: "udp"
         val voicemail = uri.getQueryParameter("vm") ?: ""
         val apiUrl = uri.getQueryParameter("api") ?: ""
+        val tenantDomain = uri.getQueryParameter("tenant") ?: ""
 
         ProvisioningCredentials(
             server = server,
@@ -69,6 +71,7 @@ fun parseProvisioningUri(uriString: String): ProvisioningCredentials? {
             displayName = name,
             transport = transport,
             voicemail = voicemail,
+            tenantDomain = tenantDomain,
             apiUrl = apiUrl,
         )
     } catch (e: Exception) {

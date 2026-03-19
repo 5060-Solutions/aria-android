@@ -45,6 +45,7 @@ fun SettingsScreen(onSignOut: () -> Unit = {}) {
     var sipTransport by rememberSaveable { mutableStateOf(prefs.getString("sip_transport", "udp") ?: "udp") }
     var sipPort by rememberSaveable { mutableStateOf(prefs.getString("sip_port", "5060") ?: "5060") }
     var apiUrl by rememberSaveable { mutableStateOf(prefs.getString("api_url", "") ?: "") }
+    var tenantDomain by rememberSaveable { mutableStateOf(prefs.getString("tenant_domain", "") ?: "") }
 
     // PBX auth state
     var jwt by remember { mutableStateOf(prefs.getString("jwt", null)) }
@@ -90,7 +91,7 @@ fun SettingsScreen(onSignOut: () -> Unit = {}) {
                 val loginResult = client.extensionLogin(
                     extensionNumber = sipUsername,
                     password = sipPassword,
-                    tenantDomain = sipDomain,
+                    tenantDomain = tenantDomain,
                 )
                 jwt = loginResult.jwt
                 extensionId = loginResult.extensionId
@@ -162,6 +163,7 @@ fun SettingsScreen(onSignOut: () -> Unit = {}) {
                 sipDisplayName = creds.displayName
                 sipTransport = creds.transport.lowercase()
                 apiUrl = creds.apiUrl
+                tenantDomain = creds.tenantDomain
                 showQRScanner = false
 
                 prefs.edit()
@@ -173,6 +175,7 @@ fun SettingsScreen(onSignOut: () -> Unit = {}) {
                     .putString("sip_transport", creds.transport.lowercase())
                     .putString("sip_port", creds.port.toString())
                     .putString("api_url", creds.apiUrl)
+                    .putString("tenant_domain", creds.tenantDomain)
                     .apply()
 
                 // Auto-trigger login after QR scan
