@@ -34,9 +34,23 @@ if [ "$MODE" = "release" ]; then
 fi
 
 # Configure cargo for Android cross-compilation
-export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin/aarch64-linux-android24-clang"
-export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin/armv7a-linux-androideabi24-clang"
-export CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin/x86_64-linux-android24-clang"
+TOOLCHAIN="$ANDROID_NDK_HOME/toolchains/llvm/prebuilt/darwin-x86_64/bin"
+export CARGO_TARGET_AARCH64_LINUX_ANDROID_LINKER="$TOOLCHAIN/aarch64-linux-android24-clang"
+export CARGO_TARGET_ARMV7_LINUX_ANDROIDEABI_LINKER="$TOOLCHAIN/armv7a-linux-androideabi24-clang"
+export CARGO_TARGET_X86_64_LINUX_ANDROID_LINKER="$TOOLCHAIN/x86_64-linux-android24-clang"
+
+# cc-rs needs CC set for each target so it finds the right compiler
+export CC_aarch64_linux_android="$TOOLCHAIN/aarch64-linux-android24-clang"
+export CC_armv7_linux_androideabi="$TOOLCHAIN/armv7a-linux-androideabi24-clang"
+export CC_x86_64_linux_android="$TOOLCHAIN/x86_64-linux-android24-clang"
+export AR_aarch64_linux_android="$TOOLCHAIN/llvm-ar"
+export AR_armv7_linux_androideabi="$TOOLCHAIN/llvm-ar"
+export AR_x86_64_linux_android="$TOOLCHAIN/llvm-ar"
+export CXX_aarch64_linux_android="$TOOLCHAIN/aarch64-linux-android24-clang++"
+export CXX_armv7_linux_androideabi="$TOOLCHAIN/armv7a-linux-androideabi24-clang++"
+export CXX_x86_64_linux_android="$TOOLCHAIN/x86_64-linux-android24-clang++"
+export ANDROID_NDK="$ANDROID_NDK_HOME"
+export CMAKE_POLICY_VERSION_MINIMUM=3.5
 
 # Build for all Android targets
 echo "Building aarch64-linux-android (ARM64)..."
