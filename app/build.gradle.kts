@@ -2,6 +2,7 @@ plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+    id("com.google.gms.google-services")
 }
 
 android {
@@ -77,6 +78,9 @@ dependencies {
 
     // Contacts
     implementation("androidx.core:core-ktx:1.15.0")
+
+    // JNA for UniFFI Rust bindings
+    implementation("net.java.dev.jna:jna:5.17.0@aar")
 
     // CameraX + ML Kit for QR scanning
     implementation("com.google.mlkit:barcode-scanning:17.3.0")

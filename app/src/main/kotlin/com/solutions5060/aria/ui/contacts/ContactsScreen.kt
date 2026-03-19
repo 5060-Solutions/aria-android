@@ -2,7 +2,10 @@ package com.solutions5060.aria.ui.contacts
 
 import android.Manifest
 import android.content.ContentResolver
+import android.content.pm.PackageManager
 import android.provider.ContactsContract
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -11,6 +14,7 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,7 +23,9 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.core.content.ContextCompat
 
 data class Contact(
     val name: String,
@@ -32,20 +38,34 @@ fun ContactsScreen(onCall: (String) -> Unit) {
     val context = LocalContext.current
     var contacts by remember { mutableStateOf<List<Contact>>(emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
-    var hasPermission by remember { mutableStateOf(false) }
+    var hasPermission by remember {
+        mutableStateOf(
+            ContextCompat.checkSelfPermission(
+                context, Manifest.permission.READ_CONTACTS
+            ) == PackageManager.PERMISSION_GRANTED
+        )
+    }
+    var permissionDenied by remember { mutableStateOf(false) }
 
-    // Load contacts
+    val permissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { granted ->
+        hasPermission = granted
+        permissionDenied = !granted
+    }
+
+    // Request permission on first composition if not already granted
+    LaunchedEffect(Unit) {
+        if (!hasPermission) {
+            permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+        }
+    }
+
+    // Load contacts when permission is granted
     LaunchedEffect(hasPermission) {
         if (hasPermission) {
             contacts = loadContacts(context.contentResolver)
         }
-    }
-
-    // Request permission
-    LaunchedEffect(Unit) {
-        // In production, use rememberPermissionState from Accompanist
-        // For now, assume permission is granted or handle in the activity
-        hasPermission = true
     }
 
     val filteredContacts = if (searchQuery.isEmpty()) contacts
@@ -70,30 +90,75 @@ fun ContactsScreen(onCall: (String) -> Unit) {
             ) {}
         }
     ) { padding ->
-        if (contacts.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentAlignment = Alignment.Center
-            ) {
-                Text(
-                    "No contacts found",
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
-                )
-            }
-        } else {
-            LazyColumn(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(padding),
-                contentPadding = PaddingValues(vertical = 8.dp)
-            ) {
-                items(filteredContacts) { contact ->
-                    ContactRow(
-                        contact = contact,
-                        onCall = { onCall(contact.phoneNumber) }
+        when {
+            permissionDenied && !hasPermission -> {
+                // Permission rationale / denied state
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding)
+                        .padding(32.dp),
+                    verticalArrangement = Arrangement.Center,
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Icon(
+                        Icons.Default.Contacts,
+                        contentDescription = null,
+                        modifier = Modifier.size(64.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Text(
+                        "Contacts permission required",
+                        style = MaterialTheme.typography.titleMedium,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        "Aria needs access to your contacts to show them here and let you call them directly.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                    Button(
+                        onClick = {
+                            permissionDenied = false
+                            permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
+                        }
+                    ) {
+                        Text("Grant Permission")
+                    }
+                }
+            }
+
+            contacts.isEmpty() && hasPermission -> {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        "No contacts found",
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
+                    )
+                }
+            }
+
+            else -> {
+                LazyColumn(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(padding),
+                    contentPadding = PaddingValues(vertical = 8.dp)
+                ) {
+                    items(filteredContacts) { contact ->
+                        ContactRow(
+                            contact = contact,
+                            onCall = { onCall(contact.phoneNumber) }
+                        )
+                    }
                 }
             }
         }

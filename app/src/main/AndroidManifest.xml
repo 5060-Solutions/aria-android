@@ -35,7 +35,8 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:showOnLockScreen="true"
-            android:turnScreenOn="true">
+            android:turnScreenOn="true"
+            android:theme="@style/Theme.Aria.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

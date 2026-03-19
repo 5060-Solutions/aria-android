@@ -1,5 +1,6 @@
 package com.solutions5060.aria.ui.settings
 
+import android.content.Context
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
@@ -12,6 +13,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
@@ -20,19 +22,41 @@ import com.google.firebase.messaging.FirebaseMessaging
 import com.solutions5060.aria.bridge.*
 import com.solutions5060.aria.service.SipEngineHolder
 
+private const val PREFS_NAME = "aria_prefs"
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen() {
-    var gatewayUrl by rememberSaveable { mutableStateOf("") }
-    var apiKey by rememberSaveable { mutableStateOf("") }
-    var sipUsername by rememberSaveable { mutableStateOf("") }
-    var sipPassword by rememberSaveable { mutableStateOf("") }
-    var sipDomain by rememberSaveable { mutableStateOf("") }
-    var sipRegistrar by rememberSaveable { mutableStateOf("") }
-    var sipDisplayName by rememberSaveable { mutableStateOf("") }
-    var sipTransport by rememberSaveable { mutableStateOf("udp") }
-    var sipPort by rememberSaveable { mutableStateOf("5060") }
-    var sipAuthUsername by rememberSaveable { mutableStateOf("") }
+    val context = LocalContext.current
+    val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+
+    // Push gateway is auto-configured — not user-facing
+    var gatewayUrl by rememberSaveable { mutableStateOf(prefs.getString("gateway_url", "https://push.ariaroute.com") ?: "https://push.ariaroute.com") }
+    var apiKey by rememberSaveable { mutableStateOf(prefs.getString("api_key", "auto") ?: "auto") }
+    var sipUsername by rememberSaveable { mutableStateOf(prefs.getString("sip_username", "") ?: "") }
+    var sipPassword by rememberSaveable { mutableStateOf(prefs.getString("sip_password", "") ?: "") }
+    var sipDomain by rememberSaveable { mutableStateOf(prefs.getString("sip_domain", "") ?: "") }
+    var sipRegistrar by rememberSaveable { mutableStateOf(prefs.getString("sip_registrar", "") ?: "") }
+    var sipDisplayName by rememberSaveable { mutableStateOf(prefs.getString("sip_display_name", "") ?: "") }
+    var sipTransport by rememberSaveable { mutableStateOf(prefs.getString("sip_transport", "udp") ?: "udp") }
+    var sipPort by rememberSaveable { mutableStateOf(prefs.getString("sip_port", "5060") ?: "5060") }
+    var sipAuthUsername by rememberSaveable { mutableStateOf(prefs.getString("sip_auth_username", "") ?: "") }
+
+    // Persist values when they change
+    fun savePrefs() {
+        prefs.edit()
+            .putString("gateway_url", gatewayUrl)
+            .putString("api_key", apiKey)
+            .putString("sip_username", sipUsername)
+            .putString("sip_password", sipPassword)
+            .putString("sip_domain", sipDomain)
+            .putString("sip_registrar", sipRegistrar)
+            .putString("sip_display_name", sipDisplayName)
+            .putString("sip_transport", sipTransport)
+            .putString("sip_port", sipPort)
+            .putString("sip_auth_username", sipAuthUsername)
+            .apply()
+    }
 
     var showPassword by remember { mutableStateOf(false) }
     var isRegistering by remember { mutableStateOf(false) }
@@ -42,10 +66,14 @@ fun SettingsScreen() {
     var fcmToken by remember { mutableStateOf<String?>(null) }
     var showQRScanner by remember { mutableStateOf(false) }
 
-    // Fetch FCM token on first composition
+    // Fetch FCM token on first composition (safe if Firebase not initialized)
     LaunchedEffect(Unit) {
-        FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
-            fcmToken = token
+        try {
+            FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
+                fcmToken = token
+            }
+        } catch (_: Exception) {
+            // Firebase not initialized — push won't work but app still functions
         }
     }
 
@@ -60,6 +88,7 @@ fun SettingsScreen() {
                 sipDisplayName = creds.displayName
                 sipTransport = creds.transport.lowercase()
                 showQRScanner = false
+                savePrefs()
             },
             onDismiss = { showQRScanner = false },
         )
@@ -79,33 +108,6 @@ fun SettingsScreen() {
                 .verticalScroll(rememberScrollState()),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Gateway section
-            Text(
-                "Push Gateway",
-                style = MaterialTheme.typography.titleMedium,
-                modifier = Modifier.padding(top = 16.dp)
-            )
-
-            OutlinedTextField(
-                value = gatewayUrl,
-                onValueChange = { gatewayUrl = it },
-                label = { Text("Gateway URL") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Uri)
-            )
-
-            OutlinedTextField(
-                value = apiKey,
-                onValueChange = { apiKey = it },
-                label = { Text("API Key") },
-                modifier = Modifier.fillMaxWidth(),
-                singleLine = true,
-                visualTransformation = PasswordVisualTransformation()
-            )
-
-            Divider(modifier = Modifier.padding(vertical = 8.dp))
-
             // SIP Account section
             Text(
                 "SIP Account",
@@ -254,6 +256,7 @@ fun SettingsScreen() {
                 onClick = {
                     isRegistering = true
                     errorMessage = null
+                    savePrefs()
 
                     val config = GatewayConfig(baseUrl = gatewayUrl, apiKey = apiKey)
                     val engine = AriaMobileEngine(config)

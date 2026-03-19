@@ -3,7 +3,8 @@ package com.solutions5060.aria
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import com.solutions5060.aria.bridge.AriaMobileCore
+import uniffi.aria_mobile.initRuntime
+import uniffi.aria_mobile.shutdownRuntime
 
 class AriaApplication : Application() {
 
@@ -15,15 +16,15 @@ class AriaApplication : Application() {
     override fun onCreate() {
         super.onCreate()
 
-        // Initialize the Rust runtime
-        AriaMobileCore.initRuntime()
+        // Initialize the Rust runtime (via UniFFI)
+        initRuntime()
 
         // Create notification channels
         createNotificationChannels()
     }
 
     override fun onTerminate() {
-        AriaMobileCore.shutdownRuntime()
+        shutdownRuntime()
         super.onTerminate()
     }
 
