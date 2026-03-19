@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "649089814761",
+    "project_id": "aria-telephony",
+    "storage_bucket": "aria-telephony.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:649089814761:android:a757e472ca2ca9f322a078",
+        "android_client_info": {
+          "package_name": "com.solutions5060.aria"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyALcPG5K_dMNLcq7AYIqZOYiATk_hw-080"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
