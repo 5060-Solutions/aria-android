@@ -19,7 +19,7 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.google.firebase.messaging.FirebaseMessaging
-import com.solutions5060.aria.bridge.*
+import uniffi.aria_mobile.*
 import com.solutions5060.aria.service.SipEngineHolder
 
 private const val PREFS_NAME = "aria_prefs"
@@ -278,6 +278,7 @@ fun SettingsScreen() {
                             val registration = DeviceRegistration(
                                 platform = "android",
                                 pushToken = fcmToken ?: "",
+                                bundleId = "com.solutions5060.aria",
                                 sip = credentials
                             )
                             val response = engine.registerDevice(registration)

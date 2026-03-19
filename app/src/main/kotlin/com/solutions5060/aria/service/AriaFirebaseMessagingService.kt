@@ -16,7 +16,7 @@ import com.google.firebase.messaging.RemoteMessage
 import com.solutions5060.aria.AriaApplication
 import com.solutions5060.aria.MainActivity
 import com.solutions5060.aria.R
-import com.solutions5060.aria.bridge.PushCallPayload
+import uniffi.aria_mobile.PushCallPayload
 
 /**
  * Firebase Cloud Messaging service for receiving push notifications.

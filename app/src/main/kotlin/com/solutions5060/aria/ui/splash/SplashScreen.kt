@@ -57,7 +57,7 @@ fun SplashScreen(onFinished: () -> Unit) {
             modifier = Modifier.alpha(alpha)
         ) {
             Image(
-                painter = painterResource(id = R.mipmap.ic_launcher),
+                painter = painterResource(id = R.mipmap.ic_launcher_foreground),
                 contentDescription = "Aria Logo",
                 modifier = Modifier.size(120.dp)
             )

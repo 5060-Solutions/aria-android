@@ -9,8 +9,8 @@ import android.telecom.DisconnectCause
 import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
 import android.util.Log
-import com.solutions5060.aria.bridge.CallInfo
-import com.solutions5060.aria.bridge.CallState
+import uniffi.aria_mobile.CallInfo
+import uniffi.aria_mobile.CallState
 
 /**
  * Android Telecom ConnectionService for managing VoIP calls.
@@ -209,9 +209,9 @@ class AriaConnection : Connection() {
 
     fun updateFromCallInfo(info: CallInfo) {
         when (info.state) {
-            CallState.Connected -> setActive()
-            CallState.OnHold -> setOnHold()
-            CallState.Ended -> {
+            CallState.CONNECTED -> setActive()
+            CallState.ON_HOLD -> setOnHold()
+            CallState.ENDED -> {
                 setDisconnected(DisconnectCause(DisconnectCause.REMOTE))
                 destroy()
                 AriaConnectionService.activeConnection = null
@@ -225,5 +225,5 @@ class AriaConnection : Connection() {
  * Global holder for the SIP engine instance.
  */
 object SipEngineHolder {
-    var engine: com.solutions5060.aria.bridge.AriaMobileEngine? = null
+    var engine: uniffi.aria_mobile.AriaMobileEngine? = null
 }

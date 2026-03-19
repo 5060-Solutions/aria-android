@@ -44,7 +44,7 @@ fun SetupScreen(
             Spacer(modifier = Modifier.weight(1f))
 
             Image(
-                painter = painterResource(id = R.mipmap.ic_launcher),
+                painter = painterResource(id = R.mipmap.ic_launcher_foreground),
                 contentDescription = "Aria Logo",
                 modifier = Modifier.size(96.dp)
             )

@@ -16,7 +16,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.solutions5060.aria.bridge.CallState
+import uniffi.aria_mobile.CallState
 import com.solutions5060.aria.service.SipEngineHolder
 import kotlinx.coroutines.delay
 
@@ -37,7 +37,7 @@ fun CallScreen(onDismiss: () -> Unit) {
             if (activeCall != null) {
                 callId = activeCall.callId
                 callerName = activeCall.remoteName ?: activeCall.remoteUri
-                isConnected = activeCall.state == CallState.Connected
+                isConnected = activeCall.state == CallState.CONNECTED
                 isMuted = activeCall.muted
                 isOnHold = activeCall.onHold
             } else {
