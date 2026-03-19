@@ -88,6 +88,12 @@ dependencies {
     implementation("androidx.camera:camera-lifecycle:1.4.1")
     implementation("androidx.camera:camera-view:1.4.1")
 
+    // HTTP client for PBX API
+    implementation("com.squareup.okhttp3:okhttp:4.12.0")
+
+    // JSON parsing
+    implementation("org.json:json:20240303")
+
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
 }

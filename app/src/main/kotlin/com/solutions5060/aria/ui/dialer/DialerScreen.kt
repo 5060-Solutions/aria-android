@@ -1,7 +1,9 @@
 package com.solutions5060.aria.ui.dialer
 
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Backspace
 import androidx.compose.material.icons.filled.Call
@@ -15,6 +17,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.solutions5060.aria.ui.theme.AriaGreen
 
 @Composable
 fun DialerScreen(onCall: (String) -> Unit) {
@@ -27,27 +30,38 @@ fun DialerScreen(onCall: (String) -> Unit) {
             .padding(16.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        // Aria branding at top
+        Spacer(modifier = Modifier.height(8.dp))
+        Text(
+            text = "Aria",
+            fontSize = 18.sp,
+            fontWeight = FontWeight.Light,
+            color = MaterialTheme.colorScheme.primary,
+            letterSpacing = 3.sp,
+        )
+
         Spacer(modifier = Modifier.weight(1f))
 
         // Number display
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 32.dp),
+                .padding(horizontal = 24.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
                 text = number.ifEmpty { "Enter number" },
-                fontSize = 28.sp,
-                fontWeight = FontWeight.Light,
+                fontSize = 34.sp,
+                fontWeight = if (number.isNotEmpty()) FontWeight.Medium else FontWeight.Light,
                 color = if (number.isEmpty()) {
-                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                    MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                 } else {
                     MaterialTheme.colorScheme.onSurface
                 },
                 textAlign = TextAlign.Center,
                 modifier = Modifier.weight(1f),
-                maxLines = 1
+                maxLines = 1,
+                letterSpacing = 1.sp,
             )
 
             if (number.isNotEmpty()) {
@@ -55,7 +69,7 @@ fun DialerScreen(onCall: (String) -> Unit) {
                     Icon(
                         Icons.AutoMirrored.Filled.Backspace,
                         contentDescription = "Delete",
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
                 }
             }
@@ -92,22 +106,22 @@ fun DialerScreen(onCall: (String) -> Unit) {
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Call button
+        // Call button - bright green with rounded corners
         FloatingActionButton(
             onClick = {
                 if (number.isNotEmpty()) {
                     onCall(number)
                 }
             },
-            containerColor = MaterialTheme.colorScheme.primary,
-            shape = CircleShape,
+            containerColor = AriaGreen,
+            shape = RoundedCornerShape(22.dp),
             modifier = Modifier.size(72.dp)
         ) {
             Icon(
                 Icons.Default.Call,
                 contentDescription = "Call",
                 modifier = Modifier.size(32.dp),
-                tint = MaterialTheme.colorScheme.onPrimary
+                tint = androidx.compose.ui.graphics.Color.White
             )
         }
 
@@ -123,7 +137,13 @@ private fun DialPadKey(
 ) {
     Surface(
         onClick = onClick,
-        modifier = Modifier.size(80.dp),
+        modifier = Modifier
+            .size(80.dp)
+            .border(
+                width = 1.dp,
+                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                shape = CircleShape,
+            ),
         shape = CircleShape,
         color = MaterialTheme.colorScheme.surfaceVariant
     ) {
@@ -134,14 +154,15 @@ private fun DialPadKey(
             Text(
                 text = digit,
                 fontSize = 28.sp,
-                fontWeight = FontWeight.Light
+                fontWeight = FontWeight.Light,
+                color = MaterialTheme.colorScheme.onSurface,
             )
             if (letters.isNotEmpty()) {
                 Text(
                     text = letters,
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f),
                     letterSpacing = 2.sp
                 )
             }

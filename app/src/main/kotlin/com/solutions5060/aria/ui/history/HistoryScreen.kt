@@ -5,10 +5,10 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.CallMade
+import androidx.compose.material.icons.automirrored.filled.CallMissed
+import androidx.compose.material.icons.automirrored.filled.CallReceived
 import androidx.compose.material.icons.filled.Call
-import androidx.compose.material.icons.filled.CallMade
-import androidx.compose.material.icons.filled.CallMissed
-import androidx.compose.material.icons.filled.CallReceived
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -132,9 +132,9 @@ private fun HistoryRow(entry: CallHistoryEntry, onCall: () -> Unit) {
     ) {
         // Direction icon
         val (icon, color) = when {
-            entry.missed -> Icons.Default.CallMissed to Color.Red
-            entry.direction == "inbound" -> Icons.Default.CallReceived to MaterialTheme.colorScheme.primary
-            else -> Icons.Default.CallMade to MaterialTheme.colorScheme.tertiary
+            entry.missed -> Icons.AutoMirrored.Filled.CallMissed to Color.Red
+            entry.direction == "inbound" -> Icons.AutoMirrored.Filled.CallReceived to MaterialTheme.colorScheme.primary
+            else -> Icons.AutoMirrored.Filled.CallMade to MaterialTheme.colorScheme.tertiary
         }
 
         Icon(icon, contentDescription = null, tint = color, modifier = Modifier.size(20.dp))

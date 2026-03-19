@@ -1,9 +1,14 @@
 package com.solutions5060.aria.ui.call
 
+import android.content.Context
+import android.media.AudioManager
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.VolumeDown
+import androidx.compose.material.icons.automirrored.filled.VolumeUp
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -13,6 +18,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -20,8 +26,14 @@ import uniffi.aria_mobile.CallState
 import com.solutions5060.aria.service.SipEngineHolder
 import kotlinx.coroutines.delay
 
+@Suppress("DEPRECATION")
 @Composable
 fun CallScreen(onDismiss: () -> Unit) {
+    val context = LocalContext.current
+    val audioManager = remember {
+        context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
+    }
+
     var isMuted by remember { mutableStateOf(false) }
     var isOnHold by remember { mutableStateOf(false) }
     var isSpeaker by remember { mutableStateOf(false) }
@@ -29,6 +41,7 @@ fun CallScreen(onDismiss: () -> Unit) {
     var callerName by remember { mutableStateOf("Unknown Caller") }
     var callId by remember { mutableStateOf<String?>(null) }
     var isConnected by remember { mutableStateOf(false) }
+    var showAudioPicker by remember { mutableStateOf(false) }
 
     // Observe call state from engine
     LaunchedEffect(Unit) {
@@ -56,6 +69,57 @@ fun CallScreen(onDismiss: () -> Unit) {
                 elapsedSeconds++
             }
         }
+    }
+
+    // Audio picker dialog
+    if (showAudioPicker) {
+        AlertDialog(
+            onDismissRequest = { showAudioPicker = false },
+            title = { Text("Audio Output") },
+            text = {
+                Column {
+                    AudioOutputOption(
+                        label = "Earpiece",
+                        icon = Icons.Default.PhoneInTalk,
+                        selected = !isSpeaker && !audioManager.isBluetoothScoOn,
+                        onClick = {
+                            audioManager.isSpeakerphoneOn = false
+                            audioManager.stopBluetoothSco()
+                            isSpeaker = false
+                            showAudioPicker = false
+                        },
+                    )
+                    AudioOutputOption(
+                        label = "Speaker",
+                        icon = Icons.AutoMirrored.Filled.VolumeUp,
+                        selected = isSpeaker,
+                        onClick = {
+                            audioManager.isSpeakerphoneOn = true
+                            isSpeaker = true
+                            showAudioPicker = false
+                        },
+                    )
+                    if (audioManager.isBluetoothScoAvailableOffCall) {
+                        AudioOutputOption(
+                            label = "Bluetooth",
+                            icon = Icons.Default.Bluetooth,
+                            selected = audioManager.isBluetoothScoOn,
+                            onClick = {
+                                audioManager.startBluetoothSco()
+                                audioManager.isBluetoothScoOn = true
+                                isSpeaker = false
+                                showAudioPicker = false
+                            },
+                        )
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showAudioPicker = false }) {
+                    Text("Close")
+                }
+            },
+        )
     }
 
     Box(
@@ -132,10 +196,15 @@ fun CallScreen(onDismiss: () -> Unit) {
                     }
                 )
                 CallControlButton(
-                    icon = Icons.Default.VolumeUp,
+                    icon = if (isSpeaker) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeDown,
                     label = "Speaker",
                     isActive = isSpeaker,
-                    onClick = { isSpeaker = !isSpeaker }
+                    onClick = {
+                        val newSpeaker = !isSpeaker
+                        audioManager.isSpeakerphoneOn = newSpeaker
+                        isSpeaker = newSpeaker
+                    },
+                    onLongClick = { showAudioPicker = true },
                 )
                 CallControlButton(
                     icon = if (isOnHold) Icons.Default.PlayArrow else Icons.Default.Pause,
@@ -162,6 +231,12 @@ fun CallScreen(onDismiss: () -> Unit) {
                     isActive = false,
                     onClick = { /* Show DTMF keypad */ }
                 )
+                CallControlButton(
+                    icon = Icons.Default.Bluetooth,
+                    label = "Audio",
+                    isActive = false,
+                    onClick = { showAudioPicker = true }
+                )
             }
 
             Spacer(modifier = Modifier.weight(1f))
@@ -169,6 +244,8 @@ fun CallScreen(onDismiss: () -> Unit) {
             // End call button
             FloatingActionButton(
                 onClick = {
+                    // Reset audio
+                    audioManager.isSpeakerphoneOn = false
                     val id = callId
                     if (id != null) {
                         Thread { SipEngineHolder.engine?.hangup(id) }.start()
@@ -193,11 +270,45 @@ fun CallScreen(onDismiss: () -> Unit) {
 }
 
 @Composable
+private fun AudioOutputOption(
+    label: String,
+    icon: ImageVector,
+    selected: Boolean,
+    onClick: () -> Unit,
+) {
+    Surface(
+        onClick = onClick,
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(8.dp),
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(label, style = MaterialTheme.typography.bodyLarge)
+            if (selected) {
+                Spacer(modifier = Modifier.weight(1f))
+                Icon(
+                    Icons.Default.Check,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(20.dp),
+                )
+            }
+        }
+    }
+}
+
+@Composable
 private fun CallControlButton(
     icon: ImageVector,
     label: String,
     isActive: Boolean,
-    onClick: () -> Unit
+    onClick: () -> Unit,
+    onLongClick: (() -> Unit)? = null,
 ) {
     Column(
         horizontalAlignment = Alignment.CenterHorizontally

@@ -8,7 +8,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Call
+import androidx.compose.material.icons.filled.Dialpad
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
@@ -39,6 +39,7 @@ private const val KEY_SIP_REGISTRAR = "sip_registrar"
 private const val KEY_SIP_DISPLAY_NAME = "sip_display_name"
 private const val KEY_SIP_TRANSPORT = "sip_transport"
 private const val KEY_SIP_PORT = "sip_port"
+private const val KEY_API_URL = "api_url"
 
 private enum class AppPhase {
     SPLASH,
@@ -114,6 +115,7 @@ fun AriaApp() {
                         .putString(KEY_SIP_DISPLAY_NAME, creds.displayName)
                         .putString(KEY_SIP_TRANSPORT, creds.transport)
                         .putString(KEY_SIP_PORT, creds.port.toString())
+                        .putString(KEY_API_URL, creds.apiUrl)
                         .apply()
                     phase = AppPhase.MAIN
                 },
@@ -124,13 +126,25 @@ fun AriaApp() {
         }
 
         AppPhase.MAIN -> {
-            MainApp(prefs = prefs)
+            MainApp(
+                prefs = prefs,
+                onSignOut = {
+                    // Clear all preferences
+                    prefs.edit().clear().apply()
+                    // Clear engine
+                    SipEngineHolder.engine = null
+                    phase = AppPhase.SETUP
+                },
+            )
         }
     }
 }
 
 @Composable
-private fun MainApp(prefs: android.content.SharedPreferences) {
+private fun MainApp(
+    prefs: android.content.SharedPreferences,
+    onSignOut: () -> Unit,
+) {
     val navController = rememberNavController()
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
@@ -151,30 +165,52 @@ private fun MainApp(prefs: android.content.SharedPreferences) {
     } else {
         Scaffold(
             bottomBar = {
-                NavigationBar {
+                NavigationBar(
+                    containerColor = MaterialTheme.colorScheme.surface,
+                ) {
                     NavigationBarItem(
-                        icon = { Icon(Icons.Default.Call, contentDescription = "Dialer") },
+                        icon = { Icon(Icons.Default.Dialpad, contentDescription = "Dialer") },
                         label = { Text("Dialer") },
                         selected = currentRoute == "dialer",
-                        onClick = { navController.navigate("dialer") { launchSingleTop = true } }
+                        onClick = { navController.navigate("dialer") { launchSingleTop = true } },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                        ),
                     )
                     NavigationBarItem(
                         icon = { Icon(Icons.Default.Contacts, contentDescription = "Contacts") },
                         label = { Text("Contacts") },
                         selected = currentRoute == "contacts",
-                        onClick = { navController.navigate("contacts") { launchSingleTop = true } }
+                        onClick = { navController.navigate("contacts") { launchSingleTop = true } },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                        ),
                     )
                     NavigationBarItem(
                         icon = { Icon(Icons.Default.History, contentDescription = "History") },
                         label = { Text("History") },
                         selected = currentRoute == "history",
-                        onClick = { navController.navigate("history") { launchSingleTop = true } }
+                        onClick = { navController.navigate("history") { launchSingleTop = true } },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                        ),
                     )
                     NavigationBarItem(
                         icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
                         label = { Text("Settings") },
                         selected = currentRoute == "settings",
-                        onClick = { navController.navigate("settings") { launchSingleTop = true } }
+                        onClick = { navController.navigate("settings") { launchSingleTop = true } },
+                        colors = NavigationBarItemDefaults.colors(
+                            selectedIconColor = MaterialTheme.colorScheme.primary,
+                            selectedTextColor = MaterialTheme.colorScheme.primary,
+                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                        ),
                     )
                 }
             }
@@ -194,7 +230,7 @@ private fun MainApp(prefs: android.content.SharedPreferences) {
                     HistoryScreen(onCall = { uri -> showCallScreen = true })
                 }
                 composable("settings") {
-                    SettingsScreen()
+                    SettingsScreen(onSignOut = onSignOut)
                 }
             }
         }
