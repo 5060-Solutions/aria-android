@@ -5,6 +5,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
 import androidx.compose.material3.*
@@ -39,12 +40,30 @@ fun SettingsScreen() {
     var deviceId by remember { mutableStateOf<String?>(null) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var fcmToken by remember { mutableStateOf<String?>(null) }
+    var showQRScanner by remember { mutableStateOf(false) }
 
     // Fetch FCM token on first composition
     LaunchedEffect(Unit) {
         FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
             fcmToken = token
         }
+    }
+
+    if (showQRScanner) {
+        QRScannerScreen(
+            onCredentialsScanned = { creds ->
+                sipDomain = creds.server
+                sipRegistrar = creds.server
+                sipPort = creds.port.toString()
+                sipUsername = creds.username
+                sipPassword = creds.password
+                sipDisplayName = creds.displayName
+                sipTransport = creds.transport.lowercase()
+                showQRScanner = false
+            },
+            onDismiss = { showQRScanner = false },
+        )
+        return
     }
 
     Scaffold(
@@ -92,6 +111,17 @@ fun SettingsScreen() {
                 "SIP Account",
                 style = MaterialTheme.typography.titleMedium
             )
+
+            Button(
+                onClick = { showQRScanner = true },
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(vertical = 8.dp),
+            ) {
+                Icon(Icons.Default.QrCodeScanner, contentDescription = null)
+                Spacer(Modifier.width(8.dp))
+                Text("Scan QR Code to Configure")
+            }
 
             OutlinedTextField(
                 value = sipDisplayName,
