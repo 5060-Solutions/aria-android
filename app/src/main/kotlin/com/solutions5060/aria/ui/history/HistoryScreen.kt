@@ -125,7 +125,11 @@ fun HistoryScreen(onCall: (String) -> Unit) {
                     .padding(padding)
             ) {
                 items(history) { entry ->
-                    HistoryRow(entry = entry, onCall = { onCall(entry.remoteUri) })
+                    // Strip SIP URI to just the extension/number for redialing
+                    val dialNumber = entry.remoteUri
+                        .removePrefix("sip:")
+                        .substringBefore("@")
+                    HistoryRow(entry = entry, onCall = { onCall(dialNumber) })
                 }
             }
         }

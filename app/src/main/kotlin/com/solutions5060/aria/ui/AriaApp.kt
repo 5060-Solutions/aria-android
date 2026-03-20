@@ -171,6 +171,7 @@ private fun MainApp(
     val navBackStackEntry by navController.currentBackStackEntryAsState()
     val currentRoute = navBackStackEntry?.destination?.route
 
+    val context = LocalContext.current
     var showCallScreen by remember { mutableStateOf(false) }
     var callError by remember { mutableStateOf<String?>(null) }
     var engineReady by remember { mutableStateOf(SipEngineHolder.engine != null) }
@@ -255,8 +256,10 @@ private fun MainApp(
                                 apiKey = gwToken,
                             )
                             val engine = uniffi.aria_mobile.AriaMobileEngine(config)
-                            engine.setAudioBridge(com.solutions5060.aria.service.AudioBridge())
+                            val bridge = com.solutions5060.aria.service.AudioBridge()
+                            engine.setAudioBridge(bridge)
                             SipEngineHolder.engine = engine
+                            SipEngineHolder.audioBridge = bridge
 
                             val registrar = prefs.getString(KEY_SIP_REGISTRAR, "") ?: ""
                             val transport = prefs.getString(KEY_SIP_TRANSPORT, "udp") ?: "udp"
@@ -294,12 +297,30 @@ private fun MainApp(
         }
     }
 
-    // Poll the engine for active call state
+    // Poll the engine for active call state and remote hangup detection
     LaunchedEffect(Unit) {
         while (true) {
-            val activeCall = SipEngineHolder.engine?.getActiveCall()
-            if (activeCall != null && !showCallScreen) {
-                showCallScreen = true
+            val engine = SipEngineHolder.engine
+            if (engine != null) {
+                val activeCall = engine.getActiveCall()
+                if (activeCall != null && !showCallScreen) {
+                    showCallScreen = true
+                }
+
+                // Check if remote party hung up
+                val endedCallId = engine.checkRemoteHangup()
+                if (endedCallId != null) {
+                    Log.i(TAG, "Remote hangup detected: $endedCallId")
+                    // Release audio hardware
+                    SipEngineHolder.audioBridge?.stop()
+                    // Stop foreground service
+                    try {
+                        val stopIntent = android.content.Intent(context, com.solutions5060.aria.service.IncomingCallService::class.java).apply {
+                            action = com.solutions5060.aria.service.IncomingCallService.ACTION_STOP
+                        }
+                        context.startService(stopIntent)
+                    } catch (_: Exception) {}
+                }
             }
             delay(500)
         }
@@ -329,7 +350,19 @@ private fun MainApp(
         callError = null
         showCallScreen = true
 
-        val sipUri = "sip:$number@$domain"
+        // Start foreground service for mic access (Android requires foreground service for RECORD_AUDIO)
+        try {
+            val serviceIntent = android.content.Intent(context, com.solutions5060.aria.service.IncomingCallService::class.java).apply {
+                putExtra(com.solutions5060.aria.service.IncomingCallService.EXTRA_CALLER_NAME, number)
+                putExtra(com.solutions5060.aria.service.IncomingCallService.EXTRA_MODE, com.solutions5060.aria.service.IncomingCallService.MODE_ACTIVE)
+            }
+            context.startForegroundService(serviceIntent)
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to start call foreground service: ${e.message}")
+        }
+
+        // Normalize: if already a SIP URI, use as-is; otherwise construct one
+        val sipUri = if (number.startsWith("sip:")) number else "sip:$number@$domain"
         val credentials = SipCredentials(
             username = username,
             password = password,
@@ -354,8 +387,45 @@ private fun MainApp(
         }.start()
     }
 
+    // Track last call info for history
     if (showCallScreen) {
-        CallScreen(onDismiss = { showCallScreen = false })
+        CallScreen(onDismiss = {
+            // Save call to history
+            try {
+                val activeCall = SipEngineHolder.engine?.getActiveCall()
+                val uri = activeCall?.remoteUri ?: ""
+                if (uri.isNotEmpty()) {
+                    val entry = com.solutions5060.aria.ui.history.CallHistoryEntry(
+                        id = java.util.UUID.randomUUID().toString(),
+                        remoteUri = uri,
+                        remoteName = activeCall?.remoteName,
+                        direction = if (activeCall?.direction == uniffi.aria_mobile.CallDirection.INBOUND) "inbound" else "outbound",
+                        timestamp = System.currentTimeMillis(),
+                        durationSeconds = (activeCall?.durationSecs ?: 0u).toInt(),
+                        missed = false,
+                    )
+                    val history = com.solutions5060.aria.ui.history.loadHistory(context).toMutableList()
+                    history.add(0, entry)
+                    if (history.size > 100) history.subList(100, history.size).clear()
+                    com.solutions5060.aria.ui.history.saveHistory(context, history)
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Failed to save call history: ${e.message}")
+            }
+
+            // Release audio hardware so other apps can use it
+            SipEngineHolder.audioBridge?.stop()
+
+            // Stop foreground service
+            try {
+                val stopIntent = android.content.Intent(context, com.solutions5060.aria.service.IncomingCallService::class.java).apply {
+                    action = com.solutions5060.aria.service.IncomingCallService.ACTION_STOP
+                }
+                context.startService(stopIntent)
+            } catch (_: Exception) {}
+
+            showCallScreen = false
+        })
     } else {
         Scaffold(
             bottomBar = {

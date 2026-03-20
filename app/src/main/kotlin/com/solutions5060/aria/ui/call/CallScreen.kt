@@ -77,8 +77,14 @@ fun CallScreen(onDismiss: () -> Unit) {
                     rxLevel = SipEngineHolder.engine?.getRxAudioLevel(activeCall.callId) ?: 0f
                     txLevel = SipEngineHolder.engine?.getTxAudioLevel(activeCall.callId) ?: 0f
                 } catch (_: Exception) {}
+            } else if (callState != CallState.IDLE && callState != CallState.CONNECTING) {
+                // Call disappeared (remote hangup or ended)
+                callState = CallState.ENDED
+                delay(1000) // Brief pause so user sees "Call Ended"
+                onDismiss()
+                break
             } else if (callState == CallState.ENDED || callState == CallState.IDLE) {
-                delay(500) // Brief pause so user sees "Call Ended"
+                delay(500)
                 onDismiss()
                 break
             }

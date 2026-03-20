@@ -1,11 +1,14 @@
 package com.solutions5060.aria.ui.dialer
 
 import androidx.compose.animation.*
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -18,8 +21,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
@@ -42,6 +47,8 @@ fun DialerScreen(
     onDismissError: () -> Unit = {},
 ) {
     var number by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val lastDialedKey = "last_dialed_number"
     val haptic = LocalHapticFeedback.current
     val clipboardManager = LocalClipboardManager.current
 
@@ -176,7 +183,10 @@ fun DialerScreen(
 
                 if (number.isNotEmpty()) {
                     IconButton(
-                        onClick = { number = number.dropLast(1) },
+                        onClick = {
+                            number = number.dropLast(1)
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        },
                         modifier = Modifier.size(44.dp),
                     ) {
                         Icon(
@@ -272,7 +282,18 @@ fun DialerScreen(
             FloatingActionButton(
                 onClick = {
                     if (number.isNotEmpty()) {
+                        // Save as last dialed and place call
+                        context.getSharedPreferences("aria_prefs", android.content.Context.MODE_PRIVATE)
+                            .edit().putString(lastDialedKey, number).apply()
                         onCall(number)
+                    } else {
+                        // Empty field — fill with last dialed number for redial
+                        val lastDialed = context.getSharedPreferences("aria_prefs", android.content.Context.MODE_PRIVATE)
+                            .getString(lastDialedKey, null)
+                        if (!lastDialed.isNullOrEmpty()) {
+                            number = lastDialed
+                            haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+                        }
                     }
                 },
                 containerColor = AriaGreen,
@@ -304,21 +325,75 @@ private fun DialPadKey(
     onClick: () -> Unit,
     onLongClick: (() -> Unit)? = null,
 ) {
+    val interactionSource = remember { androidx.compose.foundation.interaction.MutableInteractionSource() }
+    val isPressed by interactionSource.collectIsPressedAsState()
+    val context = LocalContext.current
+
+    // Play DTMF tone on press
+    val toneGenerator = remember {
+        try { android.media.ToneGenerator(android.media.AudioManager.STREAM_DTMF, 80) }
+        catch (_: Exception) { null }
+    }
+    val toneMap = remember {
+        mapOf(
+            "1" to android.media.ToneGenerator.TONE_DTMF_1,
+            "2" to android.media.ToneGenerator.TONE_DTMF_2,
+            "3" to android.media.ToneGenerator.TONE_DTMF_3,
+            "4" to android.media.ToneGenerator.TONE_DTMF_4,
+            "5" to android.media.ToneGenerator.TONE_DTMF_5,
+            "6" to android.media.ToneGenerator.TONE_DTMF_6,
+            "7" to android.media.ToneGenerator.TONE_DTMF_7,
+            "8" to android.media.ToneGenerator.TONE_DTMF_8,
+            "9" to android.media.ToneGenerator.TONE_DTMF_9,
+            "0" to android.media.ToneGenerator.TONE_DTMF_0,
+            "*" to android.media.ToneGenerator.TONE_DTMF_S,
+            "#" to android.media.ToneGenerator.TONE_DTMF_P,
+        )
+    }
+
+    // Scale animation on press
+    val scale by animateFloatAsState(
+        targetValue = if (isPressed) 0.92f else 1f,
+        animationSpec = spring(dampingRatio = 0.4f, stiffness = 800f),
+        label = "keyScale",
+    )
+
     Surface(
         modifier = Modifier
             .size(76.dp)
+            .graphicsLayer {
+                scaleX = scale
+                scaleY = scale
+            }
             .border(
-                width = 1.dp,
-                color = MaterialTheme.colorScheme.outline.copy(alpha = 0.35f),
+                width = if (isPressed) 1.5.dp else 1.dp,
+                color = if (isPressed) {
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                } else {
+                    MaterialTheme.colorScheme.outline.copy(alpha = 0.35f)
+                },
                 shape = CircleShape,
             )
             .combinedClickable(
-                onClick = onClick,
+                interactionSource = interactionSource,
+                indication = androidx.compose.material3.ripple(
+                    bounded = true,
+                    radius = 38.dp,
+                    color = MaterialTheme.colorScheme.primary,
+                ),
+                onClick = {
+                    toneGenerator?.startTone(toneMap[digit] ?: android.media.ToneGenerator.TONE_DTMF_0, 80)
+                    onClick()
+                },
                 onLongClick = onLongClick,
             ),
         shape = CircleShape,
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f),
-        tonalElevation = 1.dp,
+        color = if (isPressed) {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f)
+        } else {
+            MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+        },
+        tonalElevation = if (isPressed) 0.dp else 2.dp,
     ) {
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,

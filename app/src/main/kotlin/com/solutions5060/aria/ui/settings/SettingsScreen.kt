@@ -131,8 +131,10 @@ fun SettingsScreen(onSignOut: () -> Unit = {}) {
                 val gwToken = deviceResult.gatewayToken.ifEmpty { loginResult.jwt }
                 val config = GatewayConfig(baseUrl = gwUrl, apiKey = gwToken)
                 val engine = AriaMobileEngine(config)
-                engine.setAudioBridge(com.solutions5060.aria.service.AudioBridge())
+                val bridge = com.solutions5060.aria.service.AudioBridge()
+                engine.setAudioBridge(bridge)
                 SipEngineHolder.engine = engine
+                SipEngineHolder.audioBridge = bridge
 
                 val credentials = SipCredentials(
                     username = sipUsername,

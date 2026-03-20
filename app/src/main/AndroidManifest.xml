@@ -72,7 +72,7 @@
         <!-- Incoming call foreground service -->
         <service
             android:name=".service.IncomingCallService"
-            android:foregroundServiceType="phoneCall"
+            android:foregroundServiceType="phoneCall|microphone"
             android:exported="false" />
 
     </application>

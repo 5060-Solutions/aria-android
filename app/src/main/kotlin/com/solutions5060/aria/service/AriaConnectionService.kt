@@ -226,4 +226,5 @@ class AriaConnection : Connection() {
  */
 object SipEngineHolder {
     var engine: uniffi.aria_mobile.AriaMobileEngine? = null
+    var audioBridge: com.solutions5060.aria.service.AudioBridge? = null
 }

@@ -833,6 +833,8 @@ internal open class UniffiVTableCallbackInterfacePlatformAudioBridge(
 
 
 
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -861,6 +863,8 @@ internal interface UniffiLib : Library {
     fun uniffi_aria_mobile_core_fn_constructor_ariamobileengine_new(`gatewayConfig`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Pointer
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_accept_incoming_call(`ptr`: Pointer,`callToken`: RustBuffer.ByValue,`preferredCodecs`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_check_remote_hangup(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_get_active_call(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
@@ -1022,6 +1026,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_accept_incoming_call(
     ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_check_remote_hangup(
+    ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_active_call(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_media_stats(
@@ -1096,6 +1102,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_accept_incoming_call() != 41420.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_check_remote_hangup() != 44253.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_active_call() != 15775.toShort()) {
@@ -1611,6 +1620,13 @@ public interface AriaMobileEngineInterface {
     fun `acceptIncomingCall`(`callToken`: kotlin.String, `preferredCodecs`: List<AudioCodec>): CallInfo
     
     /**
+     * Check if any active call was ended by the remote party.
+     * Returns the call_id if detected, null otherwise.
+     * The app should call this periodically from a UI timer (~2s).
+     */
+    fun `checkRemoteHangup`(): kotlin.String?
+    
+    /**
      * Get current call info, if any.
      */
     fun `getActiveCall`(): CallInfo?
@@ -1803,6 +1819,23 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
     uniffiRustCallWithError(MobileException) { _status ->
     UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_accept_incoming_call(
         it, FfiConverterString.lower(`callToken`),FfiConverterSequenceTypeAudioCodec.lower(`preferredCodecs`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Check if any active call was ended by the remote party.
+     * Returns the call_id if detected, null otherwise.
+     * The app should call this periodically from a UI timer (~2s).
+     */override fun `checkRemoteHangup`(): kotlin.String? {
+            return FfiConverterOptionalString.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_check_remote_hangup(
+        it, _status)
 }
     }
     )
