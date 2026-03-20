@@ -47,15 +47,36 @@ class AriaFirebaseMessagingService : FirebaseMessagingService() {
         val data = message.data
 
         // Check if this is a VoIP call notification
-        val callToken = data["call_token"] ?: return
-        val callerUri = data["caller_uri"] ?: "Unknown"
-        val callerName = data["caller_name"]
-        val gatewayUrl = data["gateway_url"] ?: return
+        // Gateway sends camelCase keys
+        val callToken = data["callToken"] ?: data["call_token"] ?: return
+        val callerUri = data["callerUri"] ?: data["caller_uri"] ?: "Unknown"
+        val callerName = data["callerName"] ?: data["caller_name"]
+        val gatewayUrl = data["gatewayUrl"] ?: data["gateway_url"] ?: "https://push.ariaroute.com"
 
         Log.i(TAG, "Incoming call from $callerUri (token: ${callToken.take(8)})")
 
-        // Report incoming call via Telecom ConnectionService
-        reportIncomingCall(callToken, callerUri, callerName)
+        // Start foreground service for the incoming call (ringtone + notification)
+        try {
+            val serviceIntent = Intent(this, IncomingCallService::class.java).apply {
+                putExtra(IncomingCallService.EXTRA_CALL_TOKEN, callToken)
+                putExtra(IncomingCallService.EXTRA_CALLER_URI, callerUri)
+                putExtra(IncomingCallService.EXTRA_CALLER_NAME, callerName)
+                putExtra(IncomingCallService.EXTRA_GATEWAY_URL, gatewayUrl)
+                putExtra(IncomingCallService.EXTRA_MODE, IncomingCallService.MODE_INCOMING)
+            }
+            startForegroundService(serviceIntent)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to start foreground service: $e")
+            // Fallback to notification
+            showIncomingCallNotification(callToken, callerUri, callerName)
+        }
+
+        // Try Telecom ConnectionService for native call UI (may fail without permission)
+        try {
+            reportIncomingCall(callToken, callerUri, callerName)
+        } catch (e: Exception) {
+            Log.e(TAG, "Telecom reportIncomingCall failed: $e")
+        }
 
         // Also fetch the full call offer from the gateway
         Thread {

@@ -49,6 +49,7 @@ data class ProvisioningCredentials(
 
 fun parseProvisioningUri(uriString: String): ProvisioningCredentials? {
     return try {
+        Log.d(TAG, "Parsing provisioning URI: $uriString")
         val uri = Uri.parse(uriString)
         if (uri.scheme != "aria" || uri.host != "provision") return null
 
@@ -62,6 +63,8 @@ fun parseProvisioningUri(uriString: String): ProvisioningCredentials? {
         val voicemail = uri.getQueryParameter("vm") ?: ""
         val apiUrl = uri.getQueryParameter("api") ?: ""
         val tenantDomain = uri.getQueryParameter("tenant") ?: ""
+
+        Log.d(TAG, "Parsed params: server=$server, user=$user, name=$name, api=$apiUrl, tenant=$tenantDomain")
 
         ProvisioningCredentials(
             server = server,

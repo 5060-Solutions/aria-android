@@ -36,6 +36,7 @@ class PbxApiClient(private val baseUrl: String) {
         val deviceId: String,
         val sipDomain: String,
         val gatewayUrl: String,
+        val gatewayToken: String,
     )
 
     /**
@@ -115,6 +116,7 @@ class PbxApiClient(private val baseUrl: String) {
             deviceId = json.getString("device_id"),
             sipDomain = json.optString("sip_domain", ""),
             gatewayUrl = json.optString("gateway_url", ""),
+            gatewayToken = json.optString("gateway_token", ""),
         )
     }
 

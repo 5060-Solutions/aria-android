@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Call
 import androidx.compose.material.icons.filled.Contacts
@@ -25,6 +26,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 
 data class Contact(
@@ -54,14 +56,12 @@ fun ContactsScreen(onCall: (String) -> Unit) {
         permissionDenied = !granted
     }
 
-    // Request permission on first composition if not already granted
     LaunchedEffect(Unit) {
         if (!hasPermission) {
             permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
         }
     }
 
-    // Load contacts when permission is granted
     LaunchedEffect(hasPermission) {
         if (hasPermission) {
             contacts = loadContacts(context.contentResolver)
@@ -83,7 +83,7 @@ fun ContactsScreen(onCall: (String) -> Unit) {
                 active = false,
                 onActiveChange = {},
                 leadingIcon = { Icon(Icons.Default.Search, contentDescription = "Search") },
-                placeholder = { Text("Search contacts") },
+                placeholder = { Text("Search contacts", fontSize = 16.sp) },
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(horizontal = 16.dp)
@@ -92,7 +92,6 @@ fun ContactsScreen(onCall: (String) -> Unit) {
     ) { padding ->
         when {
             permissionDenied && !hasPermission -> {
-                // Permission rationale / denied state
                 Column(
                     modifier = Modifier
                         .fillMaxSize()
@@ -104,30 +103,32 @@ fun ContactsScreen(onCall: (String) -> Unit) {
                     Icon(
                         Icons.Default.Contacts,
                         contentDescription = null,
-                        modifier = Modifier.size(64.dp),
-                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f)
+                        modifier = Modifier.size(72.dp),
+                        tint = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                     )
-                    Spacer(modifier = Modifier.height(16.dp))
+                    Spacer(modifier = Modifier.height(20.dp))
                     Text(
                         "Contacts permission required",
-                        style = MaterialTheme.typography.titleMedium,
+                        style = MaterialTheme.typography.titleLarge,
                         textAlign = TextAlign.Center
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
                         "Aria needs access to your contacts to show them here and let you call them directly.",
-                        style = MaterialTheme.typography.bodyMedium,
+                        style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
                         textAlign = TextAlign.Center
                     )
-                    Spacer(modifier = Modifier.height(24.dp))
+                    Spacer(modifier = Modifier.height(28.dp))
                     Button(
                         onClick = {
                             permissionDenied = false
                             permissionLauncher.launch(Manifest.permission.READ_CONTACTS)
-                        }
+                        },
+                        modifier = Modifier.height(52.dp),
+                        shape = RoundedCornerShape(16.dp),
                     ) {
-                        Text("Grant Permission")
+                        Text("Grant Permission", fontSize = 16.sp, fontWeight = FontWeight.SemiBold)
                     }
                 }
             }
@@ -141,6 +142,7 @@ fun ContactsScreen(onCall: (String) -> Unit) {
                 ) {
                     Text(
                         "No contacts found",
+                        style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.5f)
                     )
                 }
@@ -171,40 +173,51 @@ private fun ContactRow(contact: Contact, onCall: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onCall)
-            .padding(horizontal = 16.dp, vertical = 12.dp),
+            .padding(horizontal = 20.dp, vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Avatar
         Box(
             modifier = Modifier
-                .size(40.dp)
+                .size(48.dp)
                 .clip(CircleShape)
                 .background(MaterialTheme.colorScheme.primaryContainer),
             contentAlignment = Alignment.Center
         ) {
             Text(
                 text = contact.name.take(1).uppercase(),
+                fontSize = 18.sp,
                 fontWeight = FontWeight.Bold,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
         }
 
-        Spacer(modifier = Modifier.width(12.dp))
+        Spacer(modifier = Modifier.width(16.dp))
 
         Column(modifier = Modifier.weight(1f)) {
-            Text(contact.name, style = MaterialTheme.typography.bodyLarge)
+            Text(
+                contact.name,
+                style = MaterialTheme.typography.bodyLarge,
+                fontSize = 17.sp,
+                fontWeight = FontWeight.Medium,
+            )
+            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 contact.phoneNumber,
-                style = MaterialTheme.typography.bodySmall,
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f)
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
         }
 
-        IconButton(onClick = onCall) {
+        IconButton(
+            onClick = onCall,
+            modifier = Modifier.size(48.dp),
+        ) {
             Icon(
                 Icons.Default.Call,
                 contentDescription = "Call",
-                tint = MaterialTheme.colorScheme.primary
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(24.dp),
             )
         }
     }

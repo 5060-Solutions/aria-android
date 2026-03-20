@@ -669,6 +669,12 @@ internal interface UniffiCallbackInterfaceMobileEventHandlerMethod3 : com.sun.jn
 internal interface UniffiCallbackInterfaceMobileEventHandlerMethod4 : com.sun.jna.Callback {
     fun callback(`uniffiHandle`: Long,`context`: RustBuffer.ByValue,`message`: RustBuffer.ByValue,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
 }
+internal interface UniffiCallbackInterfacePlatformAudioBridgeMethod0 : com.sun.jna.Callback {
+    fun callback(`uniffiHandle`: Long,`samples`: RustBuffer.ByValue,`sampleRate`: Int,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
+}
+internal interface UniffiCallbackInterfacePlatformAudioBridgeMethod1 : com.sun.jna.Callback {
+    fun callback(`uniffiHandle`: Long,`sampleRate`: Int,`frameSize`: Int,`uniffiOutReturn`: RustBuffer,uniffiCallStatus: UniffiRustCallStatus,)
+}
 @Structure.FieldOrder("onRegistrationChanged", "onIncomingCall", "onCallStateChanged", "onMediaStats", "onError", "uniffiFree")
 internal open class UniffiVTableCallbackInterfaceMobileEventHandler(
     @JvmField internal var `onRegistrationChanged`: UniffiCallbackInterfaceMobileEventHandlerMethod0? = null,
@@ -697,6 +703,34 @@ internal open class UniffiVTableCallbackInterfaceMobileEventHandler(
     }
 
 }
+@Structure.FieldOrder("onPlaybackAudio", "onCaptureAudio", "uniffiFree")
+internal open class UniffiVTableCallbackInterfacePlatformAudioBridge(
+    @JvmField internal var `onPlaybackAudio`: UniffiCallbackInterfacePlatformAudioBridgeMethod0? = null,
+    @JvmField internal var `onCaptureAudio`: UniffiCallbackInterfacePlatformAudioBridgeMethod1? = null,
+    @JvmField internal var `uniffiFree`: UniffiCallbackInterfaceFree? = null,
+) : Structure() {
+    class UniffiByValue(
+        `onPlaybackAudio`: UniffiCallbackInterfacePlatformAudioBridgeMethod0? = null,
+        `onCaptureAudio`: UniffiCallbackInterfacePlatformAudioBridgeMethod1? = null,
+        `uniffiFree`: UniffiCallbackInterfaceFree? = null,
+    ): UniffiVTableCallbackInterfacePlatformAudioBridge(`onPlaybackAudio`,`onCaptureAudio`,`uniffiFree`,), Structure.ByValue
+
+   internal fun uniffiSetValue(other: UniffiVTableCallbackInterfacePlatformAudioBridge) {
+        `onPlaybackAudio` = other.`onPlaybackAudio`
+        `onCaptureAudio` = other.`onCaptureAudio`
+        `uniffiFree` = other.`uniffiFree`
+    }
+
+}
+
+
+
+
+
+
+
+
+
 
 
 
@@ -810,6 +844,7 @@ internal interface UniffiLib : Library {
                 uniffiCheckContractApiVersion(lib)
                 uniffiCheckApiChecksums(lib)
                 uniffiCallbackInterfaceMobileEventHandler.register(lib)
+                uniffiCallbackInterfacePlatformAudioBridge.register(lib)
                 }
         }
         
@@ -831,6 +866,10 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_get_media_stats(`ptr`: Pointer,`callId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_get_rx_audio_level(`ptr`: Pointer,`callId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Float
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_get_tx_audio_level(`ptr`: Pointer,`callId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Float
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_handle_push_notification(`ptr`: Pointer,`payload`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_hangup(`ptr`: Pointer,`callId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -842,6 +881,8 @@ internal interface UniffiLib : Library {
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_reject_incoming_call(`ptr`: Pointer,`callToken`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_send_dtmf(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`digit`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_set_audio_bridge(`ptr`: Pointer,`bridge`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_set_codec_preferences(`ptr`: Pointer,`codecs`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
@@ -856,6 +897,8 @@ internal interface UniffiLib : Library {
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_update_push_token(`ptr`: Pointer,`deviceId`: RustBuffer.ByValue,`newToken`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_aria_mobile_core_fn_init_callback_vtable_mobileeventhandler(`vtable`: UniffiVTableCallbackInterfaceMobileEventHandler,
+    ): Unit
+    fun uniffi_aria_mobile_core_fn_init_callback_vtable_platformaudiobridge(`vtable`: UniffiVTableCallbackInterfacePlatformAudioBridge,
     ): Unit
     fun uniffi_aria_mobile_core_fn_func_init_runtime(uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
@@ -983,6 +1026,10 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_media_stats(
     ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_rx_audio_level(
+    ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_tx_audio_level(
+    ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_handle_push_notification(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_hangup(
@@ -994,6 +1041,8 @@ internal interface UniffiLib : Library {
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_reject_incoming_call(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_send_dtmf(
+    ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_audio_bridge(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_codec_preferences(
     ): Short
@@ -1018,6 +1067,10 @@ internal interface UniffiLib : Library {
     fun uniffi_aria_mobile_core_checksum_method_mobileeventhandler_on_media_stats(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_mobileeventhandler_on_error(
+    ): Short
+    fun uniffi_aria_mobile_core_checksum_method_platformaudiobridge_on_playback_audio(
+    ): Short
+    fun uniffi_aria_mobile_core_checksum_method_platformaudiobridge_on_capture_audio(
     ): Short
     fun ffi_aria_mobile_core_uniffi_contract_version(
     ): Int
@@ -1051,6 +1104,12 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_media_stats() != 33992.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_rx_audio_level() != 38138.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_tx_audio_level() != 52151.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_handle_push_notification() != 22000.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1067,6 +1126,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_send_dtmf() != 53101.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_audio_bridge() != 31926.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_codec_preferences() != 17660.toShort()) {
@@ -1103,6 +1165,12 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_mobileeventhandler_on_error() != 53165.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_method_platformaudiobridge_on_playback_audio() != 63626.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_method_platformaudiobridge_on_capture_audio() != 19347.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
 }
@@ -1178,6 +1246,29 @@ public object FfiConverterUShort: FfiConverter<UShort, Short> {
 /**
  * @suppress
  */
+public object FfiConverterShort: FfiConverter<Short, Short> {
+    override fun lift(value: Short): Short {
+        return value
+    }
+
+    override fun read(buf: ByteBuffer): Short {
+        return buf.getShort()
+    }
+
+    override fun lower(value: Short): Short {
+        return value
+    }
+
+    override fun allocationSize(value: Short) = 2UL
+
+    override fun write(value: Short, buf: ByteBuffer) {
+        buf.putShort(value)
+    }
+}
+
+/**
+ * @suppress
+ */
 public object FfiConverterUInt: FfiConverter<UInt, Int> {
     override fun lift(value: Int): UInt {
         return value.toUInt()
@@ -1218,6 +1309,29 @@ public object FfiConverterULong: FfiConverter<ULong, Long> {
 
     override fun write(value: ULong, buf: ByteBuffer) {
         buf.putLong(value.toLong())
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterFloat: FfiConverter<Float, Float> {
+    override fun lift(value: Float): Float {
+        return value
+    }
+
+    override fun read(buf: ByteBuffer): Float {
+        return buf.getFloat()
+    }
+
+    override fun lower(value: Float): Float {
+        return value
+    }
+
+    override fun allocationSize(value: Float) = 4UL
+
+    override fun write(value: Float, buf: ByteBuffer) {
+        buf.putFloat(value)
     }
 }
 
@@ -1507,6 +1621,16 @@ public interface AriaMobileEngineInterface {
     fun `getMediaStats`(`callId`: kotlin.String): MediaStats?
     
     /**
+     * Get RX audio level for a call (0.0 = silence).
+     */
+    fun `getRxAudioLevel`(`callId`: kotlin.String): kotlin.Float
+    
+    /**
+     * Get TX audio level for a call (0.0 = silence).
+     */
+    fun `getTxAudioLevel`(`callId`: kotlin.String): kotlin.Float
+    
+    /**
      * Process a push notification payload and retrieve the call offer.
      */
     fun `handlePushNotification`(`payload`: PushCallPayload): CallOffer
@@ -1536,6 +1660,11 @@ public interface AriaMobileEngineInterface {
      * Send a DTMF digit.
      */
     fun `sendDtmf`(`callId`: kotlin.String, `digit`: kotlin.String)
+    
+    /**
+     * Set the platform audio bridge for microphone/speaker I/O.
+     */
+    fun `setAudioBridge`(`bridge`: PlatformAudioBridge)
     
     /**
      * Set the preferred audio codec order.
@@ -1712,6 +1841,36 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
+     * Get RX audio level for a call (0.0 = silence).
+     */override fun `getRxAudioLevel`(`callId`: kotlin.String): kotlin.Float {
+            return FfiConverterFloat.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_get_rx_audio_level(
+        it, FfiConverterString.lower(`callId`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Get TX audio level for a call (0.0 = silence).
+     */override fun `getTxAudioLevel`(`callId`: kotlin.String): kotlin.Float {
+            return FfiConverterFloat.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_get_tx_audio_level(
+        it, FfiConverterString.lower(`callId`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
      * Process a push notification payload and retrieve the call offer.
      */
     @Throws(MobileException::class)override fun `handlePushNotification`(`payload`: PushCallPayload): CallOffer {
@@ -1799,6 +1958,20 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
     uniffiRustCallWithError(MobileException) { _status ->
     UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_send_dtmf(
         it, FfiConverterString.lower(`callId`),FfiConverterString.lower(`digit`),_status)
+}
+    }
+    
+    
+
+    
+    /**
+     * Set the platform audio bridge for microphone/speaker I/O.
+     */override fun `setAudioBridge`(`bridge`: PlatformAudioBridge)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_set_audio_bridge(
+        it, FfiConverterTypePlatformAudioBridge.lower(`bridge`),_status)
 }
     }
     
@@ -2669,6 +2842,88 @@ public object FfiConverterTypeMobileEventHandler: FfiConverterCallbackInterface<
 
 
 
+
+/**
+ * Callback interface for platform audio I/O (microphone + speaker).
+ * Implemented by the Android (Oboe/AudioTrack) or iOS (AudioUnit) layer.
+ */
+public interface PlatformAudioBridge {
+    
+    /**
+     * Called when decoded PCM audio is ready for playback (speaker).
+     * Samples are mono i16 at the given sample rate.
+     */
+    fun `onPlaybackAudio`(`samples`: List<kotlin.Short>, `sampleRate`: kotlin.UInt)
+    
+    /**
+     * Called to request microphone audio for sending.
+     * Should return mono i16 PCM at the given sample rate, frame_size samples.
+     */
+    fun `onCaptureAudio`(`sampleRate`: kotlin.UInt, `frameSize`: kotlin.UInt): List<kotlin.Short>
+    
+    companion object
+}
+
+
+
+// Put the implementation in an object so we don't pollute the top-level namespace
+internal object uniffiCallbackInterfacePlatformAudioBridge {
+    internal object `onPlaybackAudio`: UniffiCallbackInterfacePlatformAudioBridgeMethod0 {
+        override fun callback(`uniffiHandle`: Long,`samples`: RustBuffer.ByValue,`sampleRate`: Int,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,) {
+            val uniffiObj = FfiConverterTypePlatformAudioBridge.handleMap.get(uniffiHandle)
+            val makeCall = { ->
+                uniffiObj.`onPlaybackAudio`(
+                    FfiConverterSequenceShort.lift(`samples`),
+                    FfiConverterUInt.lift(`sampleRate`),
+                )
+            }
+            val writeReturn = { _: Unit -> Unit }
+            uniffiTraitInterfaceCall(uniffiCallStatus, makeCall, writeReturn)
+        }
+    }
+    internal object `onCaptureAudio`: UniffiCallbackInterfacePlatformAudioBridgeMethod1 {
+        override fun callback(`uniffiHandle`: Long,`sampleRate`: Int,`frameSize`: Int,`uniffiOutReturn`: RustBuffer,uniffiCallStatus: UniffiRustCallStatus,) {
+            val uniffiObj = FfiConverterTypePlatformAudioBridge.handleMap.get(uniffiHandle)
+            val makeCall = { ->
+                uniffiObj.`onCaptureAudio`(
+                    FfiConverterUInt.lift(`sampleRate`),
+                    FfiConverterUInt.lift(`frameSize`),
+                )
+            }
+            val writeReturn = { value: List<kotlin.Short> -> uniffiOutReturn.setValue(FfiConverterSequenceShort.lower(value)) }
+            uniffiTraitInterfaceCall(uniffiCallStatus, makeCall, writeReturn)
+        }
+    }
+
+    internal object uniffiFree: UniffiCallbackInterfaceFree {
+        override fun callback(handle: Long) {
+            FfiConverterTypePlatformAudioBridge.handleMap.remove(handle)
+        }
+    }
+
+    internal var vtable = UniffiVTableCallbackInterfacePlatformAudioBridge.UniffiByValue(
+        `onPlaybackAudio`,
+        `onCaptureAudio`,
+        uniffiFree,
+    )
+
+    // Registers the foreign callback with the Rust side.
+    // This method is generated for each callback interface.
+    internal fun register(lib: UniffiLib) {
+        lib.uniffi_aria_mobile_core_fn_init_callback_vtable_platformaudiobridge(vtable)
+    }
+}
+
+/**
+ * The ffiConverter which transforms the Callbacks in to handles to pass to Rust.
+ *
+ * @suppress
+ */
+public object FfiConverterTypePlatformAudioBridge: FfiConverterCallbackInterface<PlatformAudioBridge>()
+
+
+
+
 /**
  * @suppress
  */
@@ -2758,6 +3013,34 @@ public object FfiConverterOptionalTypeMediaStats: FfiConverterRustBuffer<MediaSt
         } else {
             buf.put(1)
             FfiConverterTypeMediaStats.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceShort: FfiConverterRustBuffer<List<kotlin.Short>> {
+    override fun read(buf: ByteBuffer): List<kotlin.Short> {
+        val len = buf.getInt()
+        return List<kotlin.Short>(len) {
+            FfiConverterShort.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<kotlin.Short>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterShort.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<kotlin.Short>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterShort.write(it, buf)
         }
     }
 }

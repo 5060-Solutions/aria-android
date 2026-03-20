@@ -4,6 +4,7 @@ import android.Manifest
 import android.content.Context
 import android.content.pm.PackageManager
 import android.os.Build
+import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.padding
@@ -12,10 +13,17 @@ import androidx.compose.material.icons.filled.Dialpad
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.outlined.Contacts
+import androidx.compose.material.icons.outlined.History
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -30,7 +38,11 @@ import com.solutions5060.aria.ui.settings.SettingsScreen
 import com.solutions5060.aria.ui.setup.SetupScreen
 import com.solutions5060.aria.ui.splash.SplashScreen
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.tasks.await
+import uniffi.aria_mobile.AudioCodec
+import uniffi.aria_mobile.SipCredentials
 
+private const val TAG = "AriaApp"
 private const val PREFS_NAME = "aria_prefs"
 private const val KEY_SIP_USERNAME = "sip_username"
 private const val KEY_SIP_PASSWORD = "sip_password"
@@ -48,6 +60,20 @@ private enum class AppPhase {
     MAIN,
 }
 
+private data class NavTab(
+    val route: String,
+    val label: String,
+    val selectedIcon: ImageVector,
+    val unselectedIcon: ImageVector,
+)
+
+private val navTabs = listOf(
+    NavTab("dialer", "Dialer", Icons.Filled.Dialpad, Icons.Filled.Dialpad),
+    NavTab("contacts", "Contacts", Icons.Filled.Contacts, Icons.Outlined.Contacts),
+    NavTab("history", "History", Icons.Filled.History, Icons.Outlined.History),
+    NavTab("settings", "Settings", Icons.Filled.Settings, Icons.Outlined.Settings),
+)
+
 @Composable
 fun AriaApp() {
     val context = LocalContext.current
@@ -56,7 +82,6 @@ fun AriaApp() {
     var phase by remember { mutableStateOf(AppPhase.SPLASH) }
     var permissionsRequested by remember { mutableStateOf(false) }
 
-    // Build the list of permissions to request
     val requiredPermissions = remember {
         buildList {
             add(Manifest.permission.READ_CONTACTS)
@@ -71,16 +96,13 @@ fun AriaApp() {
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestMultiplePermissions()
     ) { _ ->
-        // Move forward regardless of results — individual screens handle their own
         permissionsRequested = true
         val username = prefs.getString(KEY_SIP_USERNAME, "") ?: ""
         phase = if (username.isEmpty()) AppPhase.SETUP else AppPhase.MAIN
     }
 
-    // Advance from permissions phase
     LaunchedEffect(phase) {
         if (phase == AppPhase.PERMISSIONS) {
-            // Check if all permissions already granted
             val allGranted = requiredPermissions.all {
                 ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
             }
@@ -100,22 +122,24 @@ fun AriaApp() {
         }
 
         AppPhase.PERMISSIONS -> {
-            // Show splash still while the system dialog is up
             SplashScreen(onFinished = {})
         }
 
         AppPhase.SETUP -> {
             SetupScreen(
                 onCredentialsScanned = { creds ->
+                    // SIP domain = tenant domain (used in From/To headers for auth)
+                    // SIP registrar = server address (where to send REGISTER)
                     prefs.edit()
                         .putString(KEY_SIP_USERNAME, creds.username)
                         .putString(KEY_SIP_PASSWORD, creds.password)
-                        .putString(KEY_SIP_DOMAIN, creds.server)
+                        .putString(KEY_SIP_DOMAIN, creds.tenantDomain.ifEmpty { creds.server })
                         .putString(KEY_SIP_REGISTRAR, creds.server)
                         .putString(KEY_SIP_DISPLAY_NAME, creds.displayName)
                         .putString(KEY_SIP_TRANSPORT, creds.transport)
                         .putString(KEY_SIP_PORT, creds.port.toString())
                         .putString(KEY_API_URL, creds.apiUrl)
+                        .putString("tenant_domain", creds.tenantDomain)
                         .apply()
                     phase = AppPhase.MAIN
                 },
@@ -129,9 +153,7 @@ fun AriaApp() {
             MainApp(
                 prefs = prefs,
                 onSignOut = {
-                    // Clear all preferences
                     prefs.edit().clear().apply()
-                    // Clear engine
                     SipEngineHolder.engine = null
                     phase = AppPhase.SETUP
                 },
@@ -150,14 +172,186 @@ private fun MainApp(
     val currentRoute = navBackStackEntry?.destination?.route
 
     var showCallScreen by remember { mutableStateOf(false) }
+    var callError by remember { mutableStateOf<String?>(null) }
+    var engineReady by remember { mutableStateOf(SipEngineHolder.engine != null) }
+
+    // Observe incoming call from notification tap (reactive state)
+    val incomingToken by com.solutions5060.aria.MainActivity.incomingCallToken
+    LaunchedEffect(incomingToken, engineReady) {
+        val token = incomingToken ?: return@LaunchedEffect
+        if (!engineReady) return@LaunchedEffect
+
+        com.solutions5060.aria.MainActivity.incomingCallToken.value = null
+        val callerUri = com.solutions5060.aria.MainActivity.incomingCallerUri.value ?: "Unknown"
+        Log.d(TAG, "Accepting incoming call: $callerUri (token: ${token.take(8)})")
+
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                SipEngineHolder.engine?.acceptIncomingCall(token, listOf(
+                    uniffi.aria_mobile.AudioCodec.PCMU,
+                    uniffi.aria_mobile.AudioCodec.PCMA,
+                ))
+                showCallScreen = true
+                Log.d(TAG, "Incoming call accepted")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to accept incoming call: ${e.message}", e)
+                callError = "Failed to answer: ${e.message}"
+            }
+        }
+    }
+
+    // Re-initialize the engine on cold start if we have saved credentials
+    LaunchedEffect(Unit) {
+        if (SipEngineHolder.engine == null) {
+            val username = prefs.getString(KEY_SIP_USERNAME, "") ?: ""
+            val password = prefs.getString(KEY_SIP_PASSWORD, "") ?: ""
+            val domain = prefs.getString(KEY_SIP_DOMAIN, "") ?: ""
+            val apiUrl = prefs.getString(KEY_API_URL, "") ?: ""
+            val tenantDomain = prefs.getString("tenant_domain", "") ?: ""
+
+            if (username.isEmpty() || domain.isEmpty()) {
+                // No credentials at all
+            } else {
+                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    try {
+                        // Get FCM push token for incoming call notifications
+                        val fcmToken = try {
+                            com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Could not get FCM token: ${e.message}")
+                            ""
+                        }
+
+                        var gwUrl = prefs.getString("gateway_url", null) ?: ""
+                        var gwToken = prefs.getString("gateway_token", null) ?: ""
+
+                        // If we don't have a gateway token, do a full login first
+                        if (gwToken.isEmpty() && apiUrl.isNotEmpty()) {
+                            Log.d(TAG, "No gateway token — performing full login")
+                            val client = com.solutions5060.aria.service.PbxApiClient(apiUrl)
+                            val loginResult = client.extensionLogin(username, password, tenantDomain)
+                            val deviceResult = client.registerDevice(
+                                jwt = loginResult.jwt,
+                                pushToken = fcmToken,
+                                platform = "android",
+                            )
+                            gwUrl = deviceResult.gatewayUrl.ifEmpty { "https://push.ariaroute.com" }
+                            gwToken = deviceResult.gatewayToken.ifEmpty { loginResult.jwt }
+                            prefs.edit()
+                                .putString("jwt", loginResult.jwt)
+                                .putString("extension_id", loginResult.extensionId)
+                                .putString("tenant_id", loginResult.tenantId)
+                                .putString("device_id", deviceResult.deviceId)
+                                .putString("gateway_url", gwUrl)
+                                .putString("gateway_token", gwToken)
+                                .apply()
+                            Log.d(TAG, "Full login completed, gwUrl=$gwUrl, gwToken=${gwToken.take(20)}...")
+                        }
+
+                        Log.d(TAG, "Engine init: gwUrl=$gwUrl, gwToken empty=${gwToken.isEmpty()}")
+                        if (gwUrl.isNotEmpty() && gwToken.isNotEmpty()) {
+                            val config = uniffi.aria_mobile.GatewayConfig(
+                                baseUrl = gwUrl,
+                                apiKey = gwToken,
+                            )
+                            val engine = uniffi.aria_mobile.AriaMobileEngine(config)
+                            engine.setAudioBridge(com.solutions5060.aria.service.AudioBridge())
+                            SipEngineHolder.engine = engine
+
+                            val registrar = prefs.getString(KEY_SIP_REGISTRAR, "") ?: ""
+                            val transport = prefs.getString(KEY_SIP_TRANSPORT, "udp") ?: "udp"
+                            val port = prefs.getString(KEY_SIP_PORT, "5060") ?: "5060"
+                            val displayName = prefs.getString(KEY_SIP_DISPLAY_NAME, "") ?: ""
+
+                            val creds = uniffi.aria_mobile.SipCredentials(
+                                username = username,
+                                password = password,
+                                domain = domain,
+                                registrar = registrar.ifEmpty { null },
+                                transport = transport,
+                                port = port.toUShortOrNull() ?: 5060u,
+                                authUsername = null,
+                                displayName = displayName,
+                            )
+                            val reg = uniffi.aria_mobile.DeviceRegistration(
+                                platform = "android",
+                                pushToken = fcmToken,
+                                bundleId = "com.solutions5060.aria",
+                                sip = creds,
+                            )
+                            engine.registerDevice(reg)
+                            engineReady = true
+                            Log.d(TAG, "Engine initialized successfully")
+                        }
+                    } catch (e: Exception) {
+                        Log.e(TAG, "Failed to init engine on startup: ${e.message}", e)
+                        callError = "Connection failed: ${e.message}"
+                    }
+                }
+            }
+        } else {
+            engineReady = true
+        }
+    }
 
     // Poll the engine for active call state
     LaunchedEffect(Unit) {
         while (true) {
             val activeCall = SipEngineHolder.engine?.getActiveCall()
-            showCallScreen = activeCall != null
+            if (activeCall != null && !showCallScreen) {
+                showCallScreen = true
+            }
             delay(500)
         }
+    }
+
+    // Place a call via the engine
+    fun placeCall(number: String) {
+        val engine = SipEngineHolder.engine
+        if (engine == null) {
+            callError = "Not connected. Go to Settings and connect first."
+            return
+        }
+
+        val domain = prefs.getString(KEY_SIP_DOMAIN, "") ?: ""
+        val username = prefs.getString(KEY_SIP_USERNAME, "") ?: ""
+        val password = prefs.getString(KEY_SIP_PASSWORD, "") ?: ""
+        val transport = prefs.getString(KEY_SIP_TRANSPORT, "udp") ?: "udp"
+        val port = prefs.getString(KEY_SIP_PORT, "5060") ?: "5060"
+        val registrar = prefs.getString(KEY_SIP_REGISTRAR, "") ?: ""
+        val displayName = prefs.getString(KEY_SIP_DISPLAY_NAME, "") ?: ""
+
+        if (domain.isEmpty() || username.isEmpty()) {
+            callError = "Missing SIP credentials. Scan a QR code in Settings."
+            return
+        }
+
+        callError = null
+        showCallScreen = true
+
+        val sipUri = "sip:$number@$domain"
+        val credentials = SipCredentials(
+            username = username,
+            password = password,
+            domain = domain,
+            registrar = registrar.ifEmpty { null },
+            transport = transport,
+            port = port.toUShortOrNull() ?: 5060u,
+            authUsername = null,
+            displayName = displayName,
+        )
+
+        Thread {
+            try {
+                Log.d(TAG, "Placing call to $sipUri")
+                engine.makeCall(sipUri, credentials, listOf(AudioCodec.PCMU, AudioCodec.PCMA, AudioCodec.OPUS))
+                Log.d(TAG, "Call initiated successfully")
+            } catch (e: Exception) {
+                Log.e(TAG, "makeCall failed: ${e.message}", e)
+                callError = "Call failed: ${e.message}"
+                showCallScreen = false
+            }
+        }.start()
     }
 
     if (showCallScreen) {
@@ -167,51 +361,37 @@ private fun MainApp(
             bottomBar = {
                 NavigationBar(
                     containerColor = MaterialTheme.colorScheme.surface,
+                    tonalElevation = 0.dp,
                 ) {
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.Dialpad, contentDescription = "Dialer") },
-                        label = { Text("Dialer") },
-                        selected = currentRoute == "dialer",
-                        onClick = { navController.navigate("dialer") { launchSingleTop = true } },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                        ),
-                    )
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.Contacts, contentDescription = "Contacts") },
-                        label = { Text("Contacts") },
-                        selected = currentRoute == "contacts",
-                        onClick = { navController.navigate("contacts") { launchSingleTop = true } },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                        ),
-                    )
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.History, contentDescription = "History") },
-                        label = { Text("History") },
-                        selected = currentRoute == "history",
-                        onClick = { navController.navigate("history") { launchSingleTop = true } },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                        ),
-                    )
-                    NavigationBarItem(
-                        icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                        label = { Text("Settings") },
-                        selected = currentRoute == "settings",
-                        onClick = { navController.navigate("settings") { launchSingleTop = true } },
-                        colors = NavigationBarItemDefaults.colors(
-                            selectedIconColor = MaterialTheme.colorScheme.primary,
-                            selectedTextColor = MaterialTheme.colorScheme.primary,
-                            indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                        ),
-                    )
+                    navTabs.forEach { tab ->
+                        val selected = currentRoute == tab.route
+                        NavigationBarItem(
+                            icon = {
+                                Icon(
+                                    if (selected) tab.selectedIcon else tab.unselectedIcon,
+                                    contentDescription = tab.label,
+                                )
+                            },
+                            label = {
+                                Text(
+                                    tab.label,
+                                    fontSize = 12.sp,
+                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
+                                )
+                            },
+                            selected = selected,
+                            onClick = {
+                                navController.navigate(tab.route) { launchSingleTop = true }
+                            },
+                            colors = NavigationBarItemDefaults.colors(
+                                selectedIconColor = MaterialTheme.colorScheme.primary,
+                                selectedTextColor = MaterialTheme.colorScheme.primary,
+                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
+                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
+                            ),
+                        )
+                    }
                 }
             }
         ) { innerPadding ->
@@ -221,13 +401,21 @@ private fun MainApp(
                 modifier = Modifier.padding(innerPadding)
             ) {
                 composable("dialer") {
-                    DialerScreen(onCall = { uri -> showCallScreen = true })
+                    DialerScreen(
+                        onCall = { number -> placeCall(number) },
+                        displayName = prefs.getString(KEY_SIP_DISPLAY_NAME, "") ?: "",
+                        extensionNumber = prefs.getString(KEY_SIP_USERNAME, "") ?: "",
+                        domain = prefs.getString(KEY_SIP_DOMAIN, "") ?: "",
+                        isConnected = engineReady,
+                        callError = callError,
+                        onDismissError = { callError = null },
+                    )
                 }
                 composable("contacts") {
-                    ContactsScreen(onCall = { uri -> showCallScreen = true })
+                    ContactsScreen(onCall = { number -> placeCall(number) })
                 }
                 composable("history") {
-                    HistoryScreen(onCall = { uri -> showCallScreen = true })
+                    HistoryScreen(onCall = { number -> placeCall(number) })
                 }
                 composable("settings") {
                     SettingsScreen(onSignOut = onSignOut)
