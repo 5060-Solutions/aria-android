@@ -9,6 +9,7 @@ import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
 import android.util.Log
 import com.solutions5060.aria.service.AriaConnectionService
+import com.solutions5060.aria.service.NetworkMonitor
 import uniffi.aria_mobile.initRuntime
 import uniffi.aria_mobile.shutdownRuntime
 
@@ -19,6 +20,8 @@ class AriaApplication : Application() {
         const val CHANNEL_ACTIVE_CALL = "active_call"
         private const val TAG = "AriaApp"
     }
+
+    private var networkMonitor: NetworkMonitor? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -31,9 +34,16 @@ class AriaApplication : Application() {
 
         // Register phone account for Telecom integration
         registerPhoneAccount()
+
+        // Start network monitoring for registration resilience.
+        // Uses SipEngineHolder.engine which is set when the user provisions.
+        networkMonitor = NetworkMonitor(this)
+        networkMonitor?.start()
+        Log.i(TAG, "Network monitor started")
     }
 
     override fun onTerminate() {
+        networkMonitor?.stop()
         shutdownRuntime()
         super.onTerminate()
     }
