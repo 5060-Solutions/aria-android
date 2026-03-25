@@ -84,15 +84,27 @@ cargo build $CARGO_FLAGS --manifest-path "$RUST_DIR/Cargo.toml" \
     --target x86_64-linux-android
 
 # Copy .so files to jniLibs
+# UniFFI Kotlin bindings load the library as "uniffi_aria_mobile", so we must
+# copy the cdylib (libaria_mobile_core.so) under BOTH names. Clean stale .so
+# files first to prevent loading an outdated library.
 echo "Copying shared libraries to jniLibs..."
 mkdir -p "$JNI_DIR/arm64-v8a" "$JNI_DIR/armeabi-v7a" "$JNI_DIR/x86_64"
 
-cp "$RUST_DIR/target/aarch64-linux-android/$TARGET_DIR/libaria_mobile_core.so" \
-   "$JNI_DIR/arm64-v8a/"
-cp "$RUST_DIR/target/armv7-linux-androideabi/$TARGET_DIR/libaria_mobile_core.so" \
-   "$JNI_DIR/armeabi-v7a/"
-cp "$RUST_DIR/target/x86_64-linux-android/$TARGET_DIR/libaria_mobile_core.so" \
-   "$JNI_DIR/x86_64/"
+# Remove ALL old .so files to prevent stale library issues
+find "$JNI_DIR" -name "*.so" -delete
+
+for ABI_DIR in arm64-v8a armeabi-v7a x86_64; do
+    case "$ABI_DIR" in
+        arm64-v8a)      TARGET="aarch64-linux-android" ;;
+        armeabi-v7a)    TARGET="armv7-linux-androideabi" ;;
+        x86_64)         TARGET="x86_64-linux-android" ;;
+    esac
+    SRC="$RUST_DIR/target/$TARGET/$TARGET_DIR/libaria_mobile_core.so"
+    cp "$SRC" "$JNI_DIR/$ABI_DIR/libaria_mobile_core.so"
+    # UniFFI loads "uniffi_aria_mobile" — copy under that name too
+    cp "$SRC" "$JNI_DIR/$ABI_DIR/libuniffi_aria_mobile.so"
+    echo "  $ABI_DIR: $(ls -lh "$JNI_DIR/$ABI_DIR/libaria_mobile_core.so" | awk '{print $5}')"
+done
 
 # Generate UniFFI Kotlin bindings
 # The aria-mobile-core crate has a uniffi-bindgen binary target
