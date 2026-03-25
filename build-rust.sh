@@ -4,11 +4,21 @@
 # Prerequisites:
 #   rustup target add aarch64-linux-android armv7-linux-androideabi x86_64-linux-android
 #   Install Android NDK and set ANDROID_NDK_HOME
+#   IMPORTANT: Use rustup's cargo, not Homebrew's. Run with:
+#     PATH="$HOME/.cargo/bin:$PATH" ./build-rust.sh
 #
 # Usage:
 #   ./build-rust.sh [debug|release]
 
 set -euo pipefail
+
+# Ensure we use rustup's cargo (has Android targets) not Homebrew's
+if [[ "$(which cargo)" == "/opt/homebrew/bin/cargo" ]]; then
+    if [ -x "$HOME/.cargo/bin/cargo" ]; then
+        export PATH="$HOME/.cargo/bin:$PATH"
+        echo "Switched to rustup cargo: $(which cargo) ($(cargo --version))"
+    fi
+fi
 
 MODE="${1:-release}"
 RUST_DIR="../aria-mobile-core"
@@ -19,11 +29,19 @@ cd "$(dirname "$0")"
 
 echo "=== Building aria-mobile-core for Android ($MODE) ==="
 
-# Ensure NDK is available
+# Ensure NDK is available — auto-detect if not set
 if [ -z "${ANDROID_NDK_HOME:-}" ]; then
-    echo "Error: ANDROID_NDK_HOME not set"
-    echo "Install the Android NDK and set ANDROID_NDK_HOME"
-    exit 1
+    # Try to find NDK in standard Android SDK location
+    SDK_NDK_DIR="$HOME/Library/Android/sdk/ndk"
+    if [ -d "$SDK_NDK_DIR" ]; then
+        ANDROID_NDK_HOME="$SDK_NDK_DIR/$(ls "$SDK_NDK_DIR" | sort -V | tail -1)"
+        export ANDROID_NDK_HOME
+        echo "Auto-detected NDK: $ANDROID_NDK_HOME"
+    else
+        echo "Error: ANDROID_NDK_HOME not set and NDK not found in $SDK_NDK_DIR"
+        echo "Install the Android NDK and set ANDROID_NDK_HOME"
+        exit 1
+    fi
 fi
 
 CARGO_FLAGS=""
@@ -77,11 +95,12 @@ cp "$RUST_DIR/target/x86_64-linux-android/$TARGET_DIR/libaria_mobile_core.so" \
    "$JNI_DIR/x86_64/"
 
 # Generate UniFFI Kotlin bindings
+# The aria-mobile-core crate has a uniffi-bindgen binary target
 echo "Generating UniFFI Kotlin bindings..."
 mkdir -p "$OUT_DIR"
 cargo run --manifest-path "$RUST_DIR/Cargo.toml" \
-    --features uniffi/cli -- \
-    uniffi-bindgen generate "$RUST_DIR/src/aria_mobile.udl" \
+    --bin uniffi-bindgen -- \
+    generate "$RUST_DIR/src/aria_mobile.udl" \
     --language kotlin \
     --out-dir "$OUT_DIR"
 
