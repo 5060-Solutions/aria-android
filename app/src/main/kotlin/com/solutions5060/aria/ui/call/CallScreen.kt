@@ -27,6 +27,7 @@ import android.provider.ContactsContract
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.automirrored.filled.PhoneCallback
 import androidx.compose.material.icons.automirrored.filled.PhoneForwarded
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.input.KeyboardType
@@ -471,7 +472,7 @@ fun CallScreen(
                         onClick = onDecline,
                     )
                     LabeledRoundCallButton(
-                        icon = Icons.Default.PhoneCallback,
+                        icon = Icons.AutoMirrored.Filled.PhoneCallback,
                         label = "End & Answer",
                         color = Color(0xFFF59E0B),
                         onClick = onEndAndAnswer,
@@ -952,22 +953,24 @@ fun ManagedCallScreen(call: CallUiState) {
         canConsult = CallWaiting.canConsult(call, calls),
         transferPair = CallWaiting.attendedTransferPair(calls),
         callError = callError,
-        onEndAndAnswer = { CallManager.endOthersAndAnswer() },
+        onEndAndAnswer = { CallManager.endOthersAndAnswer(call.key) },
         onSwapTo = { CallManager.swapTo(it) },
         onHangupOther = { CallManager.hangup(it) },
         onAddCall = { CallManager.placeCall(context, it) },
-        onConsult = { CallManager.consult(it) },
+        onConsult = { CallManager.consult(call.key, it) },
         onCompleteTransfer = { CallManager.transferAttended() },
         onDismissCallError = { CallManager.clearError() },
         call = call,
-        onAnswer = { CallManager.answer() },
-        onDecline = { CallManager.reject() },
-        onHangup = { CallManager.hangup() },
-        onToggleMute = { CallManager.setMuted(!call.muted) },
-        onToggleHold = { CallManager.setHold(!call.onHold) },
-        onDtmf = { CallManager.sendDtmf(it) },
-        onSelectAudioRoute = { CallManager.selectAudioRoute(it) },
-        onTransfer = { CallManager.transfer(it) },
+        // Every action names the call shown when it was tapped: by the time it
+        // runs, another call (a waiting one, say) may have taken the screen.
+        onAnswer = { CallManager.answerByKey(call.key) },
+        onDecline = { CallManager.rejectByKey(call.key) },
+        onHangup = { CallManager.hangup(call.key) },
+        onToggleMute = { CallManager.setMuted(call.key, !call.muted) },
+        onToggleHold = { CallManager.setHold(call.key, !call.onHold) },
+        onDtmf = { CallManager.sendDtmf(call.key, it) },
+        onSelectAudioRoute = { CallManager.selectAudioRoute(call.key, it) },
+        onTransfer = { CallManager.transfer(call.key, it) },
         onDismissTransferError = { CallManager.clearTransferError() },
     )
 }
