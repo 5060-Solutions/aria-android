@@ -31,8 +31,12 @@ import uniffi.aria_mobile.CallOffer
 import uniffi.aria_mobile.CallState
 import uniffi.aria_mobile.MediaStats
 import uniffi.aria_mobile.MobileEventHandler
+import uniffi.aria_mobile.MobileException
+import uniffi.aria_mobile.SipCredentials
+import uniffi.aria_mobile.AriaMobileEngine
 import java.util.UUID
 import java.util.concurrent.Executors
+import java.util.concurrent.FutureTask
 
 /** What the call screen renders. Immutable; a new value is published on every change. */
 data class CallUiState(
@@ -181,6 +185,13 @@ object CallManager {
 
         override fun onError(context: String, message: String) {
             Log.w(TAG, "Engine error in $context: $message")
+        }
+
+        override fun onAuthRequired() {
+            // Fired from the core's background work (status polls, heartbeat)
+            // when the gateway rejects the token. Renewal runs elsewhere.
+            Log.i(TAG, "Gateway asked for a new token")
+            EngineManager.onAuthRequired(appContext)
         }
     }
 
@@ -363,8 +374,7 @@ object CallManager {
         engineExecutor.execute {
             try {
                 Log.d(TAG, "Placing call to $uri")
-                // An empty codec list defers to the engine's preferences.
-                val info = engine.makeCall(uri, credentials, emptyList())
+                val info = dial(rec, engine, uri, credentials)
                 mainHandler.post {
                     rec.dialInFlight = false
                     if (rec.finished) {
@@ -389,6 +399,42 @@ object CallManager {
                 }
             }
         }
+    }
+
+    /**
+     * `makeCall`, renewing the gateway token and dialling once more if the
+     * gateway rejected it. Runs on [engineExecutor].
+     */
+    private fun dial(rec: CallRecord, engine: AriaMobileEngine, uri: String, credentials: SipCredentials): CallInfo {
+        val renewal = EngineManager.tokenRenewal(appContext)
+        val seen = renewal.generation
+        return try {
+            // An empty codec list defers to the engine's preferences.
+            engine.makeCall(uri, credentials, emptyList())
+        } catch (e: MobileException.AuthenticationException) {
+            renewal.renewBlocking(seen) ?: throw e
+            // The rejected attempt has reported Ringing and Ended under its own
+            // id; the next attempt gets a new one.
+            if (!onMain { prepareRedial(rec) }) throw MobileException.Cancelled("Hung up during token renewal")
+            engine.makeCall(uri, credentials, emptyList())
+        }
+    }
+
+    /** Forgets the rejected attempt's id. False when the user hung up meanwhile. */
+    private fun prepareRedial(rec: CallRecord): Boolean {
+        if (rec.finished) return false
+        rec.callId = null
+        rec.endedDuringDial = false
+        rec.phase = CallPhase.CONNECTING
+        publish(rec)
+        return true
+    }
+
+    /** Runs [block] on the main thread and waits for it. Never call from the main thread. */
+    private fun <T> onMain(block: () -> T): T {
+        val task = FutureTask(block)
+        mainHandler.post(task)
+        return task.get()
     }
 
     // ── Incoming ───────────────────────────────────────────────────────
@@ -497,7 +543,7 @@ object CallManager {
                 val engine = SipEngineHolder.engine ?: EngineManager.ensureEngine(appContext)
                     ?: throw IllegalStateException("Not connected")
                 // An empty codec list defers to the engine's preferences.
-                val info = engine.acceptIncomingCall(token, emptyList())
+                val info = EngineManager.withAuthRetry(appContext) { engine.acceptIncomingCall(token, emptyList()) }
                 mainHandler.post {
                     // Hung up while the accept was in flight: the engine only
                     // holds the call now, so end it now.
@@ -528,7 +574,7 @@ object CallManager {
         engineExecutor.execute {
             try {
                 val engine = SipEngineHolder.engine ?: EngineManager.ensureEngine(appContext)
-                engine?.rejectIncomingCall(token)
+                if (engine != null) EngineManager.withAuthRetry(appContext) { engine.rejectIncomingCall(token) }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to reject call: ${e.message}")
             }
@@ -568,7 +614,7 @@ object CallManager {
         publish(rec)
         engineExecutor.execute {
             try {
-                SipEngineHolder.engine?.setMute(callId, muted)
+                SipEngineHolder.engine?.let { engine -> EngineManager.withAuthRetry(appContext) { engine.setMute(callId, muted) } }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to set mute: $e")
             }
@@ -582,7 +628,7 @@ object CallManager {
         engineExecutor.execute {
             try {
                 // Emits OnHold / Connected, which updates Telecom and the UI.
-                SipEngineHolder.engine?.setHold(callId, onHold)
+                SipEngineHolder.engine?.let { engine -> EngineManager.withAuthRetry(appContext) { engine.setHold(callId, onHold) } }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to set hold: $e")
             }
@@ -593,7 +639,7 @@ object CallManager {
         val callId = current?.callId ?: return
         engineExecutor.execute {
             try {
-                SipEngineHolder.engine?.sendDtmf(callId, digit)
+                SipEngineHolder.engine?.let { engine -> EngineManager.withAuthRetry(appContext) { engine.sendDtmf(callId, digit) } }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to send DTMF: $e")
             }
@@ -624,7 +670,7 @@ object CallManager {
         engineExecutor.execute {
             val failure = try {
                 val engine = SipEngineHolder.engine ?: throw IllegalStateException("Not connected")
-                engine.transferCall(callId, dial)
+                EngineManager.withAuthRetry(appContext) { engine.transferCall(callId, dial) }
                 null
             } catch (e: Exception) {
                 Log.w(TAG, "Transfer failed: ${e.javaClass.simpleName}: ${e.message}")
@@ -687,6 +733,12 @@ object CallManager {
     private fun safeHangup(callId: String) {
         try {
             SipEngineHolder.engine?.hangup(callId)
+        } catch (e: MobileException.AuthenticationException) {
+            // The core has already ended the call locally and forgotten it, so
+            // retrying would reach nothing. Renew the token so its background
+            // fallback hangup, and every later request, can get through.
+            Log.w(TAG, "Hangup rejected by the gateway; renewing the token")
+            EngineManager.onAuthRequired(appContext)
         } catch (e: Exception) {
             Log.w(TAG, "Hangup failed: ${e.message}")
         }

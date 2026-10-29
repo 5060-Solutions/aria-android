@@ -26,8 +26,12 @@ class PbxApiClient(private val baseUrl: String) {
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
-    /** A non-2xx response. [code] lets callers tell an expired token (401) apart. */
-    class HttpException(val code: Int, message: String) : Exception(message)
+    /**
+     * A non-2xx response. [code] lets callers tell an expired token (401) apart.
+     * [deviceId] is set when a failed registration still stored the device, so
+     * a gateway token can be renewed for it.
+     */
+    class HttpException(val code: Int, message: String, val deviceId: String? = null) : Exception(message)
 
     data class LoginResult(
         val jwt: String,
@@ -39,7 +43,12 @@ class PbxApiClient(private val baseUrl: String) {
         val deviceId: String,
         val sipDomain: String,
         val gatewayUrl: String,
+        /** Empty when the PBX sent none; renew one with [renewGatewayToken]. */
         val gatewayToken: String,
+        /** `udp`, `tcp` or `tls`, or null when the PBX does not say. */
+        val sipTransport: String?,
+        /** The port [sipTransport] belongs to, or null when the PBX does not say. */
+        val sipPort: Int?,
     )
 
     /**
@@ -106,12 +115,17 @@ class PbxApiClient(private val baseUrl: String) {
             ?: throw Exception("Empty response from server")
 
         if (!response.isSuccessful) {
-            val errorMsg = try {
-                JSONObject(responseBody).optString("error", responseBody)
+            val error = try {
+                JSONObject(responseBody)
             } catch (_: Exception) {
-                responseBody
+                null
             }
-            throw Exception("Device registration failed (${response.code}): $errorMsg")
+            val errorMsg = error?.optString("error", "")?.ifEmpty { null } ?: responseBody
+            throw HttpException(
+                response.code,
+                "Device registration failed (${response.code}): $errorMsg",
+                deviceId = error?.optString("device_id", "")?.ifEmpty { null },
+            )
         }
 
         val json = JSONObject(responseBody)
@@ -120,7 +134,29 @@ class PbxApiClient(private val baseUrl: String) {
             sipDomain = json.optString("sip_domain", ""),
             gatewayUrl = json.optString("gateway_url", ""),
             gatewayToken = json.optString("gateway_token", ""),
+            sipTransport = json.optString("sip_transport", "").lowercase().ifEmpty { null },
+            sipPort = json.optInt("sip_port", 0).takeIf { it in 1..65535 },
         )
+    }
+
+    /**
+     * POST /api/v1/devices/{id}/gateway-token — a fresh gateway token for this
+     * device, for when the one from registration has expired or was never issued.
+     */
+    fun renewGatewayToken(jwt: String, deviceId: String): String {
+        val body = send(jwt, "POST", "/api/v1/devices/${encode(deviceId)}/gateway-token", ByteArray(0).toRequestBody(null))
+        val token = JSONObject(body).optString("gateway_token", "")
+        if (token.isEmpty()) throw Exception("The PBX returned no gateway token")
+        return token
+    }
+
+    /**
+     * PUT /api/v1/devices/{id}/push-token — replaces the push token the PBX
+     * holds for this device. 409 means another device already has the token.
+     */
+    fun updatePushToken(jwt: String, deviceId: String, pushToken: String) {
+        val body = JSONObject().apply { put("push_token", pushToken) }
+        send(jwt, "PUT", "/api/v1/devices/${encode(deviceId)}/push-token", body.toString().toRequestBody(JSON_MEDIA))
     }
 
     /**

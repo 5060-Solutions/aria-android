@@ -5,13 +5,16 @@ import android.content.SharedPreferences
 import android.util.Log
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.messaging.FirebaseMessaging
+import com.solutions5060.aria.AppScope
 import com.solutions5060.aria.call.CallManager
 import com.solutions5060.aria.provisioning.DEFAULT_SIP_TRANSPORT
 import com.solutions5060.aria.provisioning.defaultSipPort
 import com.solutions5060.aria.security.SecurePrefs
+import kotlinx.coroutines.launch
 import uniffi.aria_mobile.AriaMobileEngine
 import uniffi.aria_mobile.DeviceRegistration
 import uniffi.aria_mobile.GatewayConfig
+import uniffi.aria_mobile.MobileException
 import uniffi.aria_mobile.SipCredentials
 import java.util.concurrent.TimeUnit
 
@@ -117,7 +120,9 @@ object EngineManager {
             return null
         }
 
-        return startEngine(appContext, gatewayUrl, gatewayToken, credentials, token)
+        // Registration may have changed the SIP transport, so read the account again.
+        val account = savedCredentials(appContext) ?: return null
+        return startEngine(appContext, gatewayUrl, gatewayToken, account, token)
     }
 
     /**
@@ -131,7 +136,9 @@ object EngineManager {
             ?: throw IllegalStateException("Missing required fields. Scan a QR code to configure.")
         val token = pushToken ?: currentPushToken(appContext)
         val (gatewayUrl, gatewayToken) = pbxLogin(appContext, credentials, token)
-        return startEngine(appContext, gatewayUrl, gatewayToken, credentials, token)
+        // Registration may have changed the SIP transport, so read the account again.
+        val account = savedCredentials(appContext) ?: credentials
+        return startEngine(appContext, gatewayUrl, gatewayToken, account, token)
     }
 
     /**
@@ -141,6 +148,8 @@ object EngineManager {
     fun updatePushToken(context: Context, token: String) {
         val appContext = context.applicationContext
         rememberPushToken(appContext, token)
+        // The PBX keeps its own copy of the token alongside the device.
+        updatePbxPushToken(appContext, token)
 
         val running = SipEngineHolder.engine
         if (running == null) {
@@ -154,15 +163,117 @@ object EngineManager {
 
         val deviceId = prefs(appContext).getString("device_id", null) ?: ""
         try {
-            running.updatePushToken(deviceId, token)
+            withAuthRetry(appContext) { running.updatePushToken(deviceId, token) }
             Log.i(TAG, "Push token updated with gateway")
         } catch (e: Exception) {
             // The engine re-registers from its last registration; if it never
             // completed one, register from the saved account instead.
             Log.w(TAG, "updatePushToken failed (${e.message}); re-registering")
             val credentials = savedCredentials(appContext) ?: return
-            running.registerDevice(registration(credentials, token))
+            withAuthRetry(appContext) { running.registerDevice(registration(credentials, token)) }
         }
+    }
+
+    /**
+     * `PUT /api/v1/devices/{id}/push-token`. A conflict (another device holds
+     * the token) or any other failure is logged and does not stop the gateway
+     * update; an expired session is renewed once.
+     */
+    private fun updatePbxPushToken(context: Context, token: String) {
+        val session = PbxSession(context)
+        val apiUrl = session.apiUrl()
+        val deviceId = session.deviceId()
+        if (apiUrl.isEmpty() || deviceId.isNullOrEmpty()) return
+        val client = PbxApiClient(apiUrl)
+        try {
+            try {
+                client.updatePushToken(session.sessionJwt() ?: session.login(), deviceId, token)
+            } catch (e: PbxApiClient.HttpException) {
+                if (e.code != 401) throw e
+                client.updatePushToken(session.login(), deviceId, token)
+            }
+            Log.i(TAG, "Push token updated with PBX")
+        } catch (e: PbxApiClient.HttpException) {
+            if (e.code == 409) {
+                Log.w(TAG, "PBX push token update refused: another device holds this token")
+            } else {
+                Log.w(TAG, "PBX push token update failed (${e.code})")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "PBX push token update failed: ${e.message}")
+        }
+    }
+
+    // ── Gateway token renewal ──────────────────────────────────────────
+
+    @Volatile
+    private var renewal: GatewayTokenRenewal? = null
+    private val renewalLock = Any()
+
+    /** The one renewal coordinator for this process. */
+    fun tokenRenewal(context: Context): GatewayTokenRenewal {
+        renewal?.let { return it }
+        synchronized(renewalLock) {
+            renewal?.let { return it }
+            val appContext = context.applicationContext
+            return GatewayTokenRenewal(PbxSession(appContext), install = { token ->
+                SecurePrefs.putString(appContext, "gateway_token", token)
+                try {
+                    SipEngineHolder.engine?.setGatewayToken(token)
+                } catch (e: Exception) {
+                    Log.w(TAG, "setGatewayToken failed: ${e.message}")
+                }
+            }).also { renewal = it }
+        }
+    }
+
+    /**
+     * Runs an engine call, renewing the gateway token and retrying once if
+     * the gateway rejected it. Blocks; never call it on the main thread.
+     */
+    fun <T> withAuthRetry(context: Context, call: () -> T): T =
+        tokenRenewal(context).retryOnAuthFailure(call)
+
+    /** The core's `on_auth_required`: renew in the background, off the core's thread. */
+    fun onAuthRequired(context: Context) {
+        val renewal = tokenRenewal(context)
+        // Read before launching, so a renewal that lands first is not repeated.
+        val seen = renewal.generation
+        AppScope.scope.launch { renewal.renew(seen) }
+    }
+
+    /** The saved PBX session, for renewal and the per-device routes. */
+    private class PbxSession(private val context: Context) : GatewayTokenRenewal.Pbx {
+        fun apiUrl(): String = prefs(context).getString("api_url", "") ?: ""
+
+        override fun sessionJwt(): String? = SecurePrefs.getString(context, "jwt", null)?.ifEmpty { null }
+
+        override fun deviceId(): String? = prefs(context).getString("device_id", null)?.ifEmpty { null }
+
+        override fun requestGatewayToken(jwt: String, deviceId: String): String =
+            PbxApiClient(apiUrl()).renewGatewayToken(jwt, deviceId)
+
+        override fun login(): String {
+            val credentials = savedCredentials(context)
+                ?: throw IllegalStateException("No saved account to log in with")
+            val apiUrl = apiUrl()
+            if (apiUrl.isEmpty() || credentials.password.isEmpty()) {
+                throw IllegalStateException("No saved account to log in with")
+            }
+            val tenantDomain = prefs(context).getString("tenant_domain", "") ?: ""
+            val login = PbxApiClient(apiUrl).extensionLogin(credentials.username, credentials.password, tenantDomain)
+            saveSession(context, login)
+            return login.jwt
+        }
+    }
+
+    private fun saveSession(context: Context, login: PbxApiClient.LoginResult) {
+        prefs(context).edit()
+            .putString("extension_id", login.extensionId)
+            .putString("tenant_id", login.tenantId)
+            .apply()
+        // The JWT is a bearer credential: store it encrypted.
+        SecurePrefs.putString(context, "jwt", login.jwt)
     }
 
     /** Drops the running engine (sign-out). */
@@ -191,18 +302,38 @@ object EngineManager {
 
         val client = PbxApiClient(apiUrl)
         val login = client.extensionLogin(credentials.username, credentials.password, tenantDomain)
-        val device = client.registerDevice(jwt = login.jwt, pushToken = pushToken, platform = PLATFORM)
+        saveSession(context, login)
 
-        val gatewayUrl = device.gatewayUrl.ifEmpty { DEFAULT_GATEWAY_URL }
-        val gatewayToken = device.gatewayToken.ifEmpty { login.jwt }
+        var gatewayUrl = prefs.getString("gateway_url", null)?.ifEmpty { null } ?: DEFAULT_GATEWAY_URL
+        var gatewayToken = ""
+        val deviceId = try {
+            val device = client.registerDevice(jwt = login.jwt, pushToken = pushToken, platform = PLATFORM)
+            gatewayUrl = device.gatewayUrl.ifEmpty { DEFAULT_GATEWAY_URL }
+            gatewayToken = device.gatewayToken
+            device.sipTransport?.let { transport ->
+                prefs.edit()
+                    .putString("sip_transport", transport)
+                    .putString("sip_port", (device.sipPort ?: defaultSipPort(transport)).toString())
+                    .apply()
+            }
+            device.deviceId
+        } catch (e: PbxApiClient.HttpException) {
+            // The PBX stored the device but could not get a gateway token
+            // (gateway down or not configured). Ask for one for that device.
+            val storedId = e.deviceId
+            if ((e.code != 502 && e.code != 503) || storedId == null) throw e
+            Log.w(TAG, "Registration got no gateway token (${e.code}); renewing for the stored device")
+            storedId
+        }
         prefs.edit()
-            .putString("extension_id", login.extensionId)
-            .putString("tenant_id", login.tenantId)
-            .putString("device_id", device.deviceId)
+            .putString("device_id", deviceId)
             .putString("gateway_url", gatewayUrl)
             .apply()
-        // The JWT and gateway token are bearer credentials — store encrypted.
-        SecurePrefs.putString(context, "jwt", login.jwt)
+
+        // The session JWT is not a gateway token: the gateway rejects it, so
+        // never fall back to it.
+        if (gatewayToken.isEmpty()) gatewayToken = client.renewGatewayToken(login.jwt, deviceId)
+        // A bearer credential: store encrypted.
         SecurePrefs.putString(context, "gateway_token", gatewayToken)
         // Do not log either token, even a prefix.
         Log.d(TAG, "PBX login completed, gatewayUrl=$gatewayUrl")
@@ -226,7 +357,17 @@ object EngineManager {
         engine.setAudioBridge(bridge)
         // Call state reaches Telecom and the UI only through these events.
         engine.setEventHandler(CallManager.eventHandler)
-        engine.registerDevice(registration(credentials, pushToken))
+        val renewal = tokenRenewal(context)
+        val seen = renewal.generation
+        try {
+            engine.registerDevice(registration(credentials, pushToken))
+        } catch (e: MobileException.AuthenticationException) {
+            // The saved token has expired. This engine is not installed yet,
+            // so give it the new token directly.
+            val fresh = renewal.renewBlocking(seen) ?: throw e
+            engine.setGatewayToken(fresh)
+            engine.registerDevice(registration(credentials, pushToken))
+        }
 
         SipEngineHolder.audioBridge?.stop()
         SipEngineHolder.engine = engine

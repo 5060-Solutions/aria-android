@@ -3,7 +3,9 @@ package com.solutions5060.aria.service
 import android.util.Log
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
+import com.solutions5060.aria.AppScope
 import com.solutions5060.aria.call.CallManager
+import kotlinx.coroutines.launch
 import uniffi.aria_mobile.PushCallPayload
 
 /**
@@ -23,13 +25,21 @@ class AriaFirebaseMessagingService : FirebaseMessagingService() {
         // Do not log the token: it is what the gateway pushes calls to.
         Log.i(TAG, "FCM token refreshed")
 
-        // Firebase calls this on a background thread, so the blocking
-        // gateway round-trip is fine here. If the app was never provisioned
-        // the token is only remembered for the eventual first registration.
-        try {
-            EngineManager.updatePushToken(applicationContext, token)
-        } catch (e: Exception) {
-            Log.e(TAG, "Failed to update push token: ${e.message}")
+        // Remember it now, so a registration that starts before the update
+        // below finishes still uses the new token.
+        val context = applicationContext
+        EngineManager.rememberPushToken(context, token)
+
+        // The PBX and gateway round-trips (and any token renewal) can outlast
+        // this service, which Android may stop once this returns, so they run
+        // in the process-wide scope. If the app was never provisioned the
+        // token is only remembered for the eventual first registration.
+        AppScope.scope.launch {
+            try {
+                EngineManager.updatePushToken(context, token)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to update push token: ${e.message}")
+            }
         }
     }
 
@@ -60,14 +70,13 @@ class AriaFirebaseMessagingService : FirebaseMessagingService() {
         // Firebase's background thread, so blocking here is fine.
         try {
             val engine = EngineManager.ensureEngine(applicationContext) ?: return
-            engine.handlePushNotification(
-                PushCallPayload(
-                    callToken = callToken,
-                    callerUri = callerUri,
-                    callerName = callerName,
-                    gatewayUrl = gatewayUrl,
-                )
+            val payload = PushCallPayload(
+                callToken = callToken,
+                callerUri = callerUri,
+                callerName = callerName,
+                gatewayUrl = gatewayUrl,
             )
+            EngineManager.withAuthRetry(applicationContext) { engine.handlePushNotification(payload) }
         } catch (e: Exception) {
             Log.e(TAG, "Failed to handle push notification: $e")
         }
