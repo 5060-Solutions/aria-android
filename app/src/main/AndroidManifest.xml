@@ -72,10 +72,15 @@
             </intent-filter>
         </service>
 
-        <!-- Incoming call foreground service -->
+        <!-- Active call foreground service -->
         <service
             android:name=".service.IncomingCallService"
             android:foregroundServiceType="phoneCall|microphone"
+            android:exported="false" />
+
+        <!-- Incoming-call notification's Decline action -->
+        <receiver
+            android:name=".call.CallActionReceiver"
             android:exported="false" />
 
     </application>

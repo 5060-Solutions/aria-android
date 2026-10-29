@@ -5,6 +5,7 @@ import android.content.SharedPreferences
 import android.util.Log
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.messaging.FirebaseMessaging
+import com.solutions5060.aria.call.CallManager
 import com.solutions5060.aria.security.SecurePrefs
 import uniffi.aria_mobile.AriaMobileEngine
 import uniffi.aria_mobile.DeviceRegistration
@@ -220,6 +221,8 @@ object EngineManager {
         )
         val bridge = AudioBridge()
         engine.setAudioBridge(bridge)
+        // Call state reaches Telecom and the UI only through these events.
+        engine.setEventHandler(CallManager.eventHandler)
         engine.registerDevice(registration(credentials, pushToken))
 
         SipEngineHolder.audioBridge?.stop()

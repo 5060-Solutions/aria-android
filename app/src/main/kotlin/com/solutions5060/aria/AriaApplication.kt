@@ -3,14 +3,13 @@ package com.solutions5060.aria
 import android.app.Application
 import android.app.NotificationChannel
 import android.app.NotificationManager
-import android.content.ComponentName
-import android.telecom.PhoneAccount
-import android.telecom.PhoneAccountHandle
-import android.telecom.TelecomManager
+import android.media.AudioAttributes
+import android.media.RingtoneManager
 import android.util.Log
 import android.content.Context
 import com.solutions5060.aria.security.SecurePrefs
-import com.solutions5060.aria.service.AriaConnectionService
+import com.solutions5060.aria.call.CallManager
+import com.solutions5060.aria.call.TelecomAccount
 import com.solutions5060.aria.service.NetworkMonitor
 import uniffi.aria_mobile.initRuntime
 import uniffi.aria_mobile.shutdownRuntime
@@ -18,7 +17,13 @@ import uniffi.aria_mobile.shutdownRuntime
 class AriaApplication : Application() {
 
     companion object {
-        const val CHANNEL_INCOMING_CALL = "incoming_call"
+        /**
+         * Rings for incoming calls. A self-managed call plays its own
+         * ringtone, and a channel's sound cannot change after creation, so this
+         * replaces the old silent "incoming_call" channel rather than editing it.
+         */
+        const val CHANNEL_INCOMING_CALL = "incoming_call_ring"
+        private const val LEGACY_CHANNEL_INCOMING_CALL = "incoming_call"
         const val CHANNEL_ACTIVE_CALL = "active_call"
         private const val TAG = "AriaApp"
     }
@@ -42,7 +47,8 @@ class AriaApplication : Application() {
         createNotificationChannels()
 
         // Register phone account for Telecom integration
-        registerPhoneAccount()
+        TelecomAccount.register(this)
+        CallManager.init(this)
 
         // Start network monitoring for registration resilience.
         // Uses SipEngineHolder.engine which is set when the user provisions.
@@ -57,21 +63,6 @@ class AriaApplication : Application() {
         super.onTerminate()
     }
 
-    private fun registerPhoneAccount() {
-        try {
-            val telecomManager = getSystemService(TelecomManager::class.java)
-            val componentName = ComponentName(this, AriaConnectionService::class.java)
-            val handle = PhoneAccountHandle(componentName, "aria_voip")
-            val account = PhoneAccount.builder(handle, "Aria VoIP")
-                .setCapabilities(PhoneAccount.CAPABILITY_SELF_MANAGED)
-                .build()
-            telecomManager.registerPhoneAccount(account)
-            Log.i(TAG, "Phone account registered")
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to register phone account (non-fatal): $e")
-        }
-    }
-
     private fun createNotificationChannels() {
         val manager = getSystemService(NotificationManager::class.java)
 
@@ -81,8 +72,15 @@ class AriaApplication : Application() {
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
             description = "Notifications for incoming VoIP calls"
-            setSound(null, null) // CallKit handles audio
+            setSound(
+                RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
+                AudioAttributes.Builder()
+                    .setUsage(AudioAttributes.USAGE_NOTIFICATION_RINGTONE)
+                    .setContentType(AudioAttributes.CONTENT_TYPE_SONIFICATION)
+                    .build(),
+            )
             enableVibration(true)
+            vibrationPattern = longArrayOf(0, 1000, 500, 1000)
         }
 
         val activeChannel = NotificationChannel(
@@ -93,6 +91,7 @@ class AriaApplication : Application() {
             description = "Ongoing call notification"
         }
 
+        manager.deleteNotificationChannel(LEGACY_CHANNEL_INCOMING_CALL)
         manager.createNotificationChannel(incomingChannel)
         manager.createNotificationChannel(activeChannel)
     }

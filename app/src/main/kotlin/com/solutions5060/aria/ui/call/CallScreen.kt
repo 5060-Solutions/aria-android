@@ -24,30 +24,40 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import uniffi.aria_mobile.CallState
+import android.os.SystemClock
+import com.solutions5060.aria.call.CallPhase
+import com.solutions5060.aria.call.CallStateMapping
+import com.solutions5060.aria.call.CallUiState
 import com.solutions5060.aria.service.SipEngineHolder
 import kotlinx.coroutines.delay
 
 @Suppress("DEPRECATION")
 @Composable
-fun CallScreen(onDismiss: () -> Unit) {
+fun CallScreen(
+    call: CallUiState,
+    onAnswer: () -> Unit,
+    onDecline: () -> Unit,
+    onHangup: () -> Unit,
+    onToggleMute: () -> Unit,
+    onToggleHold: () -> Unit,
+    onDtmf: (String) -> Unit,
+) {
     val context = LocalContext.current
     val audioManager = remember {
         context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
     }
 
-    var isMuted by remember { mutableStateOf(false) }
-    var isOnHold by remember { mutableStateOf(false) }
     var isSpeaker by remember { mutableStateOf(false) }
-    var elapsedSeconds by remember { mutableIntStateOf(0) }
-    var callerName by remember { mutableStateOf("") }
-    var callerUri by remember { mutableStateOf("") }
-    var callId by remember { mutableStateOf<String?>(null) }
-    var callState by remember { mutableStateOf(CallState.CONNECTING) }
+    var elapsedSeconds by remember { mutableLongStateOf(0L) }
     var showAudioPicker by remember { mutableStateOf(false) }
     var showDtmfKeypad by remember { mutableStateOf(false) }
     var rxLevel by remember { mutableFloatStateOf(0f) }
     var txLevel by remember { mutableFloatStateOf(0f) }
+
+    val phase = call.phase
+    val callId = call.callId
+    val isMuted = call.muted
+    val isOnHold = call.onHold
 
     // Pulsing animation for ringing/connecting states
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -61,65 +71,36 @@ fun CallScreen(onDismiss: () -> Unit) {
         label = "pulseScale"
     )
 
-    // Observe call state from engine
-    LaunchedEffect(Unit) {
+    // Call state comes from engine events via CallManager; only the level
+    // meters are sampled, since the engine has no event for them.
+    LaunchedEffect(callId, phase) {
+        if (callId == null || phase != CallPhase.ACTIVE) return@LaunchedEffect
         while (true) {
-            val activeCall = SipEngineHolder.engine?.getActiveCall()
-            if (activeCall != null) {
-                callId = activeCall.callId
-                callerName = activeCall.remoteName ?: ""
-                callerUri = activeCall.remoteUri
-                callState = activeCall.state
-                isMuted = activeCall.muted
-                isOnHold = activeCall.onHold
-                // Poll audio levels
-                try {
-                    rxLevel = SipEngineHolder.engine?.getRxAudioLevel(activeCall.callId) ?: 0f
-                    txLevel = SipEngineHolder.engine?.getTxAudioLevel(activeCall.callId) ?: 0f
-                } catch (_: Exception) {}
-            } else if (callState != CallState.IDLE && callState != CallState.CONNECTING) {
-                // Call disappeared (remote hangup or ended)
-                callState = CallState.ENDED
-                delay(1000) // Brief pause so user sees "Call Ended"
-                onDismiss()
-                break
-            } else if (callState == CallState.ENDED || callState == CallState.IDLE) {
-                delay(500)
-                onDismiss()
-                break
-            }
+            val engine = SipEngineHolder.engine ?: break
+            try {
+                rxLevel = engine.getRxAudioLevel(callId)
+                txLevel = engine.getTxAudioLevel(callId)
+            } catch (_: Exception) {}
             delay(300)
         }
     }
 
-    // Timer — only counts when connected
-    LaunchedEffect(callState) {
-        if (callState == CallState.CONNECTED) {
-            while (true) {
-                delay(1000)
-                elapsedSeconds++
-            }
+    // Timer — counts from the Connected event
+    LaunchedEffect(call.connectedAtElapsed, phase) {
+        val connectedAt = call.connectedAtElapsed ?: return@LaunchedEffect
+        while (phase == CallPhase.ACTIVE || phase == CallPhase.HELD) {
+            elapsedSeconds = (SystemClock.elapsedRealtime() - connectedAt) / 1000
+            delay(1000)
         }
     }
 
     // Status text
-    val statusText = when (callState) {
-        CallState.IDLE -> "Call Ended"
-        CallState.INCOMING -> "Incoming Call"
-        CallState.RINGING -> "Ringing..."
-        CallState.CONNECTING -> "Calling..."
-        CallState.CONNECTED -> formatDuration(elapsedSeconds)
-        CallState.ON_HOLD -> "On Hold"
-        CallState.ENDED -> "Call Ended"
-    }
+    val statusText = CallStateMapping.statusText(phase, elapsedSeconds)
 
-    val isRingingOrConnecting = callState == CallState.RINGING || callState == CallState.CONNECTING
-    val isActive = callState == CallState.CONNECTED || callState == CallState.ON_HOLD
+    val isRingingOrConnecting = phase == CallPhase.RINGING || phase == CallPhase.CONNECTING || phase == CallPhase.INCOMING
+    val isActive = phase == CallPhase.ACTIVE || phase == CallPhase.HELD
 
-    // Display name: prefer remoteName, fall back to URI minus sip: prefix
-    val displayName = callerName.ifEmpty {
-        callerUri.removePrefix("sip:").substringBefore("@")
-    }
+    val displayName = call.displayName
 
     // Audio picker dialog
     if (showAudioPicker) {
@@ -264,7 +245,7 @@ fun CallScreen(onDismiss: () -> Unit) {
                 fontSize = 16.sp,
                 fontWeight = if (isRingingOrConnecting) FontWeight.Normal else FontWeight.Medium,
                 color = when {
-                    callState == CallState.ON_HOLD -> Color(0xFFFBBF24) // Amber
+                    phase == CallPhase.HELD -> Color(0xFFFBBF24) // Amber
                     isActive -> Color(0xFF22C55E) // Green
                     else -> Color.White.copy(alpha = 0.6f)
                 },
@@ -309,12 +290,7 @@ fun CallScreen(onDismiss: () -> Unit) {
                         icon = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
                         label = if (isMuted) "Unmute" else "Mute",
                         isActive = isMuted,
-                        onClick = {
-                            val id = callId ?: return@CallControlButton
-                            val newMuted = !isMuted
-                            isMuted = newMuted
-                            Thread { SipEngineHolder.engine?.setMute(id, newMuted) }.start()
-                        }
+                        onClick = onToggleMute
                     )
                     CallControlButton(
                         icon = if (isSpeaker) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeDown,
@@ -330,12 +306,7 @@ fun CallScreen(onDismiss: () -> Unit) {
                         icon = if (isOnHold) Icons.Default.PlayArrow else Icons.Default.Pause,
                         label = if (isOnHold) "Resume" else "Hold",
                         isActive = isOnHold,
-                        onClick = {
-                            val id = callId ?: return@CallControlButton
-                            val newHold = !isOnHold
-                            isOnHold = newHold
-                            Thread { SipEngineHolder.engine?.setHold(id, newHold) }.start()
-                        }
+                        onClick = onToggleHold
                     )
                 }
 
@@ -363,48 +334,79 @@ fun CallScreen(onDismiss: () -> Unit) {
             // DTMF Keypad overlay
             if (showDtmfKeypad) {
                 Spacer(modifier = Modifier.height(16.dp))
-                DtmfKeypad(onDigit = { digit ->
-                    val id = callId ?: return@DtmfKeypad
-                    Thread { SipEngineHolder.engine?.sendDtmf(id, digit) }.start()
-                })
+                DtmfKeypad(onDigit = onDtmf)
             }
 
             Spacer(modifier = Modifier.weight(0.6f))
 
-            // End call button
-            Box(contentAlignment = Alignment.Center) {
-                Box(
-                    modifier = Modifier
-                        .size(84.dp)
-                        .clip(CircleShape)
-                        .background(Color.Red.copy(alpha = 0.15f))
-                )
-                FloatingActionButton(
-                    onClick = {
-                        audioManager.isSpeakerphoneOn = false
-                        val id = callId
-                        if (id != null) {
-                            Thread { SipEngineHolder.engine?.hangup(id) }.start()
-                        }
-                        onDismiss()
-                    },
-                    containerColor = Color.Red,
-                    shape = CircleShape,
-                    modifier = Modifier.size(72.dp),
-                    elevation = FloatingActionButtonDefaults.elevation(
-                        defaultElevation = 8.dp,
-                    ),
+            if (phase == CallPhase.INCOMING) {
+                // Answer / decline
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
                 ) {
-                    Icon(
-                        Icons.Default.CallEnd,
-                        contentDescription = "End Call",
-                        modifier = Modifier.size(30.dp),
-                        tint = Color.White,
+                    RoundCallButton(
+                        icon = Icons.Default.CallEnd,
+                        contentDescription = "Decline",
+                        color = Color.Red,
+                        onClick = onDecline,
+                    )
+                    RoundCallButton(
+                        icon = Icons.Default.Call,
+                        contentDescription = "Answer",
+                        color = Color(0xFF22C55E),
+                        onClick = onAnswer,
                     )
                 }
+            } else if (phase != CallPhase.ENDED) {
+                // End call button
+                RoundCallButton(
+                    icon = Icons.Default.CallEnd,
+                    contentDescription = "End Call",
+                    color = Color.Red,
+                    onClick = {
+                        audioManager.isSpeakerphoneOn = false
+                        onHangup()
+                    },
+                )
+            } else {
+                Spacer(modifier = Modifier.height(84.dp))
             }
 
             Spacer(modifier = Modifier.height(48.dp))
+        }
+    }
+}
+
+@Composable
+private fun RoundCallButton(
+    icon: ImageVector,
+    contentDescription: String,
+    color: Color,
+    onClick: () -> Unit,
+) {
+    Box(contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .size(84.dp)
+                .clip(CircleShape)
+                .background(color.copy(alpha = 0.15f))
+        )
+        FloatingActionButton(
+            onClick = onClick,
+            containerColor = color,
+            shape = CircleShape,
+            modifier = Modifier.size(72.dp),
+            elevation = FloatingActionButtonDefaults.elevation(
+                defaultElevation = 8.dp,
+            ),
+        ) {
+            Icon(
+                icon,
+                contentDescription = contentDescription,
+                modifier = Modifier.size(30.dp),
+                tint = Color.White,
+            )
         }
     }
 }
@@ -538,10 +540,4 @@ private fun AudioLevelBar(
                 .background(color)
         )
     }
-}
-
-private fun formatDuration(seconds: Int): String {
-    val mins = seconds / 60
-    val secs = seconds % 60
-    return "%02d:%02d".format(mins, secs)
 }

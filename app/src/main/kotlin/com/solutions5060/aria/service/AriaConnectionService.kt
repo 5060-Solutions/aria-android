@@ -1,7 +1,6 @@
 package com.solutions5060.aria.service
 
 import android.net.Uri
-import android.os.Bundle
 import android.telecom.Connection
 import android.telecom.ConnectionRequest
 import android.telecom.ConnectionService
@@ -9,44 +8,34 @@ import android.telecom.DisconnectCause
 import android.telecom.PhoneAccountHandle
 import android.telecom.TelecomManager
 import android.util.Log
-import uniffi.aria_mobile.CallInfo
-import uniffi.aria_mobile.CallState
+import com.solutions5060.aria.call.CallManager
 
 /**
  * Android Telecom ConnectionService for managing VoIP calls.
  *
- * Integrates with the system dialer and call management UI,
- * similar to CallKit on iOS.
+ * The account is self-managed: Telecom arbitrates audio and interaction with
+ * other calls, and Aria draws its own UI. Call logic lives in [CallManager];
+ * this class only creates connections and hands them over.
  */
 class AriaConnectionService : ConnectionService() {
 
     companion object {
         private const val TAG = "AriaConnectionService"
-        var activeConnection: AriaConnection? = null
     }
 
     override fun onCreateOutgoingConnection(
         connectionManagerPhoneAccount: PhoneAccountHandle?,
         request: ConnectionRequest?
     ): Connection {
-        Log.i(TAG, "Creating outgoing connection: ${request?.address}")
-
+        Log.i(TAG, "Creating outgoing connection")
         val connection = AriaConnection().apply {
             setAddress(request?.address, TelecomManager.PRESENTATION_ALLOWED)
             setCallerDisplayName(
-                request?.address?.schemeSpecificPart ?: "Unknown",
+                request?.address?.schemeSpecificPart?.substringBefore("@") ?: "Unknown",
                 TelecomManager.PRESENTATION_ALLOWED
             )
-            connectionProperties = Connection.PROPERTY_SELF_MANAGED
-            connectionCapabilities = (
-                Connection.CAPABILITY_HOLD or
-                Connection.CAPABILITY_MUTE or
-                Connection.CAPABILITY_SUPPORT_HOLD
-            )
-            setInitializing()
         }
-
-        activeConnection = connection
+        CallManager.onOutgoingConnectionCreated(connection, request?.extras?.getString(CallManager.EXTRA_RECORD_KEY))
         return connection
     }
 
@@ -55,37 +44,23 @@ class AriaConnectionService : ConnectionService() {
         request: ConnectionRequest?
     ): Connection {
         val extras = request?.extras
-        val callerUri = extras?.getString("caller_uri") ?: "Unknown"
-        val callerName = extras?.getString("caller_name")
-        val callToken = extras?.getString("call_token") ?: ""
-
-        Log.i(TAG, "Creating incoming connection from: $callerUri")
-
-        val callExtras = Bundle().apply {
-            putString("call_token", callToken)
-        }
+        val callerUri = extras?.getString(CallManager.EXTRA_CALLER_URI) ?: "Unknown"
+        val callerName = extras?.getString(CallManager.EXTRA_CALLER_NAME)
+        Log.i(TAG, "Creating incoming connection")
 
         val connection = AriaConnection().apply {
             setAddress(
-                Uri.fromParts("sip", callerUri, null),
+                Uri.fromParts("sip", callerUri.removePrefix("sip:"), null),
                 TelecomManager.PRESENTATION_ALLOWED
             )
             setCallerDisplayName(
-                callerName ?: callerUri,
+                callerName ?: callerUri.removePrefix("sip:").substringBefore("@"),
                 TelecomManager.PRESENTATION_ALLOWED
             )
-            connectionProperties = Connection.PROPERTY_SELF_MANAGED
-            connectionCapabilities = (
-                Connection.CAPABILITY_HOLD or
-                Connection.CAPABILITY_MUTE or
-                Connection.CAPABILITY_SUPPORT_HOLD
-            )
-            this.extras = callExtras
-            this.callToken = callToken
-            setRinging()
         }
-
-        activeConnection = connection
+        if (!CallManager.onIncomingConnectionCreated(connection, extras)) {
+            return Connection.createFailedConnection(DisconnectCause(DisconnectCause.BUSY))
+        }
         return connection
     }
 
@@ -94,6 +69,7 @@ class AriaConnectionService : ConnectionService() {
         request: ConnectionRequest?
     ) {
         Log.e(TAG, "Failed to create outgoing connection")
+        CallManager.onOutgoingConnectionFailed(request?.extras?.getString(CallManager.EXTRA_RECORD_KEY))
     }
 
     override fun onCreateIncomingConnectionFailed(
@@ -101,123 +77,58 @@ class AriaConnectionService : ConnectionService() {
         request: ConnectionRequest?
     ) {
         Log.e(TAG, "Failed to create incoming connection")
+        CallManager.onIncomingConnectionFailed(request?.extras)
     }
 }
 
 /**
- * Represents a single VoIP call connection.
+ * Represents a single VoIP call connection. Telecom-originated actions (a
+ * Bluetooth headset button, a wearable, the system ending the call) are
+ * forwarded to [CallManager], which drives the engine and reports state back.
  */
 class AriaConnection : Connection() {
 
-    companion object {
-        private const val TAG = "AriaConnection"
+    init {
+        connectionProperties = PROPERTY_SELF_MANAGED
+        connectionCapabilities = CAPABILITY_HOLD or CAPABILITY_SUPPORT_HOLD or CAPABILITY_MUTE
+        // VoIP audio: Telecom puts the device in MODE_IN_COMMUNICATION.
+        audioModeIsVoip = true
     }
 
-    var callToken: String? = null
-    var callId: String? = null
+    override fun onShowIncomingCallUi() {
+        CallManager.onShowIncomingCallUi(this)
+    }
 
     override fun onAnswer() {
-        Log.i(TAG, "Call answered")
-        setActive()
+        CallManager.answer()
+    }
 
-        // Accept via Rust engine
-        val token = callToken ?: extras?.getString("call_token") ?: return
-        Thread {
-            try {
-                val engine = SipEngineHolder.engine ?: return@Thread
-                val info = engine.acceptIncomingCall(token, emptyList())
-                callId = info.callId
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to accept call: $e")
-                setDisconnected(DisconnectCause(DisconnectCause.ERROR))
-                destroy()
-            }
-        }.start()
+    override fun onAnswer(videoState: Int) {
+        CallManager.answer()
     }
 
     override fun onReject() {
-        Log.i(TAG, "Call rejected")
-        setDisconnected(DisconnectCause(DisconnectCause.REJECTED))
-        destroy()
-
-        val token = callToken ?: extras?.getString("call_token") ?: return
-        Thread {
-            try {
-                SipEngineHolder.engine?.rejectIncomingCall(token)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to reject call: $e")
-            }
-        }.start()
-
-        AriaConnectionService.activeConnection = null
+        CallManager.reject()
     }
 
     override fun onDisconnect() {
-        Log.i(TAG, "Call disconnected")
-        setDisconnected(DisconnectCause(DisconnectCause.LOCAL))
-        destroy()
+        CallManager.hangup()
+    }
 
-        val id = callId ?: return
-        Thread {
-            try {
-                SipEngineHolder.engine?.hangup(id)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to hangup: $e")
-            }
-        }.start()
-
-        AriaConnectionService.activeConnection = null
+    override fun onAbort() {
+        CallManager.hangup()
     }
 
     override fun onHold() {
-        Log.i(TAG, "Call held")
-        setOnHold()
-        val id = callId ?: return
-        Thread {
-            try {
-                SipEngineHolder.engine?.setHold(id, true)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to hold: $e")
-            }
-        }.start()
+        CallManager.setHold(true)
     }
 
     override fun onUnhold() {
-        Log.i(TAG, "Call unheld")
-        setActive()
-        val id = callId ?: return
-        Thread {
-            try {
-                SipEngineHolder.engine?.setHold(id, false)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to unhold: $e")
-            }
-        }.start()
+        CallManager.setHold(false)
     }
 
     override fun onPlayDtmfTone(c: Char) {
-        Log.i(TAG, "DTMF: $c")
-        val id = callId ?: return
-        Thread {
-            try {
-                SipEngineHolder.engine?.sendDtmf(id, c.toString())
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to send DTMF: $e")
-            }
-        }.start()
-    }
-
-    fun updateFromCallInfo(info: CallInfo) {
-        when (info.state) {
-            CallState.CONNECTED -> setActive()
-            CallState.ON_HOLD -> setOnHold()
-            CallState.ENDED -> {
-                setDisconnected(DisconnectCause(DisconnectCause.REMOTE))
-                destroy()
-                AriaConnectionService.activeConnection = null
-            }
-            else -> {}
-        }
+        CallManager.sendDtmf(c.toString())
     }
 }
 

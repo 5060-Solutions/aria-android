@@ -29,7 +29,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
-import com.solutions5060.aria.ai.CallTranscription
+import com.solutions5060.aria.call.CallManager
 import com.solutions5060.aria.security.SecurePrefs
 import com.solutions5060.aria.service.EngineManager
 import com.solutions5060.aria.service.SipEngineHolder
@@ -42,9 +42,6 @@ import com.solutions5060.aria.ui.settings.TranscriptionScreen
 import com.solutions5060.aria.ui.setup.SetupScreen
 import com.solutions5060.aria.ui.transcripts.TranscriptsScreen
 import com.solutions5060.aria.ui.splash.SplashScreen
-import kotlinx.coroutines.delay
-import kotlinx.coroutines.launch
-import uniffi.aria_mobile.SipCredentials
 
 private const val TAG = "AriaApp"
 private const val PREFS_NAME = "aria_prefs"
@@ -178,32 +175,10 @@ private fun MainApp(
     val currentRoute = navBackStackEntry?.destination?.route
 
     val context = LocalContext.current
-    var showCallScreen by remember { mutableStateOf(false) }
     var callError by remember { mutableStateOf<String?>(null) }
     var engineReady by remember { mutableStateOf(SipEngineHolder.engine != null) }
-
-    // Observe incoming call from notification tap (reactive state)
-    val incomingToken by com.solutions5060.aria.MainActivity.incomingCallToken
-    LaunchedEffect(incomingToken, engineReady) {
-        val token = incomingToken ?: return@LaunchedEffect
-        if (!engineReady) return@LaunchedEffect
-
-        com.solutions5060.aria.MainActivity.incomingCallToken.value = null
-        val callerUri = com.solutions5060.aria.MainActivity.incomingCallerUri.value ?: "Unknown"
-        Log.d(TAG, "Accepting incoming call: $callerUri (token: ${token.take(8)})")
-
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                // An empty list defers to the engine's codec preferences.
-                SipEngineHolder.engine?.acceptIncomingCall(token, emptyList())
-                showCallScreen = true
-                Log.d(TAG, "Incoming call accepted")
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to accept incoming call: ${e.message}", e)
-                callError = "Failed to answer: ${e.message}"
-            }
-        }
-    }
+    val call by CallManager.state.collectAsState()
+    val callSetupError by CallManager.error.collectAsState()
 
     // Re-initialize the engine on cold start if we have saved credentials
     LaunchedEffect(Unit) {
@@ -221,157 +196,22 @@ private fun MainApp(
         }
     }
 
-    // Poll the engine for active call state and remote hangup detection
-    LaunchedEffect(Unit) {
-        // The id of the call seen on the previous tick. A call that disappears
-        // between ticks has ended, whichever side hung up — checkRemoteHangup()
-        // only reports the remote case, so tracking this covers local hangups too.
-        var lastActiveCallId: String? = null
-        while (true) {
-            val engine = SipEngineHolder.engine
-            if (engine != null) {
-                val activeCall = engine.getActiveCall()
-                if (activeCall != null && !showCallScreen) {
-                    showCallScreen = true
-                }
-
-                if (activeCall != null && activeCall.callId != lastActiveCallId) {
-                    // Opt-in and a no-op unless the user turned transcription on
-                    // and a speech model is installed.
-                    CallTranscription.onCallStarted(context, activeCall.callId)
-                }
-                if (activeCall == null && lastActiveCallId != null) {
-                    val ended = lastActiveCallId
-                    // Transcribing takes longer than the teardown around it, so
-                    // it runs off this loop rather than stalling hangup polling.
-                    launch {
-                        val insight = CallTranscription.onCallEnded(context, ended)
-                        if (insight != null) {
-                            Log.i(TAG, "Transcript for $ended: ${insight.segments.size} segments (${insight.status})")
-                        }
-                    }
-                }
-                lastActiveCallId = activeCall?.callId
-
-                // Check if remote party hung up
-                val endedCallId = engine.checkRemoteHangup()
-                if (endedCallId != null) {
-                    Log.i(TAG, "Remote hangup detected: $endedCallId")
-                    // Release audio hardware
-                    SipEngineHolder.audioBridge?.stop()
-                    // Stop foreground service
-                    try {
-                        val stopIntent = android.content.Intent(context, com.solutions5060.aria.service.IncomingCallService::class.java).apply {
-                            action = com.solutions5060.aria.service.IncomingCallService.ACTION_STOP
-                        }
-                        context.startService(stopIntent)
-                    } catch (_: Exception) {}
-                }
-            }
-            delay(500)
-        }
-    }
-
-    // Place a call via the engine
+    // Calls go through Telecom; CallManager reports any setup failure.
     fun placeCall(number: String) {
-        val engine = SipEngineHolder.engine
-        if (engine == null) {
-            callError = "Not connected. Go to Settings and connect first."
-            return
-        }
-
-        val domain = prefs.getString(KEY_SIP_DOMAIN, "") ?: ""
-        val username = prefs.getString(KEY_SIP_USERNAME, "") ?: ""
-        val password = SecurePrefs.getString(context, KEY_SIP_PASSWORD, "") ?: ""
-        val transport = prefs.getString(KEY_SIP_TRANSPORT, "udp") ?: "udp"
-        val port = prefs.getString(KEY_SIP_PORT, "5060") ?: "5060"
-        val registrar = prefs.getString(KEY_SIP_REGISTRAR, "") ?: ""
-        val displayName = prefs.getString(KEY_SIP_DISPLAY_NAME, "") ?: ""
-
-        if (domain.isEmpty() || username.isEmpty()) {
-            callError = "Missing SIP credentials. Scan a QR code in Settings."
-            return
-        }
-
-        callError = null
-        showCallScreen = true
-
-        // Start foreground service for mic access (Android requires foreground service for RECORD_AUDIO)
-        try {
-            val serviceIntent = android.content.Intent(context, com.solutions5060.aria.service.IncomingCallService::class.java).apply {
-                putExtra(com.solutions5060.aria.service.IncomingCallService.EXTRA_CALLER_NAME, number)
-                putExtra(com.solutions5060.aria.service.IncomingCallService.EXTRA_MODE, com.solutions5060.aria.service.IncomingCallService.MODE_ACTIVE)
-            }
-            context.startForegroundService(serviceIntent)
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to start call foreground service: ${e.message}")
-        }
-
-        // Normalize: if already a SIP URI, use as-is; otherwise construct one
-        val sipUri = if (number.startsWith("sip:")) number else "sip:$number@$domain"
-        val credentials = SipCredentials(
-            username = username,
-            password = password,
-            domain = domain,
-            registrar = registrar.ifEmpty { null },
-            transport = transport,
-            port = port.toUShortOrNull() ?: 5060u,
-            authUsername = null,
-            displayName = displayName,
-        )
-
-        Thread {
-            try {
-                Log.d(TAG, "Placing call to $sipUri")
-                engine.makeCall(sipUri, credentials, emptyList())
-                Log.d(TAG, "Call initiated successfully")
-            } catch (e: Exception) {
-                Log.e(TAG, "makeCall failed: ${e.message}", e)
-                callError = "Call failed: ${e.message}"
-                showCallScreen = false
-            }
-        }.start()
+        callError = CallManager.placeCall(context, number)
     }
 
-    // Track last call info for history
-    if (showCallScreen) {
-        CallScreen(onDismiss = {
-            // Save call to history
-            try {
-                val activeCall = SipEngineHolder.engine?.getActiveCall()
-                val uri = activeCall?.remoteUri ?: ""
-                if (uri.isNotEmpty()) {
-                    val entry = com.solutions5060.aria.ui.history.CallHistoryEntry(
-                        id = java.util.UUID.randomUUID().toString(),
-                        remoteUri = uri,
-                        remoteName = activeCall?.remoteName,
-                        direction = if (activeCall?.direction == uniffi.aria_mobile.CallDirection.INBOUND) "inbound" else "outbound",
-                        timestamp = System.currentTimeMillis(),
-                        durationSeconds = (activeCall?.durationSecs ?: 0u).toInt(),
-                        missed = false,
-                    )
-                    val history = com.solutions5060.aria.ui.history.loadHistory(context).toMutableList()
-                    history.add(0, entry)
-                    if (history.size > 100) history.subList(100, history.size).clear()
-                    com.solutions5060.aria.ui.history.saveHistory(context, history)
-                }
-            } catch (e: Exception) {
-                Log.w(TAG, "Failed to save call history: ${e.message}")
-            }
-
-            // Release audio hardware so other apps can use it
-            SipEngineHolder.audioBridge?.stop()
-
-            // Stop foreground service
-            try {
-                val stopIntent = android.content.Intent(context, com.solutions5060.aria.service.IncomingCallService::class.java).apply {
-                    action = com.solutions5060.aria.service.IncomingCallService.ACTION_STOP
-                }
-                context.startService(stopIntent)
-            } catch (_: Exception) {}
-
-            showCallScreen = false
-        })
+    val activeCall = call
+    if (activeCall != null) {
+        CallScreen(
+            call = activeCall,
+            onAnswer = { CallManager.answer() },
+            onDecline = { CallManager.reject() },
+            onHangup = { CallManager.hangup() },
+            onToggleMute = { CallManager.setMuted(!activeCall.muted) },
+            onToggleHold = { CallManager.setHold(!activeCall.onHold) },
+            onDtmf = { CallManager.sendDtmf(it) },
+        )
     } else {
         Scaffold(
             bottomBar = {
@@ -423,8 +263,11 @@ private fun MainApp(
                         extensionNumber = prefs.getString(KEY_SIP_USERNAME, "") ?: "",
                         domain = prefs.getString(KEY_SIP_DOMAIN, "") ?: "",
                         isConnected = engineReady,
-                        callError = callError,
-                        onDismissError = { callError = null },
+                        callError = callError ?: callSetupError,
+                        onDismissError = {
+                            callError = null
+                            CallManager.clearError()
+                        },
                     )
                 }
                 composable("contacts") {

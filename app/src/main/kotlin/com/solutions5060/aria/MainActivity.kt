@@ -9,8 +9,9 @@ import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
-import androidx.compose.runtime.mutableStateOf
 import androidx.compose.ui.Modifier
+import com.solutions5060.aria.call.CallManager
+import com.solutions5060.aria.call.IncomingCallNotifier
 import com.solutions5060.aria.service.IncomingCallService
 import com.solutions5060.aria.ui.AriaApp
 import com.solutions5060.aria.ui.theme.AriaTheme
@@ -19,11 +20,6 @@ class MainActivity : ComponentActivity() {
 
     companion object {
         private const val TAG = "MainActivity"
-
-        /** Observable state for incoming call — AriaApp reads this. */
-        val incomingCallToken = mutableStateOf<String?>(null)
-        val incomingCallerUri = mutableStateOf<String?>(null)
-        val incomingCallerName = mutableStateOf<String?>(null)
 
         /**
          * A call token is a compact, opaque, gateway-issued secret. Accept only
@@ -77,15 +73,11 @@ class MainActivity : ComponentActivity() {
             return
         }
 
-        // Stop the ringing
-        val stopIntent = Intent(this, IncomingCallService::class.java).apply {
-            action = IncomingCallService.ACTION_STOP
+        // Only the explicit Answer action answers. The full-screen intent
+        // fires on a locked phone without a tap, so it just shows the ringing
+        // call screen, which is already up from CallManager's state.
+        if (intent.action == IncomingCallNotifier.ACTION_ANSWER) {
+            CallManager.answer(callToken)
         }
-        startService(stopIntent)
-
-        // Set observable state — AriaApp will pick this up and accept the call
-        incomingCallToken.value = callToken
-        incomingCallerUri.value = intent.getStringExtra(IncomingCallService.EXTRA_CALLER_URI)
-        incomingCallerName.value = intent.getStringExtra(IncomingCallService.EXTRA_CALLER_NAME)
     }
 }

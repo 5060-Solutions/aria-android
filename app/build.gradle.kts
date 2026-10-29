@@ -99,4 +99,7 @@ dependencies {
 
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
+
+    // Unit tests (JVM, src/test)
+    testImplementation("junit:junit:4.13.2")
 }
