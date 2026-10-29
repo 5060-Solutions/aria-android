@@ -39,6 +39,7 @@ import com.solutions5060.aria.call.CallUiState
 import com.solutions5060.aria.ui.SecureWindow
 import com.solutions5060.aria.service.SipEngineHolder
 import kotlinx.coroutines.delay
+import uniffi.aria_mobile.CallDirection
 
 @Composable
 fun CallScreen(
@@ -350,12 +351,16 @@ fun CallScreen(
                         isActive = false,
                         onClick = { showAudioPicker = true }
                     )
-                    CallControlButton(
-                        icon = Icons.AutoMirrored.Filled.PhoneForwarded,
-                        label = "Transfer",
-                        isActive = showTransfer,
-                        onClick = { showTransfer = true }
-                    )
+                    // The PBX only acts on a REFER from the side that answered,
+                    // so a call this phone placed cannot be transferred.
+                    if (call.direction == CallDirection.INBOUND) {
+                        CallControlButton(
+                            icon = Icons.AutoMirrored.Filled.PhoneForwarded,
+                            label = "Transfer",
+                            isActive = showTransfer,
+                            onClick = { showTransfer = true }
+                        )
+                    }
                 }
             }
 
