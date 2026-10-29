@@ -211,6 +211,7 @@ private fun MainApp(
             onToggleMute = { CallManager.setMuted(!activeCall.muted) },
             onToggleHold = { CallManager.setHold(!activeCall.onHold) },
             onDtmf = { CallManager.sendDtmf(it) },
+            onSelectAudioRoute = { CallManager.selectAudioRoute(it) },
         )
     } else {
         Scaffold(

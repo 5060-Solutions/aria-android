@@ -219,7 +219,7 @@ object EngineManager {
                 apiKey = gatewayToken,
             )
         )
-        val bridge = AudioBridge()
+        val bridge = AudioBridge(context)
         engine.setAudioBridge(bridge)
         // Call state reaches Telecom and the UI only through these events.
         engine.setEventHandler(CallManager.eventHandler)

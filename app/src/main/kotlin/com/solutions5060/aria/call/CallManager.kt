@@ -46,6 +46,8 @@ data class CallUiState(
     val onHold: Boolean = false,
     /** [SystemClock.elapsedRealtime] when the call connected; null until then. */
     val connectedAtElapsed: Long? = null,
+    /** Audio outputs Telecom offers, and the one in use. */
+    val audio: AudioRouteState = AudioRouteState(),
 ) {
     /** Name if the network sent one, else the user part of the URI. */
     val displayName: String
@@ -123,6 +125,7 @@ object CallManager {
         var connectedAtElapsed: Long? = null
         var localHangupRequested = false
         var finished = false
+        var audio = AudioRouteState()
     }
 
     private var current: CallRecord? = null
@@ -272,9 +275,11 @@ object CallManager {
             // place the call rather than fail it; it just has no system
             // integration.
             Log.w(TAG, "Telecom placeCall refused, calling without it: ${e.message}")
+            rec.audio = SpeakerFallback.routes(speaker = false)
             startOutgoing(rec)
         } catch (e: IllegalArgumentException) {
             Log.w(TAG, "Telecom placeCall rejected, calling without it: ${e.message}")
+            rec.audio = SpeakerFallback.routes(speaker = false)
             startOutgoing(rec)
         }
         return null
@@ -362,6 +367,7 @@ object CallManager {
             Log.e(TAG, "Telecom addNewIncomingCall failed, ringing without it: $e")
             mainHandler.post {
                 val rec = createIncomingRecord(extras) ?: return@post
+                rec.audio = SpeakerFallback.routes(speaker = false)
                 IncomingCallNotifier.show(appContext, rec.key, rec.displayName(), rec.callToken ?: "")
             }
         }
@@ -545,6 +551,31 @@ object CallManager {
         }
     }
 
+    // ── Audio routing ──────────────────────────────────────────────────
+
+    /** Telecom changed the available or active audio route. */
+    fun onAudioRoutesChanged(connection: AriaConnection, routes: AudioRouteState) {
+        val rec = current ?: return
+        if (rec.connection !== connection) return
+        rec.audio = routes
+        publish(rec)
+    }
+
+    /** Moves call audio to [option]. */
+    fun selectAudioRoute(option: AudioRouteOption) {
+        val rec = current ?: return
+        val connection = rec.connection
+        if (connection != null) {
+            connection.requestRoute(option)
+            return
+        }
+        // No Telecom connection (the account was refused): route directly.
+        val speaker = option.type == AudioRouteType.SPEAKER
+        SpeakerFallback.setSpeaker(appContext, speaker)
+        rec.audio = SpeakerFallback.routes(speaker)
+        publish(rec)
+    }
+
     // ── Teardown ────────────────────────────────────────────────────────
 
     private fun safeHangup(callId: String) {
@@ -562,6 +593,8 @@ object CallManager {
 
         mainHandler.removeCallbacks(ringTimeout)
         IncomingCallNotifier.cancel(appContext)
+        // Telecom resets its own routing; only the no-Telecom fallback needs undoing.
+        if (rec.connection == null && rec.audio.isSpeaker) SpeakerFallback.setSpeaker(appContext, false)
         applyTelecom(rec, TelecomUpdate.Disconnect(CallStateMapping.disconnectCauseFor(reason)))
 
         // Release the audio hardware so other apps can use it.
@@ -641,6 +674,7 @@ object CallManager {
         muted = muted,
         onHold = onHold,
         connectedAtElapsed = connectedAtElapsed,
+        audio = audio,
     )
 
     private fun publish(rec: CallRecord) {

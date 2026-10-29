@@ -1,7 +1,5 @@
 package com.solutions5060.aria.ui.call
 
-import android.content.Context
-import android.media.AudioManager
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -20,18 +18,18 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import android.os.SystemClock
+import com.solutions5060.aria.call.AudioRouteOption
+import com.solutions5060.aria.call.AudioRouteType
 import com.solutions5060.aria.call.CallPhase
 import com.solutions5060.aria.call.CallStateMapping
 import com.solutions5060.aria.call.CallUiState
 import com.solutions5060.aria.service.SipEngineHolder
 import kotlinx.coroutines.delay
 
-@Suppress("DEPRECATION")
 @Composable
 fun CallScreen(
     call: CallUiState,
@@ -41,13 +39,9 @@ fun CallScreen(
     onToggleMute: () -> Unit,
     onToggleHold: () -> Unit,
     onDtmf: (String) -> Unit,
+    onSelectAudioRoute: (AudioRouteOption) -> Unit,
 ) {
-    val context = LocalContext.current
-    val audioManager = remember {
-        context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    }
-
-    var isSpeaker by remember { mutableStateOf(false) }
+    val isSpeaker = call.audio.isSpeaker
     var elapsedSeconds by remember { mutableLongStateOf(0L) }
     var showAudioPicker by remember { mutableStateOf(false) }
     var showDtmfKeypad by remember { mutableStateOf(false) }
@@ -109,36 +103,16 @@ fun CallScreen(
             title = { Text("Audio Output", style = MaterialTheme.typography.titleLarge) },
             text = {
                 Column {
-                    AudioOutputOption(
-                        label = "Earpiece",
-                        icon = Icons.Default.PhoneInTalk,
-                        selected = !isSpeaker && !audioManager.isBluetoothScoOn,
-                        onClick = {
-                            audioManager.isSpeakerphoneOn = false
-                            audioManager.stopBluetoothSco()
-                            isSpeaker = false
-                            showAudioPicker = false
-                        },
-                    )
-                    AudioOutputOption(
-                        label = "Speaker",
-                        icon = Icons.AutoMirrored.Filled.VolumeUp,
-                        selected = isSpeaker,
-                        onClick = {
-                            audioManager.isSpeakerphoneOn = true
-                            isSpeaker = true
-                            showAudioPicker = false
-                        },
-                    )
-                    if (audioManager.isBluetoothScoAvailableOffCall) {
+                    if (call.audio.options.isEmpty()) {
+                        Text("No audio outputs reported yet.", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    call.audio.options.forEach { option ->
                         AudioOutputOption(
-                            label = "Bluetooth",
-                            icon = Icons.Default.Bluetooth,
-                            selected = audioManager.isBluetoothScoOn,
+                            label = option.label,
+                            icon = routeIcon(option.type),
+                            selected = option.id == call.audio.currentId,
                             onClick = {
-                                audioManager.startBluetoothSco()
-                                audioManager.isBluetoothScoOn = true
-                                isSpeaker = false
+                                onSelectAudioRoute(option)
                                 showAudioPicker = false
                             },
                         )
@@ -296,11 +270,7 @@ fun CallScreen(
                         icon = if (isSpeaker) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeDown,
                         label = "Speaker",
                         isActive = isSpeaker,
-                        onClick = {
-                            val newSpeaker = !isSpeaker
-                            audioManager.isSpeakerphoneOn = newSpeaker
-                            isSpeaker = newSpeaker
-                        },
+                        onClick = { call.audio.speakerToggleTarget()?.let(onSelectAudioRoute) },
                     )
                     CallControlButton(
                         icon = if (isOnHold) Icons.Default.PlayArrow else Icons.Default.Pause,
@@ -323,8 +293,8 @@ fun CallScreen(
                         onClick = { showDtmfKeypad = !showDtmfKeypad }
                     )
                     CallControlButton(
-                        icon = Icons.Default.Bluetooth,
-                        label = "Audio",
+                        icon = routeIcon(call.audio.current?.type ?: AudioRouteType.EARPIECE),
+                        label = call.audio.current?.label ?: "Audio",
                         isActive = false,
                         onClick = { showAudioPicker = true }
                     )
@@ -364,10 +334,7 @@ fun CallScreen(
                     icon = Icons.Default.CallEnd,
                     contentDescription = "End Call",
                     color = Color.Red,
-                    onClick = {
-                        audioManager.isSpeakerphoneOn = false
-                        onHangup()
-                    },
+                    onClick = onHangup,
                 )
             } else {
                 Spacer(modifier = Modifier.height(84.dp))
@@ -376,6 +343,14 @@ fun CallScreen(
             Spacer(modifier = Modifier.height(48.dp))
         }
     }
+}
+
+private fun routeIcon(type: AudioRouteType): ImageVector = when (type) {
+    AudioRouteType.EARPIECE -> Icons.Default.PhoneInTalk
+    AudioRouteType.SPEAKER -> Icons.AutoMirrored.Filled.VolumeUp
+    AudioRouteType.BLUETOOTH -> Icons.Default.Bluetooth
+    AudioRouteType.WIRED_HEADSET -> Icons.Default.Headset
+    AudioRouteType.STREAMING -> Icons.Default.Cast
 }
 
 @Composable
