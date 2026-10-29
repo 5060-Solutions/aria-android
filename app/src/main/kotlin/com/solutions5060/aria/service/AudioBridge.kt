@@ -32,7 +32,9 @@ class AudioBridge(context: Context) : PlatformAudioBridge {
 
     private var audioTrack: AudioTrack? = null
     private var audioRecord: AudioRecord? = null
-    private var isStarted = false
+
+    /** Keeps audio off outside a call, including after [stop] for a call that is over. */
+    private val session = AudioSessionGate()
 
     /** Capture-side voice processing attached to the AudioRecord session. */
     private val effects = mutableListOf<AudioEffect>()
@@ -40,10 +42,18 @@ class AudioBridge(context: Context) : PlatformAudioBridge {
     /** The mode before we set MODE_IN_COMMUNICATION, restored on stop; null if we did not. */
     private var previousMode: Int? = null
 
+    /**
+     * A call is beginning: the next media callback may open the microphone and
+     * speaker. Until this is called again after [stop], media callbacks are
+     * ignored, so a call that ended while it was being set up cannot reopen them.
+     */
+    fun beginCall() {
+        session.open()
+    }
+
     @Synchronized
     private fun ensureStarted(sampleRate: Int) {
-        if (isStarted) return
-        isStarted = true
+        if (!session.tryStart()) return
 
         if (audioManager.mode != AudioManager.MODE_IN_COMMUNICATION) {
             previousMode = audioManager.mode
@@ -159,6 +169,8 @@ class AudioBridge(context: Context) : PlatformAudioBridge {
 
     @Synchronized
     fun stop() {
+        // Closed first, so a media callback racing this cannot start audio again.
+        session.close()
         effects.forEach {
             try {
                 it.release()
@@ -185,7 +197,6 @@ class AudioBridge(context: Context) : PlatformAudioBridge {
         }
         previousMode = null
 
-        isStarted = false
         Log.i(TAG, "Audio bridge stopped")
     }
 }

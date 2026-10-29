@@ -400,6 +400,8 @@ object CallManager {
             return
         }
         rec.dialInFlight = true
+        // Main thread, call not finished: audio may start for this call.
+        SipEngineHolder.audioBridge?.beginCall()
         engineExecutor.execute {
             try {
                 // The dialled number is not logged.
@@ -411,7 +413,7 @@ object CallManager {
                     if (rec.finished) {
                         // Cancelled while the INVITE was in flight; the engine
                         // only knows the call now, so hang it up now.
-                        engineExecutor.execute { safeHangup(info.callId) }
+                        engineExecutor.execute { hangupLate(info.callId) }
                     } else if (rec.endedDuringDial) {
                         // Answered and hung up before makeCall returned.
                         finish(rec, EndReason.REMOTE_HANGUP)
@@ -595,12 +597,24 @@ object CallManager {
                 // the saved account before accepting.
                 val engine = SipEngineHolder.engine ?: EngineManager.ensureEngine(appContext)
                     ?: throw IllegalStateException("Not connected")
+                // Let audio start for this call, unless it was hung up while
+                // the engine was being built. Checked on the main thread, where
+                // finish() runs, so the two cannot interleave.
+                val stillWanted = onMain {
+                    if (!rec.finished) SipEngineHolder.audioBridge?.beginCall()
+                    !rec.finished
+                }
+                if (!stillWanted) {
+                    // Nothing was accepted yet: decline rather than answer and hang up.
+                    EngineManager.withAuthRetry(appContext) { engine.rejectIncomingCall(token) }
+                    return@execute
+                }
                 // An empty codec list defers to the engine's preferences.
                 val info = EngineManager.withAuthRetry(appContext) { engine.acceptIncomingCall(token, emptyList()) }
                 mainHandler.post {
                     // Hung up while the accept was in flight: the engine only
                     // holds the call now, so end it now.
-                    if (rec.finished) engineExecutor.execute { safeHangup(info.callId) }
+                    if (rec.finished) engineExecutor.execute { hangupLate(info.callId) }
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to accept call: ${e.message}", e)
@@ -785,6 +799,18 @@ object CallManager {
     }
 
     // ── Teardown ────────────────────────────────────────────────────────
+
+    /**
+     * Hangs up a call that was already finished here before the engine took it
+     * on, and closes the audio its media may have opened in the meantime.
+     */
+    private fun hangupLate(callId: String) {
+        safeHangup(callId)
+        mainHandler.post {
+            // Unless a new call has started since, which owns the audio now.
+            if (current?.finished != false) SipEngineHolder.audioBridge?.stop()
+        }
+    }
 
     private fun safeHangup(callId: String) {
         try {
