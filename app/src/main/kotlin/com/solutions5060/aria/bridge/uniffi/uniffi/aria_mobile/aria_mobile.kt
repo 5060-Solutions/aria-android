@@ -2052,7 +2052,10 @@ public interface AriaMobileEngineInterface {
     fun `registerDevice`(`registration`: DeviceRegistration): DeviceRegistrationResponse
     
     /**
-     * Reject an incoming call.
+     * Reject an incoming call. Once the gateway accepts the reject, `Ended`
+     * with `end_reason` `Rejected` is reported for `incoming-<call_token>`,
+     * if the call was offered through `handle_push_notification` and had
+     * not already ended.
      */
     fun `rejectIncomingCall`(`callToken`: kotlin.String)
     
@@ -2100,20 +2103,23 @@ public interface AriaMobileEngineInterface {
      * `on_call_state_changed` reports `Ended` for `call_id`.
      *
      * After the PBX accepts the REFER, the core polls the call's status
-     * every 300 ms until it shows the outcome, for up to 30 s.
+     * every 300 ms until it shows the outcome, for up to 35 s (longer than
+     * the gateway's own 30 s NOTIFY watchdog, so its verdict normally wins).
      *
      * These errors leave the call fully up: `InvalidTarget` for a target
      * rejected locally or by the gateway; `InvalidState` for an unknown call,
      * one that is not active yet (still ringing), or a gateway without the
      * transfer route; `CallFailed` when the PBX refused the REFER or reported
      * the transfer failed (the message carries the SIP status, such as 486);
-     * `Timeout` when the PBX did not answer the REFER, or no outcome arrived
-     * within 30 s; `AuthenticationError` for a rejected token.
+     * `Timeout` when the PBX did not answer the REFER, the transfer failed
+     * with 408 (no outcome: the gateway's watchdog, or a 408 from the PBX),
+     * or the gateway stopped answering for 35 s; `AuthenticationError` for
+     * a rejected token.
      *
      * `InvalidState` after the REFER was accepted means the call ended for
      * another reason meanwhile; `Ended` has been reported. A gateway that
      * does not report transfer outcomes ends the call on acceptance, as
-     * before. Blocks for up to about 40 s; call it off the UI thread.
+     * before. Blocks for up to about 45 s; call it off the UI thread.
      */
     fun `transferCall`(`callId`: kotlin.String, `target`: kotlin.String)
     
@@ -2696,7 +2702,10 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
-     * Reject an incoming call.
+     * Reject an incoming call. Once the gateway accepts the reject, `Ended`
+     * with `end_reason` `Rejected` is reported for `incoming-<call_token>`,
+     * if the call was offered through `handle_push_notification` and had
+     * not already ended.
      */
     @Throws(MobileException::class)override fun `rejectIncomingCall`(`callToken`: kotlin.String)
         = 
@@ -2820,20 +2829,23 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
      * `on_call_state_changed` reports `Ended` for `call_id`.
      *
      * After the PBX accepts the REFER, the core polls the call's status
-     * every 300 ms until it shows the outcome, for up to 30 s.
+     * every 300 ms until it shows the outcome, for up to 35 s (longer than
+     * the gateway's own 30 s NOTIFY watchdog, so its verdict normally wins).
      *
      * These errors leave the call fully up: `InvalidTarget` for a target
      * rejected locally or by the gateway; `InvalidState` for an unknown call,
      * one that is not active yet (still ringing), or a gateway without the
      * transfer route; `CallFailed` when the PBX refused the REFER or reported
      * the transfer failed (the message carries the SIP status, such as 486);
-     * `Timeout` when the PBX did not answer the REFER, or no outcome arrived
-     * within 30 s; `AuthenticationError` for a rejected token.
+     * `Timeout` when the PBX did not answer the REFER, the transfer failed
+     * with 408 (no outcome: the gateway's watchdog, or a 408 from the PBX),
+     * or the gateway stopped answering for 35 s; `AuthenticationError` for
+     * a rejected token.
      *
      * `InvalidState` after the REFER was accepted means the call ended for
      * another reason meanwhile; `Ended` has been reported. A gateway that
      * does not report transfer outcomes ends the call on acceptance, as
-     * before. Blocks for up to about 40 s; call it off the UI thread.
+     * before. Blocks for up to about 45 s; call it off the UI thread.
      */
     @Throws(MobileException::class)override fun `transferCall`(`callId`: kotlin.String, `target`: kotlin.String)
         = 
@@ -3194,7 +3206,11 @@ data class CallInfo (
     var `direction`: CallDirection, 
     var `muted`: kotlin.Boolean, 
     var `onHold`: kotlin.Boolean, 
-    var `durationSecs`: kotlin.ULong
+    var `durationSecs`: kotlin.ULong, 
+    /**
+     * Why the call ended; set only when `state` is `Ended`.
+     */
+    var `endReason`: EndReason?
 ) {
     
     companion object
@@ -3214,6 +3230,7 @@ public object FfiConverterTypeCallInfo: FfiConverterRustBuffer<CallInfo> {
             FfiConverterBoolean.read(buf),
             FfiConverterBoolean.read(buf),
             FfiConverterULong.read(buf),
+            FfiConverterOptionalTypeEndReason.read(buf),
         )
     }
 
@@ -3225,7 +3242,8 @@ public object FfiConverterTypeCallInfo: FfiConverterRustBuffer<CallInfo> {
             FfiConverterTypeCallDirection.allocationSize(value.`direction`) +
             FfiConverterBoolean.allocationSize(value.`muted`) +
             FfiConverterBoolean.allocationSize(value.`onHold`) +
-            FfiConverterULong.allocationSize(value.`durationSecs`)
+            FfiConverterULong.allocationSize(value.`durationSecs`) +
+            FfiConverterOptionalTypeEndReason.allocationSize(value.`endReason`)
     )
 
     override fun write(value: CallInfo, buf: ByteBuffer) {
@@ -3237,6 +3255,7 @@ public object FfiConverterTypeCallInfo: FfiConverterRustBuffer<CallInfo> {
             FfiConverterBoolean.write(value.`muted`, buf)
             FfiConverterBoolean.write(value.`onHold`, buf)
             FfiConverterULong.write(value.`durationSecs`, buf)
+            FfiConverterOptionalTypeEndReason.write(value.`endReason`, buf)
     }
 }
 
@@ -3667,6 +3686,71 @@ public object FfiConverterTypeCallState: FfiConverterRustBuffer<CallState> {
 
 
 
+/**
+ * Why a call ended. Set only on the `Ended` event.
+ */
+
+enum class EndReason {
+    
+    /**
+     * This handset hung up.
+     */
+    LOCAL_HANGUP,
+    /**
+     * The far end hung up (BYE).
+     */
+    REMOTE_HANGUP,
+    /**
+     * The caller hung up an incoming call before it was answered.
+     */
+    CALLER_CANCELLED,
+    /**
+     * An incoming call was answered on another device.
+     */
+    ANSWERED_ELSEWHERE,
+    /**
+     * An incoming call was rejected with `reject_incoming_call`, or
+     * declined according to the gateway.
+     */
+    REJECTED,
+    /**
+     * The call was blind-transferred away from this handset.
+     */
+    TRANSFERRED,
+    /**
+     * The call could not be set up: an outgoing call failed, or an accept
+     * had an unknown outcome.
+     */
+    FAILED,
+    /**
+     * An outgoing call was hung up before it was answered.
+     */
+    CANCELLED;
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEndReason: FfiConverterRustBuffer<EndReason> {
+    override fun read(buf: ByteBuffer) = try {
+        EndReason.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: EndReason) = 4UL
+
+    override fun write(value: EndReason, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
 
 
 /**
@@ -3819,6 +3903,7 @@ public interface MobileEventHandler {
      * Called when call state changes. Every call_id that has been reported
      * gets exactly one final `Ended`, whoever ended the call (local hangup,
      * remote hangup, transfer, caller cancel, or a failed outgoing call).
+     * The `Ended` event carries `end_reason`.
      */
     fun `onCallStateChanged`(`info`: CallInfo)
     
@@ -4232,6 +4317,38 @@ public object FfiConverterOptionalTypeMediaStats: FfiConverterRustBuffer<MediaSt
         } else {
             buf.put(1)
             FfiConverterTypeMediaStats.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterOptionalTypeEndReason: FfiConverterRustBuffer<EndReason?> {
+    override fun read(buf: ByteBuffer): EndReason? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeEndReason.read(buf)
+    }
+
+    override fun allocationSize(value: EndReason?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeEndReason.allocationSize(value)
+        }
+    }
+
+    override fun write(value: EndReason?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeEndReason.write(value, buf)
         }
     }
 }
