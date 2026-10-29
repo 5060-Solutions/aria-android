@@ -115,36 +115,40 @@ class AriaConnection : Connection() {
         CallManager.onShowIncomingCallUi(this)
     }
 
+    // Each action acts on this connection's own call, which with call waiting
+    // need not be the one on screen.
+
     override fun onAnswer() {
-        CallManager.answer()
+        CallManager.answer(this)
     }
 
     override fun onAnswer(videoState: Int) {
-        CallManager.answer()
+        CallManager.answer(this)
     }
 
     override fun onReject() {
-        CallManager.reject()
+        CallManager.reject(this)
     }
 
     override fun onDisconnect() {
-        CallManager.hangup()
+        CallManager.hangup(this)
     }
 
     override fun onAbort() {
-        CallManager.hangup()
+        CallManager.hangup(this)
     }
 
     override fun onHold() {
-        CallManager.setHold(true)
+        CallManager.setHold(this, true)
     }
 
     override fun onUnhold() {
-        CallManager.setHold(false)
+        // Resuming holds the other call, if any (the core keeps one off hold).
+        CallManager.setHold(this, false)
     }
 
     override fun onPlayDtmfTone(c: Char) {
-        CallManager.sendDtmf(c.toString())
+        CallManager.sendDtmf(this, c.toString())
     }
 
     // ── Audio routing ──────────────────────────────────────────────────
