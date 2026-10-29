@@ -16,9 +16,8 @@ import com.solutions5060.aria.service.AriaConnection
 import com.solutions5060.aria.service.EngineManager
 import com.solutions5060.aria.service.IncomingCallService
 import com.solutions5060.aria.service.SipEngineHolder
-import com.solutions5060.aria.ui.history.CallHistoryEntry
-import com.solutions5060.aria.ui.history.loadHistory
-import com.solutions5060.aria.ui.history.saveHistory
+import com.solutions5060.aria.history.CallHistoryRecorder
+import com.solutions5060.aria.history.CallHistoryStore
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -602,21 +601,11 @@ object CallManager {
         durationSeconds: Int,
         reason: EndReason,
     ) {
-        if (remoteUri.isEmpty()) return
+        val entry = CallHistoryRecorder.entryFor(
+            remoteUri, remoteName, direction, startedAtMillis, durationSeconds, reason,
+        ) ?: return
         try {
-            val entry = CallHistoryEntry(
-                id = UUID.randomUUID().toString(),
-                remoteUri = remoteUri,
-                remoteName = remoteName,
-                direction = if (direction == CallDirection.INBOUND) "inbound" else "outbound",
-                timestamp = startedAtMillis,
-                durationSeconds = durationSeconds,
-                missed = reason == EndReason.MISSED,
-            )
-            val history = loadHistory(appContext).toMutableList()
-            history.add(0, entry)
-            if (history.size > 100) history.subList(100, history.size).clear()
-            saveHistory(appContext, history)
+            CallHistoryStore.add(appContext, entry)
         } catch (e: Exception) {
             Log.w(TAG, "Failed to save call history: ${e.message}")
         }
