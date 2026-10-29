@@ -36,7 +36,7 @@ import com.solutions5060.aria.history.CallHistoryStore
 import com.solutions5060.aria.security.SecurePrefs
 import com.solutions5060.aria.service.EngineManager
 import com.solutions5060.aria.service.SipEngineHolder
-import com.solutions5060.aria.ui.call.CallScreen
+import com.solutions5060.aria.ui.call.ManagedCallScreen
 import com.solutions5060.aria.ui.contacts.ContactsScreen
 import com.solutions5060.aria.ui.dialer.DialerScreen
 import com.solutions5060.aria.ui.history.HistoryScreen
@@ -210,18 +210,7 @@ private fun MainApp(
 
     val activeCall = call
     if (activeCall != null) {
-        CallScreen(
-            call = activeCall,
-            onAnswer = { CallManager.answer() },
-            onDecline = { CallManager.reject() },
-            onHangup = { CallManager.hangup() },
-            onToggleMute = { CallManager.setMuted(!activeCall.muted) },
-            onToggleHold = { CallManager.setHold(!activeCall.onHold) },
-            onDtmf = { CallManager.sendDtmf(it) },
-            onSelectAudioRoute = { CallManager.selectAudioRoute(it) },
-            onTransfer = { CallManager.transfer(it) },
-            onDismissTransferError = { CallManager.clearTransferError() },
-        )
+        ManagedCallScreen(activeCall)
     } else {
         Scaffold(
             bottomBar = {

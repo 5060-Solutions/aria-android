@@ -12,8 +12,9 @@ import androidx.compose.ui.platform.LocalContext
  * Marks the window FLAG_SECURE while this composable is on screen: no
  * screenshots, no screen recording, and a blank recents thumbnail.
  *
- * MainActivity can show over the lock screen for incoming calls, so screens
- * that render account details, call parties or transcripts use this. It is
+ * Screens that render account details, call parties or transcripts use
+ * this. (Only CallActivity shows over the lock screen; it shows just the
+ * call screen, which is secured the same way.) It is
  * reference-counted so nested secure screens (settings opening the QR
  * scanner) do not clear the flag under each other.
  */

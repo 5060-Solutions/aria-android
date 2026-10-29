@@ -34,6 +34,7 @@ import com.solutions5060.aria.call.AudioRouteOption
 import com.solutions5060.aria.call.AudioRouteType
 import com.solutions5060.aria.call.CallPhase
 import com.solutions5060.aria.call.CallStateMapping
+import com.solutions5060.aria.call.CallManager
 import com.solutions5060.aria.call.CallUiState
 import com.solutions5060.aria.ui.SecureWindow
 import com.solutions5060.aria.service.SipEngineHolder
@@ -654,4 +655,21 @@ private fun AudioLevelBar(
                 .background(color)
         )
     }
+}
+
+/** [CallScreen] driven by [CallManager]: used by the app and by the lock-screen call activity. */
+@Composable
+fun ManagedCallScreen(call: CallUiState) {
+    CallScreen(
+        call = call,
+        onAnswer = { CallManager.answer() },
+        onDecline = { CallManager.reject() },
+        onHangup = { CallManager.hangup() },
+        onToggleMute = { CallManager.setMuted(!call.muted) },
+        onToggleHold = { CallManager.setHold(!call.onHold) },
+        onDtmf = { CallManager.sendDtmf(it) },
+        onSelectAudioRoute = { CallManager.selectAudioRoute(it) },
+        onTransfer = { CallManager.transfer(it) },
+        onDismissTransferError = { CallManager.clearTransferError() },
+    )
 }

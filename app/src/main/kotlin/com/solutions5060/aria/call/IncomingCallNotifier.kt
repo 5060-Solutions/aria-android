@@ -8,7 +8,6 @@ import android.content.Intent
 import androidx.core.app.NotificationCompat
 import androidx.core.app.Person
 import com.solutions5060.aria.AriaApplication
-import com.solutions5060.aria.MainActivity
 import com.solutions5060.aria.R
 
 /**
@@ -74,9 +73,10 @@ object IncomingCallNotifier {
         PendingIntent.getActivity(
             context,
             requestCode,
-            Intent(context, MainActivity::class.java).apply {
+            // The lock-screen call activity: Answer opens it without unlocking.
+            Intent(context, CallActivity::class.java).apply {
                 this.action = action
-                flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
                 putExtra(CallManager.EXTRA_CALL_TOKEN, callToken)
             },
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE,

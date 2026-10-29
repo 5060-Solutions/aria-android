@@ -141,6 +141,17 @@ object CallStateMapping {
     fun dialFailureMessage(error: Throwable): String? =
         if (error is MobileException.Cancelled) null else "Call failed: ${error.message}"
 
+    /** Longest call token accepted from an intent. */
+    private const val MAX_CALL_TOKEN_LEN = 8192
+
+    /**
+     * A call token is a compact, opaque, gateway-issued secret. Only non-blank
+     * printable ASCII of a sane length is accepted, so a malformed extra cannot
+     * crash or drive the answer flow.
+     */
+    fun isWellFormedCallToken(token: String): Boolean =
+        token.isNotBlank() && token.length <= MAX_CALL_TOKEN_LEN && token.all { it.code in 0x21..0x7e }
+
     /** The status line under the caller's name. */
     fun statusText(phase: CallPhase, elapsedSeconds: Long): String = when (phase) {
         CallPhase.INCOMING -> "Incoming Call"

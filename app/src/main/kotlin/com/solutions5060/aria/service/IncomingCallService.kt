@@ -11,7 +11,7 @@ import android.os.IBinder
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import com.solutions5060.aria.AriaApplication
-import com.solutions5060.aria.MainActivity
+import com.solutions5060.aria.call.CallActivity
 import com.solutions5060.aria.R
 
 /**
@@ -71,30 +71,13 @@ class IncomingCallService : Service() {
             }
         }
 
-        /**
-         * Foreground-service types to try, most capable first. A microphone
-         * type is refused (SecurityException) on Android 14+ when the service
-         * starts from the background, e.g. answering from a Bluetooth headset,
-         * a watch or Android Auto with the app closed; phone-call alone still
-         * keeps the process alive. Null means the untyped call (before API 29).
-         */
-        fun foregroundTypeAttempts(sdkInt: Int): List<Int?> =
-            if (sdkInt >= Build.VERSION_CODES.Q) {
-                listOf(
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
-                    ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL,
-                )
-            } else {
-                listOf(null)
-            }
-
         private const val NOTIFICATION_ID = 2001
 
         /**
          * Call tokens this process has received through the legitimate FCM push
-         * pipeline. The exported [com.solutions5060.aria.MainActivity] only acts
-         * on a `call_token` intent extra if it is present here, so an arbitrary
-         * app cannot inject a fabricated token into the answer flow.
+         * pipeline. [com.solutions5060.aria.call.CallActivity] only answers a
+         * `call_token` intent extra that is present here, so a fabricated token
+         * cannot drive the answer flow.
          *
          * In-memory only (cleared on process death); a token is a short-lived
          * per-call secret issued by the gateway.
@@ -129,16 +112,34 @@ class IncomingCallService : Service() {
         return START_NOT_STICKY
     }
 
-    /** startForeground with the most capable type Android allows here. False if none was. */
+    /**
+     * startForeground with the most capable type Android allows here. False
+     * if none was.
+     *
+     * The microphone type is tried first. Android 14+ refuses it
+     * (SecurityException) when the service starts from the background, e.g.
+     * answering from a Bluetooth headset, a watch or Android Auto with the app
+     * closed; the phone-call type alone still keeps the process alive. Null
+     * means the untyped call, before API 29.
+     */
     private fun promote(notification: Notification): Boolean {
-        for (type in foregroundTypeAttempts(Build.VERSION.SDK_INT)) {
+        val attempts: List<Int?> = when {
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.R -> listOf(
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL or ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE,
+                ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL,
+            )
+            // The microphone type arrived in API 30.
+            Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q -> listOf(ServiceInfo.FOREGROUND_SERVICE_TYPE_PHONE_CALL)
+            else -> listOf(null)
+        }
+        for (type in attempts) {
             try {
-                if (type == null) {
-                    startForeground(NOTIFICATION_ID, notification)
-                } else {
+                if (type != null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
                     startForeground(NOTIFICATION_ID, notification, type)
+                } else {
+                    startForeground(NOTIFICATION_ID, notification)
                 }
-                if (type != null && type and ServiceInfo.FOREGROUND_SERVICE_TYPE_MICROPHONE == 0) {
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && attempts.indexOf(type) > 0) {
                     // The call continues, but Android may silence the
                     // microphone while the app is in the background.
                     Log.w(TAG, "Call service running without the microphone type")
@@ -156,7 +157,9 @@ class IncomingCallService : Service() {
     }
 
     private fun buildActiveNotification(callerName: String): Notification {
-        val openIntent = Intent(this, MainActivity::class.java).apply {
+        // The call screen alone, so tapping this on a locked phone shows the
+        // call without unlocking into the rest of the app.
+        val openIntent = Intent(this, CallActivity::class.java).apply {
             this.flags = Intent.FLAG_ACTIVITY_NEW_TASK
         }
         val openPending = PendingIntent.getActivity(

@@ -2,6 +2,7 @@ package com.solutions5060.aria.call
 
 import android.telecom.DisconnectCause
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -143,6 +144,18 @@ class CallStateMappingTest {
         assertEquals("Call failed: 486 Busy Here", CallStateMapping.dialFailureMessage(failed))
         assertEquals(TelecomUpdate.Disconnect(DisconnectCause.ERROR), CallStateMapping.disconnectFor(reason))
         assertEquals(EndReason.FAILED, CallStateMapping.endReasonForDialFailure(MobileException.AuthenticationException("401")))
+    }
+
+    @Test
+    fun onlyWellFormedCallTokensAreAccepted() {
+        assertTrue(CallStateMapping.isWellFormedCallToken("abc123-_.~:+/="))
+        assertFalse(CallStateMapping.isWellFormedCallToken(""))
+        assertFalse(CallStateMapping.isWellFormedCallToken("   "))
+        assertFalse(CallStateMapping.isWellFormedCallToken("has space"))
+        assertFalse(CallStateMapping.isWellFormedCallToken("line\nbreak"))
+        assertFalse(CallStateMapping.isWellFormedCallToken("caf\u00e9"))
+        assertTrue(CallStateMapping.isWellFormedCallToken("a".repeat(8192)))
+        assertFalse(CallStateMapping.isWellFormedCallToken("a".repeat(8193)))
     }
 
     @Test
