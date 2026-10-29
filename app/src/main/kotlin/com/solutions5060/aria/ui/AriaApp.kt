@@ -31,6 +31,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.solutions5060.aria.ai.CallTranscription
 import com.solutions5060.aria.security.SecurePrefs
+import com.solutions5060.aria.service.EngineManager
 import com.solutions5060.aria.service.SipEngineHolder
 import com.solutions5060.aria.ui.call.CallScreen
 import com.solutions5060.aria.ui.contacts.ContactsScreen
@@ -43,7 +44,6 @@ import com.solutions5060.aria.ui.transcripts.TranscriptsScreen
 import com.solutions5060.aria.ui.splash.SplashScreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import uniffi.aria_mobile.SipCredentials
 
 private const val TAG = "AriaApp"
@@ -160,7 +160,7 @@ fun AriaApp() {
                 onSignOut = {
                     prefs.edit().clear().apply()
                     SecurePrefs.clear(context)
-                    SipEngineHolder.engine = null
+                    EngineManager.reset()
                     phase = AppPhase.SETUP
                 },
             )
@@ -207,99 +207,17 @@ private fun MainApp(
 
     // Re-initialize the engine on cold start if we have saved credentials
     LaunchedEffect(Unit) {
-        if (SipEngineHolder.engine == null) {
-            val username = prefs.getString(KEY_SIP_USERNAME, "") ?: ""
-            val password = SecurePrefs.getString(context, KEY_SIP_PASSWORD, "") ?: ""
-            val domain = prefs.getString(KEY_SIP_DOMAIN, "") ?: ""
-            val apiUrl = prefs.getString(KEY_API_URL, "") ?: ""
-            val tenantDomain = prefs.getString("tenant_domain", "") ?: ""
-
-            if (username.isEmpty() || domain.isEmpty()) {
-                // No credentials at all
-            } else {
-                kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-                    try {
-                        // Get FCM push token for incoming call notifications
-                        val fcmToken = try {
-                            com.google.firebase.messaging.FirebaseMessaging.getInstance().token.await()
-                        } catch (e: Exception) {
-                            Log.w(TAG, "Could not get FCM token: ${e.message}")
-                            ""
-                        }
-
-                        var gwUrl = prefs.getString("gateway_url", null) ?: ""
-                        var gwToken = SecurePrefs.getString(context, "gateway_token", null) ?: ""
-
-                        // If we don't have a gateway token, do a full login first
-                        if (gwToken.isEmpty() && apiUrl.isNotEmpty()) {
-                            Log.d(TAG, "No gateway token — performing full login")
-                            val client = com.solutions5060.aria.service.PbxApiClient(apiUrl)
-                            val loginResult = client.extensionLogin(username, password, tenantDomain)
-                            val deviceResult = client.registerDevice(
-                                jwt = loginResult.jwt,
-                                pushToken = fcmToken,
-                                platform = "android",
-                            )
-                            gwUrl = deviceResult.gatewayUrl.ifEmpty { "https://push.ariaroute.com" }
-                            gwToken = deviceResult.gatewayToken.ifEmpty { loginResult.jwt }
-                            prefs.edit()
-                                .putString("extension_id", loginResult.extensionId)
-                                .putString("tenant_id", loginResult.tenantId)
-                                .putString("device_id", deviceResult.deviceId)
-                                .putString("gateway_url", gwUrl)
-                                .apply()
-                            // JWT and gateway token are sensitive — store encrypted.
-                            SecurePrefs.putString(context, "jwt", loginResult.jwt)
-                            SecurePrefs.putString(context, "gateway_token", gwToken)
-                            // Do not log the gateway token (even a prefix).
-                            Log.d(TAG, "Full login completed, gwUrl=$gwUrl")
-                        }
-
-                        Log.d(TAG, "Engine init: gwUrl=$gwUrl, gwToken empty=${gwToken.isEmpty()}")
-                        if (gwUrl.isNotEmpty() && gwToken.isNotEmpty()) {
-                            val config = uniffi.aria_mobile.GatewayConfig(
-                                baseUrl = gwUrl,
-                                apiKey = gwToken,
-                            )
-                            val engine = uniffi.aria_mobile.AriaMobileEngine(config)
-                            val bridge = com.solutions5060.aria.service.AudioBridge()
-                            engine.setAudioBridge(bridge)
-                            SipEngineHolder.engine = engine
-                            SipEngineHolder.audioBridge = bridge
-
-                            val registrar = prefs.getString(KEY_SIP_REGISTRAR, "") ?: ""
-                            val transport = prefs.getString(KEY_SIP_TRANSPORT, "udp") ?: "udp"
-                            val port = prefs.getString(KEY_SIP_PORT, "5060") ?: "5060"
-                            val displayName = prefs.getString(KEY_SIP_DISPLAY_NAME, "") ?: ""
-
-                            val creds = uniffi.aria_mobile.SipCredentials(
-                                username = username,
-                                password = password,
-                                domain = domain,
-                                registrar = registrar.ifEmpty { null },
-                                transport = transport,
-                                port = port.toUShortOrNull() ?: 5060u,
-                                authUsername = null,
-                                displayName = displayName,
-                            )
-                            val reg = uniffi.aria_mobile.DeviceRegistration(
-                                platform = "android",
-                                pushToken = fcmToken,
-                                bundleId = "com.solutions5060.aria",
-                                sip = creds,
-                            )
-                            engine.registerDevice(reg)
-                            engineReady = true
-                            Log.d(TAG, "Engine initialized successfully")
-                        }
-                    } catch (e: Exception) {
-                        Log.e(TAG, "Failed to init engine on startup: ${e.message}", e)
-                        callError = "Connection failed: ${e.message}"
-                    }
-                }
-            }
-        } else {
+        if (SipEngineHolder.engine != null) {
             engineReady = true
+            return@LaunchedEffect
+        }
+        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+            try {
+                engineReady = EngineManager.ensureEngine(context) != null
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to init engine on startup: ${e.message}", e)
+                callError = "Connection failed: ${e.message}"
+            }
         }
     }
 

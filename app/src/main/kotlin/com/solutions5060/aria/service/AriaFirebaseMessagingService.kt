@@ -31,13 +31,16 @@ class AriaFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onNewToken(token: String) {
-        Log.i(TAG, "FCM token refreshed: ${token.take(10)}...")
+        // Do not log the token: it is what the gateway pushes calls to.
+        Log.i(TAG, "FCM token refreshed")
 
-        // Store the token and update the gateway if registered
-        // SharedPreferences or DataStore would be used in production
-        SipEngineHolder.engine?.let { engine ->
-            // Re-register with new token
-            Log.i(TAG, "Updating push token with gateway")
+        // Firebase calls this on a background thread, so the blocking
+        // gateway round-trip is fine here. If the app was never provisioned
+        // the token is only remembered for the eventual first registration.
+        try {
+            EngineManager.updatePushToken(applicationContext, token)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to update push token: ${e.message}")
         }
     }
 

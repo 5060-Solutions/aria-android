@@ -33,10 +33,10 @@ import androidx.compose.ui.unit.sp
 import com.google.firebase.messaging.FirebaseMessaging
 import com.solutions5060.aria.R
 import com.solutions5060.aria.security.SecurePrefs
+import com.solutions5060.aria.service.EngineManager
 import com.solutions5060.aria.service.PbxApiClient
 import com.solutions5060.aria.service.SipEngineHolder
 import com.solutions5060.aria.ui.theme.AriaGreen
-import uniffi.aria_mobile.*
 
 private const val PREFS_NAME = "aria_prefs"
 
@@ -102,66 +102,12 @@ fun SettingsScreen(
 
         Thread {
             try {
-                val client = PbxApiClient(apiUrl)
-
-                val loginResult = client.extensionLogin(
-                    extensionNumber = sipUsername,
-                    password = sipPassword,
-                    tenantDomain = tenantDomain,
-                )
-                jwt = loginResult.jwt
-                extensionId = loginResult.extensionId
-                tenantId = loginResult.tenantId
-
-                prefs.edit()
-                    .putString("extension_id", loginResult.extensionId)
-                    .putString("tenant_id", loginResult.tenantId)
-                    .apply()
-                // JWT is a sensitive bearer token — store encrypted.
-                SecurePrefs.putString(context, "jwt", loginResult.jwt)
-
-                val token = fcmToken ?: ""
-                val deviceResult = client.registerDevice(
-                    jwt = loginResult.jwt,
-                    pushToken = token,
-                    platform = "android",
-                )
-                deviceId = deviceResult.deviceId
-                gatewayUrl = deviceResult.gatewayUrl
-
-                prefs.edit()
-                    .putString("device_id", deviceResult.deviceId)
-                    .putString("gateway_url", deviceResult.gatewayUrl)
-                    .apply()
-                // Gateway token is sensitive — store encrypted.
-                SecurePrefs.putString(context, "gateway_token", deviceResult.gatewayToken)
-
-                val gwUrl = deviceResult.gatewayUrl.ifEmpty { "https://push.ariaroute.com" }
-                val gwToken = deviceResult.gatewayToken.ifEmpty { loginResult.jwt }
-                val config = GatewayConfig(baseUrl = gwUrl, apiKey = gwToken)
-                val engine = AriaMobileEngine(config)
-                val bridge = com.solutions5060.aria.service.AudioBridge()
-                engine.setAudioBridge(bridge)
-                SipEngineHolder.engine = engine
-                SipEngineHolder.audioBridge = bridge
-
-                val credentials = SipCredentials(
-                    username = sipUsername,
-                    password = sipPassword,
-                    domain = sipDomain,
-                    registrar = sipRegistrar.ifEmpty { null },
-                    transport = sipTransport,
-                    port = sipPort.toUShortOrNull() ?: 5060u,
-                    authUsername = null,
-                    displayName = sipDisplayName,
-                )
-                val registration = DeviceRegistration(
-                    platform = "android",
-                    pushToken = token,
-                    bundleId = "com.solutions5060.aria",
-                    sip = credentials,
-                )
-                engine.registerDevice(registration)
+                EngineManager.login(context, fcmToken)
+                jwt = SecurePrefs.getString(context, "jwt", null)
+                extensionId = prefs.getString("extension_id", null)
+                tenantId = prefs.getString("tenant_id", null)
+                deviceId = prefs.getString("device_id", null)
+                gatewayUrl = prefs.getString("gateway_url", null)
 
                 isRegistered = true
                 isConnecting = false
