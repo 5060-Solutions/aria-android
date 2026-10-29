@@ -23,7 +23,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.SecureFlagPolicy
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.mlkit.vision.barcode.BarcodeScanning
@@ -45,6 +48,11 @@ fun QRScannerScreen(
     var permissionDenied by remember { mutableStateOf(false) }
     var flashEnabled by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    // A valid code waiting for the user to confirm where it signs them in.
+    var pending by remember { mutableStateOf<ProvisioningCredentials?>(null) }
+    // Cleared after the first detection so one code is handled once; re-armed
+    // if the user declines the confirmation.
+    val scanArmed = remember { mutableStateOf(true) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -81,6 +89,7 @@ fun QRScannerScreen(
             hasCameraPermission -> {
                 CameraPreviewWithAnalysis(
                     flashEnabled = flashEnabled,
+                    scanArmed = scanArmed,
                     onBarcodeDetected = { rawValue ->
                         val creds = parseProvisioningUri(rawValue)
                         when {
@@ -92,12 +101,29 @@ fun QRScannerScreen(
                                     // Untrusted / insecure endpoint — do not auto-login.
                                     errorMessage = rejection
                                 } else {
-                                    onCredentialsScanned(creds)
+                                    // Anyone can print a QR code. Show where it
+                                    // points before logging in with it.
+                                    errorMessage = null
+                                    pending = creds
                                 }
                             }
                         }
                     },
                 )
+
+                pending?.let { creds ->
+                    ProvisioningConfirmDialog(
+                        creds = creds,
+                        onConfirm = {
+                            pending = null
+                            onCredentialsScanned(creds)
+                        },
+                        onCancel = {
+                            pending = null
+                            scanArmed.value = true
+                        },
+                    )
+                }
 
                 // Overlay controls
                 Box(
@@ -187,15 +213,68 @@ fun QRScannerScreen(
     }
 }
 
+/**
+ * Shows the endpoints a scanned code will sign in to. The password is never
+ * shown; the dialog window is FLAG_SECURE so the account details stay out of
+ * screenshots and the recents thumbnail.
+ */
+@Composable
+private fun ProvisioningConfirmDialog(
+    creds: ProvisioningCredentials,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        properties = DialogProperties(securePolicy = SecureFlagPolicy.SecureOn),
+        title = { Text("Sign in with this code?", style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Only continue if you trust the source of this QR code.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                ConfirmRow("API host", creds.apiHost)
+                ConfirmRow("Domain", creds.tenantDomain.ifEmpty { creds.server })
+                ConfirmRow("SIP server", "${creds.server}:${creds.port}")
+                ConfirmRow("Transport", creds.transport.uppercase())
+                ConfirmRow("User", creds.username)
+                if (creds.transport != "tls") {
+                    Text(
+                        "This code uses unencrypted ${creds.transport.uppercase()} signalling.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text("Sign In") }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel) { Text("Cancel") }
+        },
+    )
+}
+
+@Composable
+private fun ConfirmRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.width(12.dp))
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+    }
+}
+
 @Composable
 private fun CameraPreviewWithAnalysis(
     flashEnabled: Boolean,
+    scanArmed: MutableState<Boolean>,
     onBarcodeDetected: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var cameraControl by remember { mutableStateOf<androidx.camera.core.CameraControl?>(null) }
-    val hasDetected = remember { mutableStateOf(false) }
 
     LaunchedEffect(flashEnabled) {
         cameraControl?.enableTorch(flashEnabled)
@@ -222,8 +301,8 @@ private fun CameraPreviewWithAnalysis(
 
                 imageAnalysis.setAnalyzer(executor) { imageProxy ->
                     processImage(imageProxy, barcodeScanner) { rawValue ->
-                        if (!hasDetected.value) {
-                            hasDetected.value = true
+                        if (scanArmed.value) {
+                            scanArmed.value = false
                             onBarcodeDetected(rawValue)
                         }
                     }
