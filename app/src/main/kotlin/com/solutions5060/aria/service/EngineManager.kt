@@ -265,6 +265,9 @@ object EngineManager {
             saveSession(context, login)
             return login.jwt
         }
+
+        override fun registerDevice(jwt: String): GatewayTokenRenewal.Registration =
+            registerWithPbx(context, PbxApiClient(apiUrl()), jwt, currentPushToken(context))
     }
 
     private fun saveSession(context: Context, login: PbxApiClient.LoginResult) {
@@ -304,12 +307,38 @@ object EngineManager {
         val login = client.extensionLogin(credentials.username, credentials.password, tenantDomain)
         saveSession(context, login)
 
+        val registration = registerWithPbx(context, client, login.jwt, pushToken)
+        // The session JWT is not a gateway token: the gateway rejects it, so
+        // never fall back to it.
+        val gatewayToken = registration.gatewayToken?.takeIf { it.isNotEmpty() }
+            ?: client.renewGatewayToken(login.jwt, registration.deviceId)
+        // A bearer credential: store encrypted.
+        SecurePrefs.putString(context, "gateway_token", gatewayToken)
+        val gatewayUrl = prefs.getString("gateway_url", null)?.ifEmpty { null } ?: DEFAULT_GATEWAY_URL
+        // Do not log either token, even a prefix.
+        Log.d(TAG, "PBX login completed, gatewayUrl=$gatewayUrl")
+        return gatewayUrl to gatewayToken
+    }
+
+    /**
+     * `POST /api/v1/devices/register`, saving the device id, gateway URL and
+     * any SIP transport it returns. The gateway token is null when the PBX
+     * sent none, including a 502/503 that still stored the device: the caller
+     * then renews one for that device.
+     */
+    private fun registerWithPbx(
+        context: Context,
+        client: PbxApiClient,
+        jwt: String,
+        pushToken: String,
+    ): GatewayTokenRenewal.Registration {
+        val prefs = prefs(context)
         var gatewayUrl = prefs.getString("gateway_url", null)?.ifEmpty { null } ?: DEFAULT_GATEWAY_URL
-        var gatewayToken = ""
+        var gatewayToken: String? = null
         val deviceId = try {
-            val device = client.registerDevice(jwt = login.jwt, pushToken = pushToken, platform = PLATFORM)
+            val device = client.registerDevice(jwt = jwt, pushToken = pushToken, platform = PLATFORM)
             gatewayUrl = device.gatewayUrl.ifEmpty { DEFAULT_GATEWAY_URL }
-            gatewayToken = device.gatewayToken
+            gatewayToken = device.gatewayToken.ifEmpty { null }
             device.sipTransport?.let { transport ->
                 prefs.edit()
                     .putString("sip_transport", transport)
@@ -329,15 +358,7 @@ object EngineManager {
             .putString("device_id", deviceId)
             .putString("gateway_url", gatewayUrl)
             .apply()
-
-        // The session JWT is not a gateway token: the gateway rejects it, so
-        // never fall back to it.
-        if (gatewayToken.isEmpty()) gatewayToken = client.renewGatewayToken(login.jwt, deviceId)
-        // A bearer credential: store encrypted.
-        SecurePrefs.putString(context, "gateway_token", gatewayToken)
-        // Do not log either token, even a prefix.
-        Log.d(TAG, "PBX login completed, gatewayUrl=$gatewayUrl")
-        return gatewayUrl to gatewayToken
+        return GatewayTokenRenewal.Registration(deviceId, gatewayToken)
     }
 
     private fun startEngine(

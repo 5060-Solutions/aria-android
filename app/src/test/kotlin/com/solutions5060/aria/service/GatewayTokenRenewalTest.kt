@@ -20,21 +20,29 @@ class GatewayTokenRenewalTest {
     private class FakePbx(
         var jwt: String? = "session-1",
         var validJwt: String = "session-1",
-        val deviceId: String? = "device-1",
-        val failWith: Exception? = null,
+        var deviceId: String? = "device-1",
+        /** Device ids the PBX still knows; others get 404. */
+        val knownDevices: MutableSet<String> = mutableSetOf("device-1"),
+        var failWith: Exception? = null,
         val delayMs: Long = 0,
+        /** Token a new registration carries, or null for none. */
+        val registrationToken: String? = null,
     ) : GatewayTokenRenewal.Pbx {
         val tokenRequests = AtomicInteger()
         val logins = AtomicInteger()
+        val registrations = AtomicInteger()
+        val requestedFor = mutableListOf<String>()
 
         override fun sessionJwt(): String? = jwt
         override fun deviceId(): String? = deviceId
 
         override fun requestGatewayToken(jwt: String, deviceId: String): String {
             val n = tokenRequests.incrementAndGet()
+            synchronized(requestedFor) { requestedFor.add(deviceId) }
             if (delayMs > 0) Thread.sleep(delayMs)
             failWith?.let { throw it }
             if (jwt != validJwt) throw PbxApiClient.HttpException(401, "expired")
+            if (deviceId !in knownDevices) throw PbxApiClient.HttpException(404, "No such device.")
             return "gateway-$n"
         }
 
@@ -43,6 +51,18 @@ class GatewayTokenRenewalTest {
             jwt = validJwt
             return validJwt
         }
+
+        override fun registerDevice(jwt: String): GatewayTokenRenewal.Registration {
+            val n = registrations.incrementAndGet()
+            val id = "device-new-$n"
+            knownDevices.add(id)
+            deviceId = id
+            return GatewayTokenRenewal.Registration(id, registrationToken)
+        }
+    }
+
+    private class FakeClock(var now: Long = 1_000_000L) {
+        fun read() = now
     }
 
     private class Installed {
@@ -50,8 +70,8 @@ class GatewayTokenRenewalTest {
         fun install(token: String) = synchronized(tokens) { tokens.add(token) }
     }
 
-    private fun renewal(pbx: FakePbx, installed: Installed = Installed()) =
-        GatewayTokenRenewal(pbx, installed::install, log = {})
+    private fun renewal(pbx: FakePbx, installed: Installed = Installed(), clock: FakeClock = FakeClock()) =
+        GatewayTokenRenewal(pbx, installed::install, log = {}, failureBackoffMs = 5_000, clock = clock::read)
 
     @Test
     fun concurrentTriggersRenewOnce() {
@@ -205,9 +225,72 @@ class GatewayTokenRenewalTest {
     }
 
     @Test
-    fun noRegisteredDeviceMeansNoToken() {
-        val pbx = FakePbx(deviceId = null)
-        assertNull(runBlocking { renewal(pbx).renew(0) })
+    fun noRegisteredDeviceRegistersOne() {
+        val pbx = FakePbx(deviceId = null, registrationToken = "from-registration")
+        assertEquals("from-registration", runBlocking { renewal(pbx).renew(0) })
+        assertEquals(1, pbx.registrations.get())
         assertEquals(0, pbx.tokenRequests.get())
+    }
+
+    @Test
+    fun aGoneDeviceIsRegisteredAgainAfterAFreshLogin() {
+        val pbx = FakePbx(knownDevices = mutableSetOf())
+        val installed = Installed()
+
+        val token = runBlocking { renewal(pbx, installed).renew(0) }
+
+        assertEquals(1, pbx.logins.get())
+        assertEquals(1, pbx.registrations.get())
+        assertEquals("device-new-1", pbx.deviceId)
+        // Asked for the old device (404), then for the new one.
+        assertEquals(listOf("device-1", "device-new-1"), pbx.requestedFor)
+        assertEquals("gateway-2", token)
+        assertEquals(listOf("gateway-2"), installed.tokens)
+    }
+
+    @Test
+    fun aRegistrationThatCarriesATokenNeedsNoFurtherRequest() {
+        val pbx = FakePbx(knownDevices = mutableSetOf(), registrationToken = "from-registration")
+        assertEquals("from-registration", runBlocking { renewal(pbx).renew(0) })
+        assertEquals(1, pbx.tokenRequests.get())
+    }
+
+    @Test
+    fun anExpiredSessionAndAGoneDeviceTogetherStillRecover() {
+        val pbx = FakePbx(jwt = "session-old", validJwt = "session-new", knownDevices = mutableSetOf())
+        val token = runBlocking { renewal(pbx).renew(0) }
+        assertEquals(1, pbx.registrations.get())
+        assertEquals("gateway-3", token)
+    }
+
+    @Test
+    fun waitersShareOneFailedFetch() {
+        val pbx = FakePbx(failWith = PbxApiClient.HttpException(502, "gateway down"), delayMs = 100)
+        val renewal = renewal(pbx)
+        val seen = renewal.generation
+
+        val results = runBlocking(Dispatchers.Default) {
+            (1..8).map { async { renewal.renew(seen) } }.awaitAll()
+        }
+
+        assertEquals(1, pbx.tokenRequests.get())
+        results.forEach { assertNull(it) }
+    }
+
+    @Test
+    fun aFailureIsRetriedOnlyAfterTheBackoff() {
+        val pbx = FakePbx(failWith = PbxApiClient.HttpException(502, "gateway down"))
+        val clock = FakeClock()
+        val renewal = renewal(pbx, clock = clock)
+
+        assertNull(runBlocking { renewal.renew(0) })
+        clock.now += 4_999
+        assertNull(runBlocking { renewal.renew(0) })
+        assertEquals(1, pbx.tokenRequests.get())
+
+        clock.now += 1
+        pbx.failWith = null
+        assertEquals("gateway-2", runBlocking { renewal.renew(0) })
+        assertEquals(2, pbx.tokenRequests.get())
     }
 }
