@@ -253,4 +253,14 @@ class CallWaitingTest {
         assertTrue(msg.contains("other call ended"))
         assertFalse(msg.contains("Both calls"))
     }
+
+    @Test
+    fun incomingIsBusyWhileAnotherCallIsStillSettingUp() {
+        val dialling = call("a", CallPhase.CONNECTING, CallDirection.OUTBOUND)
+        val ringingOut = call("a", CallPhase.RINGING, CallDirection.OUTBOUND)
+        val beingAnswered = call("a", CallPhase.CONNECTING, CallDirection.INBOUND)
+        assertTrue(CallWaiting.shouldRejectIncomingAsBusy(listOf(dialling)))
+        assertTrue(CallWaiting.shouldRejectIncomingAsBusy(listOf(ringingOut)))
+        assertTrue(CallWaiting.shouldRejectIncomingAsBusy(listOf(beingAnswered)))
+    }
 }

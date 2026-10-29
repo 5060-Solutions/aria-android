@@ -26,13 +26,16 @@ object CallWaiting {
     /**
      * Whether a newly pushed call may ring alongside [calls], or must be
      * declined as busy. It rings when there is room for it under the core's
-     * limit and no other call is already ringing here (one incoming call at a
-     * time keeps answering unambiguous).
+     * limit and every other call is answered. A call still ringing here
+     * (one incoming call at a time keeps answering unambiguous), or one still
+     * dialling, ringing out or being answered, makes it busy: answering next
+     * to an unanswered call would let the core hold the call the user is
+     * talking on the moment that other call connects.
      */
     fun shouldRejectIncomingAsBusy(calls: List<CallUiState>): Boolean {
         val live = calls.filter(::isLive)
         if (live.size >= MAX_CALLS) return true
-        return live.any { it.phase == CallPhase.INCOMING }
+        return live.any { !isConnected(it) }
     }
 
     /**

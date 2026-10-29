@@ -594,7 +594,8 @@ object CallManager {
         }
         if (CallWaiting.shouldRejectIncomingAsBusy(uiStates())) {
             // Two calls already (the core's limit), or another call is still
-            // ringing: this caller gets busy and a missed entry.
+            // ringing, dialling or being answered: this caller gets busy and
+            // a missed entry, and Telecom a failed connection (BUSY).
             recordHistory(callerUri, callerName, CallDirection.INBOUND, System.currentTimeMillis(), 0, EndReason.MISSED)
             if (token.isNotEmpty()) rejectToken(token)
             return null
