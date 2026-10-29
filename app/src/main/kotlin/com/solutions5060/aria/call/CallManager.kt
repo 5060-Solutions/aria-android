@@ -137,6 +137,9 @@ object CallManager {
         var transferError: String? = null
         /** Ended arrived while a transfer was in flight; its result decides why. */
         var endedDuringTransfer = false
+        /** makeCall is still running; an Ended now means it is about to throw. */
+        var dialInFlight = false
+        var endedDuringDial = false
     }
 
     private var current: CallRecord? = null
@@ -198,6 +201,12 @@ object CallManager {
         rec.onHold = info.onHold
 
         if (info.state == CallState.ENDED) {
+            if (rec.dialInFlight && !rec.localHangupRequested) {
+                // make_call emits Ended and then throws; wait for the throw so
+                // the user sees why and Telecom gets ERROR, not REMOTE.
+                rec.endedDuringDial = true
+                return
+            }
             if (rec.transferring) {
                 // transferCall emits Ended before it returns, and its result
                 // is posted after this event: let that result say whether
@@ -350,16 +359,21 @@ object CallManager {
             finish(rec, EndReason.FAILED)
             return
         }
+        rec.dialInFlight = true
         engineExecutor.execute {
             try {
                 Log.d(TAG, "Placing call to $uri")
                 // An empty codec list defers to the engine's preferences.
                 val info = engine.makeCall(uri, credentials, emptyList())
                 mainHandler.post {
+                    rec.dialInFlight = false
                     if (rec.finished) {
                         // Cancelled while the INVITE was in flight; the engine
                         // only knows the call now, so hang it up now.
                         engineExecutor.execute { safeHangup(info.callId) }
+                    } else if (rec.endedDuringDial) {
+                        // Answered and hung up before makeCall returned.
+                        finish(rec, EndReason.REMOTE_HANGUP)
                     } else if (rec.callId == null) {
                         rec.callId = info.callId
                     }
@@ -367,6 +381,7 @@ object CallManager {
             } catch (e: Exception) {
                 Log.e(TAG, "makeCall failed: ${e.message}", e)
                 mainHandler.post {
+                    rec.dialInFlight = false
                     if (!rec.finished) {
                         _error.value = "Call failed: ${e.message}"
                         finish(rec, EndReason.FAILED)
