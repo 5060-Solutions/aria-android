@@ -13,9 +13,11 @@ import androidx.compose.material.icons.filled.Dialpad
 import androidx.compose.material.icons.filled.Contacts
 import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Settings
+import androidx.compose.material.icons.filled.Voicemail
 import androidx.compose.material.icons.outlined.Contacts
 import androidx.compose.material.icons.outlined.History
 import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Voicemail
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -42,6 +44,7 @@ import com.solutions5060.aria.ui.settings.TranscriptionScreen
 import com.solutions5060.aria.ui.setup.SetupScreen
 import com.solutions5060.aria.ui.transcripts.TranscriptsScreen
 import com.solutions5060.aria.ui.splash.SplashScreen
+import com.solutions5060.aria.ui.voicemail.VoicemailScreen
 
 private const val TAG = "AriaApp"
 private const val PREFS_NAME = "aria_prefs"
@@ -72,6 +75,7 @@ private val navTabs = listOf(
     NavTab("dialer", "Dialer", Icons.Filled.Dialpad, Icons.Filled.Dialpad),
     NavTab("contacts", "Contacts", Icons.Filled.Contacts, Icons.Outlined.Contacts),
     NavTab("history", "History", Icons.Filled.History, Icons.Outlined.History),
+    NavTab("voicemail", "Voicemail", Icons.Filled.Voicemail, Icons.Outlined.Voicemail),
     NavTab("settings", "Settings", Icons.Filled.Settings, Icons.Outlined.Settings),
 )
 
@@ -140,6 +144,7 @@ fun AriaApp() {
                         .putString(KEY_SIP_PORT, creds.port.toString())
                         .putString(KEY_API_URL, creds.apiUrl)
                         .putString("tenant_domain", creds.tenantDomain)
+                        .putString("voicemail_access", creds.voicemail)
                         .apply()
                     // SIP password is sensitive — store it encrypted.
                     SecurePrefs.putString(context, KEY_SIP_PASSWORD, creds.password)
@@ -276,6 +281,9 @@ private fun MainApp(
                 }
                 composable("history") {
                     HistoryScreen(onCall = { number -> placeCall(number) })
+                }
+                composable("voicemail") {
+                    VoicemailScreen(onCall = { number -> placeCall(number) })
                 }
                 composable("settings") {
                     SettingsScreen(

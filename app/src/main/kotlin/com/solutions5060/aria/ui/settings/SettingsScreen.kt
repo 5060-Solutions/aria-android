@@ -141,6 +141,7 @@ fun SettingsScreen(
                     .putString("sip_port", creds.port.toString())
                     .putString("api_url", creds.apiUrl)
                     .putString("tenant_domain", creds.tenantDomain)
+                    .putString("voicemail_access", creds.voicemail)
                     .apply()
                 // SIP password is sensitive — store encrypted.
                 SecurePrefs.putString(context, "sip_password", creds.password)
