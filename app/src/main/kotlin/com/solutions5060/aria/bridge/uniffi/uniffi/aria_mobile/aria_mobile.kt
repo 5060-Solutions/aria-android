@@ -871,6 +871,8 @@ internal open class UniffiVTableCallbackInterfacePlatformAudioBridge(
 
 
 
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -965,6 +967,8 @@ internal interface UniffiLib : Library {
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_set_hold(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`onHold`: Byte,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_set_mute(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`muted`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_transfer_call(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`target`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_unregister_device(`ptr`: Pointer,`deviceId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
@@ -1162,6 +1166,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_mute(
     ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_transfer_call(
+    ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_unregister_device(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_update_push_token(
@@ -1305,6 +1311,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_mute() != 20691.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_transfer_call() != 38156.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_unregister_device() != 61754.toShort()) {
@@ -1785,6 +1794,8 @@ private class UniffiJnaCleanable(
 // using Android or not.
 // There are further runtime checks to chose the correct implementation
 // of the cleaner.
+
+
 private fun UniffiCleaner.Companion.create(): UniffiCleaner =
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
         AndroidSystemCleaner()
@@ -1903,7 +1914,11 @@ public interface AriaMobileEngineInterface {
     /**
      * Check if any active call was ended by the remote party.
      * Returns the call_id if detected, null otherwise.
-     * The app should call this periodically from a UI timer (~2s).
+     *
+     * Kept for apps that poll. The core now detects a remote hangup itself
+     * and reports it through `on_call_state_changed` (`Ended`) before the
+     * call_id appears here, so an app using the event handler does not need
+     * to call this. Only the most recent 16 IDs are retained.
      */
     fun `checkRemoteHangup`(): kotlin.String?
     
@@ -1988,6 +2003,20 @@ public interface AriaMobileEngineInterface {
      * Set mute state.
      */
     fun `setMute`(`callId`: kotlin.String, `muted`: kotlin.Boolean)
+    
+    /**
+     * Blind-transfer an active call to `target` (a dial string such as
+     * "1002" or a "sip:" URI). The PBX takes the call over; on success the
+     * local call and its media end, and `on_call_state_changed` reports
+     * `Ended` for `call_id`, exactly as for a remote hangup.
+     *
+     * Errors leave the call up: `InvalidTarget` for a target rejected locally
+     * or by the gateway, `InvalidState` for an unknown call or one that is not
+     * active yet (still ringing), or a gateway without the transfer route,
+     * `CallFailed` when the PBX refused the transfer, `Timeout` when the PBX
+     * did not answer it. The call can block for up to about 8 s.
+     */
+    fun `transferCall`(`callId`: kotlin.String, `target`: kotlin.String)
     
     /**
      * Unregister this device from the push gateway.
@@ -2356,7 +2385,11 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
     /**
      * Check if any active call was ended by the remote party.
      * Returns the call_id if detected, null otherwise.
-     * The app should call this periodically from a UI timer (~2s).
+     *
+     * Kept for apps that poll. The core now detects a remote hangup itself
+     * and reports it through `on_call_state_changed` (`Ended`) before the
+     * call_id appears here, so an app using the event handler does not need
+     * to call this. Only the most recent 16 IDs are retained.
      */override fun `checkRemoteHangup`(): kotlin.String? {
             return FfiConverterOptionalString.lift(
     callWithPointer {
@@ -2605,6 +2638,30 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
     uniffiRustCallWithError(MobileException) { _status ->
     UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_set_mute(
         it, FfiConverterString.lower(`callId`),FfiConverterBoolean.lower(`muted`),_status)
+}
+    }
+    
+    
+
+    
+    /**
+     * Blind-transfer an active call to `target` (a dial string such as
+     * "1002" or a "sip:" URI). The PBX takes the call over; on success the
+     * local call and its media end, and `on_call_state_changed` reports
+     * `Ended` for `call_id`, exactly as for a remote hangup.
+     *
+     * Errors leave the call up: `InvalidTarget` for a target rejected locally
+     * or by the gateway, `InvalidState` for an unknown call or one that is not
+     * active yet (still ringing), or a gateway without the transfer route,
+     * `CallFailed` when the PBX refused the transfer, `Timeout` when the PBX
+     * did not answer it. The call can block for up to about 8 s.
+     */
+    @Throws(MobileException::class)override fun `transferCall`(`callId`: kotlin.String, `target`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(MobileException) { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_transfer_call(
+        it, FfiConverterString.lower(`callId`),FfiConverterString.lower(`target`),_status)
 }
     }
     
@@ -3448,6 +3505,12 @@ sealed class MobileException(message: String): kotlin.Exception(message) {
         
         class Timeout(message: String) : MobileException(message)
         
+    /**
+     * A transfer target was empty, contained characters that are not allowed
+     * in a SIP URI header (CR, LF, '<', '>'), or was refused by the gateway.
+     */
+        class InvalidTarget(message: String) : MobileException(message)
+        
 
     companion object ErrorHandler : UniffiRustCallStatusErrorHandler<MobileException> {
         override fun lift(error_buf: RustBuffer.ByValue): MobileException = FfiConverterTypeMobileError.lift(error_buf)
@@ -3469,6 +3532,7 @@ public object FfiConverterTypeMobileError : FfiConverterRustBuffer<MobileExcepti
             6 -> MobileException.InvalidState(FfiConverterString.read(buf))
             7 -> MobileException.GatewayException(FfiConverterString.read(buf))
             8 -> MobileException.Timeout(FfiConverterString.read(buf))
+            9 -> MobileException.InvalidTarget(FfiConverterString.read(buf))
             else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
         }
         
@@ -3512,6 +3576,10 @@ public object FfiConverterTypeMobileError : FfiConverterRustBuffer<MobileExcepti
                 buf.putInt(8)
                 Unit
             }
+            is MobileException.InvalidTarget -> {
+                buf.putInt(9)
+                Unit
+            }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
     }
 
@@ -3523,6 +3591,10 @@ public object FfiConverterTypeMobileError : FfiConverterRustBuffer<MobileExcepti
 
 /**
  * Callback interface for receiving events from the Rust core.
+ *
+ * Callbacks can arrive on any thread, including background poll threads, and
+ * must not block for long. They may call back into the engine. See the
+ * "Event contract" section of the README for the guaranteed sequence.
  */
 public interface MobileEventHandler {
     
@@ -3537,7 +3609,9 @@ public interface MobileEventHandler {
     fun `onIncomingCall`(`offer`: CallOffer)
     
     /**
-     * Called when call state changes.
+     * Called when call state changes. Every call_id that has been reported
+     * gets exactly one final `Ended`, whoever ended the call (local hangup,
+     * remote hangup, transfer, caller cancel, or a failed outgoing call).
      */
     fun `onCallStateChanged`(`info`: CallInfo)
     
