@@ -226,4 +226,31 @@ class CallWaitingTest {
         val msg = CallStateMapping.transferErrorMessage(MobileException.TransferUnsupported("placed call"))
         assertTrue(msg.contains("answered"))
     }
+
+    // ── Review fixes ─────────────────────────────────────────────────────
+
+    @Test
+    fun aWaitingCallLeftAloneRingsNormallyAndReleasesAudio() {
+        assertTrue(CallWaiting.onlyRingingLeft(listOf(call("a", CallPhase.ENDED), call("b", CallPhase.INCOMING))))
+        assertFalse(CallWaiting.onlyRingingLeft(listOf(call("a", CallPhase.HELD), call("b", CallPhase.INCOMING))))
+        assertFalse(
+            CallWaiting.onlyRingingLeft(listOf(call("a", CallPhase.RINGING, CallDirection.OUTBOUND))),
+        )
+        assertFalse(CallWaiting.onlyRingingLeft(emptyList()))
+    }
+
+    @Test
+    fun hangupReachesTheEngineOnceAnIncomingCallIsAccepted() {
+        assertTrue(CallWaiting.hangupReachesEngine(CallDirection.INBOUND, hasCallId = true, accepted = true))
+        assertFalse(CallWaiting.hangupReachesEngine(CallDirection.INBOUND, hasCallId = true, accepted = false))
+        assertTrue(CallWaiting.hangupReachesEngine(CallDirection.OUTBOUND, hasCallId = true, accepted = false))
+        assertFalse(CallWaiting.hangupReachesEngine(CallDirection.OUTBOUND, hasCallId = false, accepted = false))
+    }
+
+    @Test
+    fun attendedFailureAfterTheOtherLegEndedSaysSo() {
+        val msg = CallWaiting.attendedTransferErrorMessage(MobileException.InvalidState("ended"), partnerEnded = true)
+        assertTrue(msg.contains("other call ended"))
+        assertFalse(msg.contains("Both calls"))
+    }
 }

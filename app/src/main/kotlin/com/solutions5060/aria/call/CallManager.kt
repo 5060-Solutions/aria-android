@@ -159,6 +159,8 @@ object CallManager {
         var endedDuringDial = false
         /** acceptIncomingCall is still running; an Ended now may mean it is about to throw. */
         var answerInFlight = false
+        /** acceptIncomingCall returned: the engine holds this call, so a hangup must reach it. */
+        var accepted = false
         var endedDuringAnswer = false
         /** The core's reason on an Ended held back for a method's result. */
         var deferredEndReason: EndReason? = null
@@ -635,14 +637,19 @@ object CallManager {
         ringingRecord(callToken)?.let { answer(it) }
     }
 
+    /** Answer the ringing call with record [key] (the one the screen showed). */
+    fun answerByKey(key: String) {
+        records[key]?.let { answer(it) }
+    }
+
     /** Telecom (a headset, a watch, the car) answered [connection]. */
     fun answer(connection: AriaConnection) {
         recordFor(connection)?.let { answer(it) }
     }
 
-    /** Hang up every other call, then answer the ringing one. */
-    fun endOthersAndAnswer() {
-        val rec = ringingRecord() ?: return
+    /** Hang up every other call, then answer the ringing call with record [key]. */
+    fun endOthersAndAnswer(key: String) {
+        val rec = records[key]?.takeIf { it.phase == CallPhase.INCOMING && !it.finished } ?: return
         liveRecords().filter { it !== rec }.forEach { hangup(it) }
         answer(rec)
     }
@@ -683,6 +690,7 @@ object CallManager {
                 val info = EngineManager.withAuthRetry(appContext) { engine.acceptIncomingCall(token, emptyList()) }
                 mainHandler.post {
                     rec.answerInFlight = false
+                    rec.accepted = true
                     if (rec.finished) {
                         // Hung up while the accept was in flight: the engine
                         // only holds the call now, so end it now.
@@ -717,6 +725,11 @@ object CallManager {
     /** Decline the ringing call. [callToken], when given, must match it. */
     fun reject(callToken: String? = null) {
         ringingRecord(callToken)?.let { reject(it) }
+    }
+
+    /** Decline the ringing call with record [key]. */
+    fun rejectByKey(key: String) {
+        records[key]?.let { reject(it) }
     }
 
     /** Telecom declined [connection]. */
@@ -769,9 +782,10 @@ object CallManager {
         // hangup never waits on the gateway, so the call ends here at once;
         // the Ended it reports is then ignored.
         finish(rec, EndReason.LOCAL_HANGUP)
-        if (callId == null || rec.direction == CallDirection.INBOUND && rec.connectedAtElapsed == null) {
+        val accepted = rec.accepted || rec.connectedAtElapsed != null
+        if (callId == null || !CallWaiting.hangupReachesEngine(rec.direction, true, accepted)) {
             // An answer still in flight: answer() hangs the call up when the
-            // accept returns.
+            // accept returns (or declines it if the accept has not started).
             return
         }
         // Valid at any point for an outgoing call, even before makeCallWithId
@@ -780,7 +794,16 @@ object CallManager {
     }
 
     fun setMuted(muted: Boolean) {
-        val rec = foregroundRecord() ?: return
+        foregroundRecord()?.let { setMuted(it, muted) }
+    }
+
+    /** Mute the call with record [key]: the screen names the call it showed when tapped. */
+    fun setMuted(key: String, muted: Boolean) {
+        records[key]?.let { setMuted(it, muted) }
+    }
+
+    private fun setMuted(rec: CallRecord, muted: Boolean) {
+        if (rec.finished) return
         val callId = rec.callId ?: return
         rec.muted = muted
         publishAll()
@@ -796,6 +819,11 @@ object CallManager {
     /** Hold or resume the call on screen. */
     fun setHold(onHold: Boolean) {
         foregroundRecord()?.let { setHold(it, onHold) }
+    }
+
+    /** Hold or resume the call with record [key]. */
+    fun setHold(key: String, onHold: Boolean) {
+        records[key]?.let { setHold(it, onHold) }
     }
 
     /** Telecom asked to hold or resume [connection] (Bluetooth, Android Auto, the system). */
@@ -837,12 +865,18 @@ object CallManager {
         foregroundRecord()?.let { sendDtmf(it, digit) }
     }
 
+    /** Send a DTMF digit on the call with record [key]. */
+    fun sendDtmf(key: String, digit: String) {
+        records[key]?.let { sendDtmf(it, digit) }
+    }
+
     /** Telecom asked [connection] to play a DTMF tone. */
     fun sendDtmf(connection: AriaConnection, digit: String) {
         recordFor(connection)?.let { sendDtmf(it, digit) }
     }
 
     private fun sendDtmf(rec: CallRecord, digit: String) {
+        if (rec.finished) return
         val callId = rec.callId ?: return
         engineExecutor.execute {
             try {
@@ -861,7 +895,15 @@ object CallManager {
      * [CallUiState.transferError] says why.
      */
     fun transfer(target: String) {
-        val rec = foregroundRecord() ?: return
+        foregroundRecord()?.let { transfer(it, target) }
+    }
+
+    /** Blind-transfers the call with record [key]. */
+    fun transfer(key: String, target: String) {
+        records[key]?.let { transfer(it, target) }
+    }
+
+    private fun transfer(rec: CallRecord, target: String) {
         val callId = rec.callId ?: return
         if (rec.finished || rec.transferring || rec.connectedAtElapsed == null) return
         val dial = CallStateMapping.normalizeTransferTarget(target)
@@ -914,7 +956,15 @@ object CallManager {
      * transfer" ([transferAttended]) joins the two.
      */
     fun consult(target: String) {
-        val rec = foregroundRecord() ?: return
+        foregroundRecord()?.let { consult(it, target) }
+    }
+
+    /** Consult first from the call with record [key]. */
+    fun consult(key: String, target: String) {
+        records[key]?.let { consult(it, target) }
+    }
+
+    private fun consult(rec: CallRecord, target: String) {
         if (rec.finished || rec.transferring) return
         val states = uiStates()
         val ui = states.firstOrNull { it.key == rec.key } ?: return
@@ -954,7 +1004,12 @@ object CallManager {
                 e
             }
             mainHandler.post {
-                both.forEach { onTransferResult(it, failure, CallWaiting::attendedTransferErrorMessage) }
+                both.forEach { rec ->
+                    val partner = if (rec === transferred) consult else transferred
+                    onTransferResult(rec, failure) { e ->
+                        CallWaiting.attendedTransferErrorMessage(e, partner.finished || partner.endedDuringTransfer)
+                    }
+                }
             }
         }
     }
@@ -981,7 +1036,15 @@ object CallManager {
 
     /** Moves call audio to [option]. */
     fun selectAudioRoute(option: AudioRouteOption) {
-        val rec = foregroundRecord() ?: return
+        foregroundRecord()?.let { selectAudioRoute(it, option) }
+    }
+
+    /** Moves call audio to [option], through the connection of the call with record [key]. */
+    fun selectAudioRoute(key: String, option: AudioRouteOption) {
+        (records[key] ?: foregroundRecord())?.let { selectAudioRoute(it, option) }
+    }
+
+    private fun selectAudioRoute(rec: CallRecord, option: AudioRouteOption) {
         val connection = rec.connection
         if (connection != null) {
             connection.requestRoute(option)
@@ -1029,17 +1092,27 @@ object CallManager {
 
         cancelRingTimeout(rec)
         syncIncomingNotifier()
-        val lastCall = liveRecords().isEmpty()
+        val remaining = liveRecords()
+        // Only a call still ringing here is left: nothing needs the audio.
+        val onlyRinging = CallWaiting.onlyRingingLeft(remaining.map { it.toUiState() })
+        val releaseAudio = remaining.isEmpty() || onlyRinging
         // Telecom resets its own routing; only the no-Telecom fallback needs undoing.
-        if (lastCall && rec.connection == null && rec.audio.isSpeaker) SpeakerFallback.setSpeaker(appContext, false)
+        if (releaseAudio && rec.connection == null && rec.audio.isSpeaker) SpeakerFallback.setSpeaker(appContext, false)
         applyTelecom(rec, CallStateMapping.disconnectFor(reason))
 
-        if (lastCall) {
-            // Release the audio hardware so other apps can use it. A held
-            // call left behind keeps the audio session and the service: it
-            // stays held until the user resumes it.
+        if (releaseAudio) {
+            // Release the audio hardware (and the microphone service) so
+            // other apps can use it. A held call left behind keeps both: it
+            // stays held until the user resumes it. Answering a call left
+            // ringing begins audio and starts the service again, in that
+            // order, as for any incoming call.
             SipEngineHolder.audioBridge?.stop()
             stopActiveCallService()
+        }
+        if (onlyRinging) {
+            // It was announced as call waiting (a single quiet alert); with
+            // no call left it must ring like any incoming call.
+            remaining.filter { it.phase == CallPhase.INCOMING }.forEach { showIncoming(it) }
         }
 
         val connectedAt = rec.connectedAtElapsed

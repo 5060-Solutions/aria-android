@@ -98,6 +98,27 @@ object CallWaiting {
     fun canConsult(call: CallUiState, calls: List<CallUiState>): Boolean =
         call.direction == CallDirection.INBOUND && isConnected(call) && calls.count(::isLive) == 1
 
+    /**
+     * True when every call left is still ringing here: nothing is connected
+     * or being dialled, so the call audio and the in-call service can be
+     * released (answering starts them again), and the ringing call should
+     * ring as a normal incoming call rather than as call waiting.
+     */
+    fun onlyRingingLeft(calls: List<CallUiState>): Boolean {
+        val live = calls.filter(::isLive)
+        return live.isNotEmpty() && live.all { it.phase == CallPhase.INCOMING }
+    }
+
+    /**
+     * Whether a local hangup must also be sent to the engine. An outgoing
+     * call always (the core cancels it at any point). An incoming call only
+     * once the engine holds it, i.e. [accepted] (accept returned, or the call
+     * connected); while the accept is still running, its result hangs the
+     * call up, and before it starts nothing was accepted.
+     */
+    fun hangupReachesEngine(direction: CallDirection, hasCallId: Boolean, accepted: Boolean): Boolean =
+        hasCallId && (direction == CallDirection.OUTBOUND || accepted)
+
     /** Whether "Add call" is offered: [call] is answered and there is room for another call. */
     fun canAddCall(call: CallUiState, calls: List<CallUiState>): Boolean =
         isConnected(call) && outgoingRefusal(calls) == null
@@ -129,7 +150,14 @@ object CallWaiting {
      * What to tell the user when `transferAttended` throws. Every failure
      * leaves both calls up.
      */
-    fun attendedTransferErrorMessage(error: Throwable): String = when (error) {
+    fun attendedTransferErrorMessage(error: Throwable, partnerEnded: Boolean = false): String = when {
+        // The core throws InvalidState when one leg ended mid-transfer; that
+        // call is gone, so "both calls are still up" would be wrong.
+        partnerEnded -> "The other call ended, so the transfer was not completed."
+        else -> attendedTransferFailure(error)
+    }
+
+    private fun attendedTransferFailure(error: Throwable): String = when (error) {
         is MobileException.TransferUnsupported ->
             "These calls can't be joined: the phone system can only transfer a call you answered to a call you placed."
         is MobileException.InvalidState -> "The transfer can't be completed right now. Both calls are still up."
