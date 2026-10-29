@@ -15,7 +15,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.solutions5060.aria.R
 import com.solutions5060.aria.ui.settings.QRScannerScreen
-import com.solutions5060.aria.ui.settings.ProvisioningCredentials
+import com.solutions5060.aria.provisioning.ProvisioningCredentials
 
 @Composable
 fun SetupScreen(

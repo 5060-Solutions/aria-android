@@ -6,6 +6,8 @@ import android.util.Log
 import com.google.android.gms.tasks.Tasks
 import com.google.firebase.messaging.FirebaseMessaging
 import com.solutions5060.aria.call.CallManager
+import com.solutions5060.aria.provisioning.DEFAULT_SIP_TRANSPORT
+import com.solutions5060.aria.provisioning.defaultSipPort
 import com.solutions5060.aria.security.SecurePrefs
 import uniffi.aria_mobile.AriaMobileEngine
 import uniffi.aria_mobile.DeviceRegistration
@@ -44,14 +46,15 @@ object EngineManager {
         val username = prefs.getString("sip_username", "") ?: ""
         val domain = prefs.getString("sip_domain", "") ?: ""
         if (username.isEmpty() || domain.isEmpty()) return null
-        val transport = prefs.getString("sip_transport", "udp") ?: "udp"
+        // An account saved without a transport gets TLS, never cleartext UDP.
+        val transport = prefs.getString("sip_transport", null)?.ifEmpty { null } ?: DEFAULT_SIP_TRANSPORT
         return SipCredentials(
             username = username,
             password = SecurePrefs.getString(context, "sip_password", "") ?: "",
             domain = domain,
             registrar = (prefs.getString("sip_registrar", "") ?: "").ifEmpty { null },
             transport = transport,
-            port = prefs.getString("sip_port", null)?.toUShortOrNull() ?: 5060u,
+            port = prefs.getString("sip_port", null)?.toUShortOrNull() ?: defaultSipPort(transport).toUShort(),
             authUsername = null,
             displayName = prefs.getString("sip_display_name", "") ?: "",
         )

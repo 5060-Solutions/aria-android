@@ -1,8 +1,6 @@
 package com.solutions5060.aria.ui.settings
 
 import android.Manifest
-import android.net.Uri
-import android.util.Base64
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -31,114 +29,12 @@ import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import com.solutions5060.aria.provisioning.ProvisioningCredentials
+import com.solutions5060.aria.provisioning.parseProvisioningUri
+import com.solutions5060.aria.provisioning.validateProvisioning
 import java.util.concurrent.Executors
 
 private const val TAG = "QRScanner"
-
-data class ProvisioningCredentials(
-    val server: String,
-    val port: Int,
-    val username: String,
-    val password: String,
-    val displayName: String,
-    val transport: String,
-    val voicemail: String,
-    val apiUrl: String,
-    val tenantDomain: String,
-)
-
-fun parseProvisioningUri(uriString: String): ProvisioningCredentials? {
-    return try {
-        // Do not log the provisioning URI — it contains the base64 SIP password.
-        Log.d(TAG, "Parsing provisioning URI")
-        val uri = Uri.parse(uriString)
-        if (uri.scheme != "aria" || uri.host != "provision") return null
-
-        val server = uri.getQueryParameter("server") ?: return null
-        val port = uri.getQueryParameter("port")?.toIntOrNull() ?: 5060
-        val user = uri.getQueryParameter("user") ?: return null
-        val passEncoded = uri.getQueryParameter("pass") ?: return null
-        val password = String(Base64.decode(passEncoded, Base64.DEFAULT))
-        val name = uri.getQueryParameter("name") ?: ""
-        // Normalised here; an unrecognised value is rejected by
-        // validateProvisioning rather than silently becoming udp.
-        val transport = (uri.getQueryParameter("transport") ?: "udp").lowercase()
-        val voicemail = uri.getQueryParameter("vm") ?: ""
-        val apiUrl = uri.getQueryParameter("api") ?: ""
-        val tenantDomain = uri.getQueryParameter("tenant") ?: ""
-
-        Log.d(TAG, "Parsed params: server=$server, user=$user, name=$name, api=$apiUrl, tenant=$tenantDomain")
-
-        ProvisioningCredentials(
-            server = server,
-            port = port,
-            username = user,
-            password = password,
-            displayName = name,
-            transport = transport,
-            voicemail = voicemail,
-            tenantDomain = tenantDomain,
-            apiUrl = apiUrl,
-        )
-    } catch (e: Exception) {
-        // Do not log the raw URI — it embeds the base64 SIP password.
-        Log.e(TAG, "Failed to parse provisioning URI", e)
-        null
-    }
-}
-
-// Hostname (RFC-1123-ish) or bare IPv4. Rejects empty, whitespace, scheme/path
-// artifacts, and anything that does not look like a real host.
-private val HOSTNAME_REGEX = Regex(
-    "^(([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)\\.)+[a-zA-Z]{2,}$"
-)
-private val IPV4_REGEX = Regex("^(\\d{1,3})(\\.\\d{1,3}){3}$")
-
-private fun isValidHost(host: String?): Boolean {
-    if (host.isNullOrBlank()) return false
-    if (host.any { it.isWhitespace() }) return false
-    return HOSTNAME_REGEX.matches(host) || IPV4_REGEX.matches(host)
-}
-
-/**
- * Validates a parsed provisioning payload before it is trusted for login/SIP
- * registration, so a hostile QR cannot silently point the client at an
- * attacker-controlled server or a plain-http API endpoint.
- *
- * Returns null when the payload is acceptable, or a user-facing error message
- * describing why it was rejected.
- */
-fun validateProvisioning(creds: ProvisioningCredentials): String? {
-    if (!isValidHost(creds.server)) {
-        return "Rejected: the provisioning server host is missing or invalid."
-    }
-    if (creds.apiUrl.isBlank()) {
-        return "Rejected: the provisioning code is missing a secure API endpoint."
-    }
-    val apiUri = try {
-        Uri.parse(creds.apiUrl)
-    } catch (e: Exception) {
-        null
-    }
-    if (apiUri == null ||
-        !apiUri.scheme.equals("https", ignoreCase = true) ||
-        !isValidHost(apiUri.host)
-    ) {
-        return "Rejected: the API endpoint must use https with a valid hostname."
-    }
-    // The transport was the one provisioning field taken verbatim: anything
-    // unrecognised fell through to the "udp" default, so a QR could quietly
-    // downgrade signalling to cleartext. An unknown value is now refused
-    // outright rather than silently becoming the weakest option.
-    if (creds.transport !in ALLOWED_TRANSPORTS) {
-        return "Rejected: unsupported SIP transport \"${creds.transport}\"."
-    }
-    return null
-}
-
-/// The transports this client actually implements. Anything else is a
-/// provisioning error, not a reason to fall back.
-private val ALLOWED_TRANSPORTS = setOf("udp", "tcp", "tls")
 
 @Composable
 fun QRScannerScreen(

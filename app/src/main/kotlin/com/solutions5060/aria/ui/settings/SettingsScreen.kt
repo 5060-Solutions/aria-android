@@ -33,6 +33,8 @@ import androidx.compose.ui.unit.sp
 import com.google.firebase.messaging.FirebaseMessaging
 import com.solutions5060.aria.R
 import com.solutions5060.aria.security.SecurePrefs
+import com.solutions5060.aria.provisioning.DEFAULT_SIP_TRANSPORT
+import com.solutions5060.aria.provisioning.defaultSipPort
 import com.solutions5060.aria.service.EngineManager
 import com.solutions5060.aria.service.PbxApiClient
 import com.solutions5060.aria.service.SipEngineHolder
@@ -58,8 +60,8 @@ fun SettingsScreen(
     var sipDomain by rememberSaveable { mutableStateOf(prefs.getString("sip_domain", "") ?: "") }
     var sipRegistrar by rememberSaveable { mutableStateOf(prefs.getString("sip_registrar", "") ?: "") }
     var sipDisplayName by rememberSaveable { mutableStateOf(prefs.getString("sip_display_name", "") ?: "") }
-    var sipTransport by rememberSaveable { mutableStateOf(prefs.getString("sip_transport", "udp") ?: "udp") }
-    var sipPort by rememberSaveable { mutableStateOf(prefs.getString("sip_port", "5060") ?: "5060") }
+    var sipTransport by rememberSaveable { mutableStateOf(prefs.getString("sip_transport", null) ?: DEFAULT_SIP_TRANSPORT) }
+    var sipPort by rememberSaveable { mutableStateOf(prefs.getString("sip_port", null) ?: defaultSipPort(sipTransport).toString()) }
     var apiUrl by rememberSaveable { mutableStateOf(prefs.getString("api_url", "") ?: "") }
     var tenantDomain by rememberSaveable { mutableStateOf(prefs.getString("tenant_domain", "") ?: "") }
 
