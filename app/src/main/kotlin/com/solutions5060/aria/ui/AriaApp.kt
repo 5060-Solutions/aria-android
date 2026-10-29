@@ -44,7 +44,6 @@ import com.solutions5060.aria.ui.splash.SplashScreen
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import uniffi.aria_mobile.AudioCodec
 import uniffi.aria_mobile.SipCredentials
 
 private const val TAG = "AriaApp"
@@ -195,10 +194,8 @@ private fun MainApp(
 
         kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
             try {
-                SipEngineHolder.engine?.acceptIncomingCall(token, listOf(
-                    uniffi.aria_mobile.AudioCodec.PCMU,
-                    uniffi.aria_mobile.AudioCodec.PCMA,
-                ))
+                // An empty list defers to the engine's codec preferences.
+                SipEngineHolder.engine?.acceptIncomingCall(token, emptyList())
                 showCallScreen = true
                 Log.d(TAG, "Incoming call accepted")
             } catch (e: Exception) {
@@ -408,7 +405,7 @@ private fun MainApp(
         Thread {
             try {
                 Log.d(TAG, "Placing call to $sipUri")
-                engine.makeCall(sipUri, credentials, listOf(AudioCodec.PCMU, AudioCodec.PCMA, AudioCodec.OPUS))
+                engine.makeCall(sipUri, credentials, emptyList())
                 Log.d(TAG, "Call initiated successfully")
             } catch (e: Exception) {
                 Log.e(TAG, "makeCall failed: ${e.message}", e)
