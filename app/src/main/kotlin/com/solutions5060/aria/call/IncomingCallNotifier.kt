@@ -5,6 +5,8 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.content.Context
 import android.content.Intent
+import android.os.Build
+import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.core.app.Person
 import com.solutions5060.aria.AriaApplication
@@ -21,6 +23,7 @@ import com.solutions5060.aria.R
  */
 object IncomingCallNotifier {
 
+    private const val TAG = "IncomingCallNotifier"
     private const val NOTIFICATION_ID = 1001
 
     const val ACTION_SHOW_INCOMING = "com.solutions5060.aria.SHOW_INCOMING_CALL"
@@ -57,15 +60,26 @@ object IncomingCallNotifier {
         // Ring until answered, declined or cancelled; the channel carries the ringtone.
         notification.flags = notification.flags or Notification.FLAG_INSISTENT
 
-        try {
-            context.getSystemService(NotificationManager::class.java).notify(NOTIFICATION_ID, notification)
-        } catch (e: SecurityException) {
-            // POST_NOTIFICATIONS was denied; the in-app call screen still rings.
-            android.util.Log.w("IncomingCallNotifier", "Cannot post incoming-call notification: $e")
+        val manager = context.getSystemService(NotificationManager::class.java)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && !manager.canUseFullScreenIntent()) {
+            // Android 14+ can withhold full-screen intents: the call then
+            // shows as a heads-up notification, whose Answer and Decline still
+            // work. The app asks the user to allow it (see CallAlertSetup).
+            Log.w(TAG, "Full-screen intents not allowed; the call shows as a heads-up notification")
         }
+        try {
+            // With notifications denied this is dropped silently, not thrown.
+            manager.notify(NOTIFICATION_ID, notification)
+        } catch (e: SecurityException) {
+            Log.w(TAG, "Cannot post incoming-call notification: $e")
+        }
+        // Ring from the app when that notification cannot.
+        IncomingRinger.startIfNeeded(context)
     }
 
+    /** Removes the notification and stops any ringing: on answer, decline and end. */
     fun cancel(context: Context) {
+        IncomingRinger.stop()
         context.getSystemService(NotificationManager::class.java).cancel(NOTIFICATION_ID)
     }
 

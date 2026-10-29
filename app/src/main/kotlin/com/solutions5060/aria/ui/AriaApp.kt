@@ -20,6 +20,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Voicemail
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
@@ -31,6 +32,7 @@ import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
+import com.solutions5060.aria.call.CallAlertSetup
 import com.solutions5060.aria.call.CallManager
 import com.solutions5060.aria.history.CallHistoryStore
 import com.solutions5060.aria.security.SecurePrefs
@@ -201,6 +203,53 @@ private fun MainApp(
                 callError = "Connection failed: ${e.message}"
             }
         }
+    }
+
+    // Ask once per launch for whatever stops incoming calls from alerting.
+    var alertProblemDismissed by rememberSaveable { mutableStateOf(false) }
+    var alertProblem by remember { mutableStateOf<CallAlertSetup.Problem?>(null) }
+    val lifecycleOwner = androidx.lifecycle.compose.LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        // Re-checked on every resume, so returning from settings clears it.
+        val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+                alertProblem = CallAlertSetup.problems(context).firstOrNull()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
+    }
+    val problem = alertProblem
+    if (problem != null && !alertProblemDismissed && call == null) {
+        AlertDialog(
+            onDismissRequest = { alertProblemDismissed = true },
+            title = { Text("Incoming calls need attention") },
+            text = {
+                Text(
+                    when (problem) {
+                        CallAlertSetup.Problem.NOTIFICATIONS_OFF ->
+                            "Notifications are off for Aria, so incoming calls can't be answered from the lock screen or " +
+                                "another app. Turn on notifications to see and answer calls."
+                        CallAlertSetup.Problem.FULL_SCREEN_DENIED ->
+                            "Aria isn't allowed to show calls full screen, so on a locked phone calls appear only as a " +
+                                "notification. Allow full-screen notifications to see the call screen."
+                    },
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    alertProblemDismissed = true
+                    try {
+                        context.startActivity(CallAlertSetup.settingsIntent(context, problem))
+                    } catch (e: Exception) {
+                        Log.w(TAG, "Could not open settings: ${e.message}")
+                    }
+                }) { Text("Open settings") }
+            },
+            dismissButton = {
+                TextButton(onClick = { alertProblemDismissed = true }) { Text("Not now") }
+            },
+        )
     }
 
     // Calls go through Telecom; CallManager reports any setup failure.
