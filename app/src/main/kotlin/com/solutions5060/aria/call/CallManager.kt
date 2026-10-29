@@ -95,9 +95,11 @@ object CallManager {
 
     /**
      * Ring for at most this long. The engine reports a caller who gives up,
-     * so this is only a backstop for a push whose call the gateway lost.
+     * so this is only a backstop for a push whose call the gateway lost. The
+     * gateway answers an unanswered push with 480 after 30 s, so ringing much
+     * past that only rings for a call that no longer exists.
      */
-    private const val RING_TIMEOUT_MS = 60_000L
+    private const val RING_TIMEOUT_MS = 35_000L
 
     private val mainHandler = Handler(Looper.getMainLooper())
     private val engineExecutor = Executors.newCachedThreadPool()
@@ -154,7 +156,17 @@ object CallManager {
      * then. Main-thread only.
      */
     private var cancelOnRinging: CallRecord? = null
-    private val ringTimeout = Runnable { current?.let { if (it.phase == CallPhase.INCOMING) finish(it, EndReason.MISSED) } }
+    private val ringTimeout = Runnable {
+        val rec = current ?: return@Runnable
+        if (rec.phase != CallPhase.INCOMING || rec.finished) return@Runnable
+        finish(rec, EndReason.MISSED)
+        // The gateway has given up by now; tell it anyway, so a call it still
+        // holds is not left waiting on this device.
+        rec.callToken?.takeIf { it.isNotEmpty() }?.let { rejectToken(it) }
+    }
+
+    /** Pushes already handled; a repeat for the same call must not ring, reject or log it again. */
+    private val handledCallTokens = RecentCallTokens()
 
     fun init(context: Context) {
         appContext = context.applicationContext
@@ -470,7 +482,14 @@ object CallManager {
      * when Telecom refuses the account, so there is always exactly one
      * incoming-call UI.
      */
-    fun reportIncomingCall(context: Context, callToken: String, callerUri: String, callerName: String?) {
+    fun reportIncomingCall(context: Context, callToken: String, callerUri: String, callerName: String?): Boolean {
+        // FCM can deliver the same push twice. A repeat for the ringing (or
+        // answered, or just-ended) call would otherwise reach Telecom as a
+        // second call and be rejected as busy, taking the real call with it.
+        if (!handledCallTokens.claim(callToken)) {
+            Log.i(TAG, "Ignoring a repeated push for a call already handled")
+            return false
+        }
         val extras = Bundle().apply {
             putString(EXTRA_CALL_TOKEN, callToken)
             putString(EXTRA_CALLER_URI, callerUri)
@@ -491,6 +510,7 @@ object CallManager {
                 IncomingCallNotifier.show(appContext, rec.key, rec.displayName(), rec.callToken ?: "")
             }
         }
+        return true
     }
 
     /** Telecom created the incoming connection. Returns false when we are busy. */
@@ -504,6 +524,8 @@ object CallManager {
     /** Telecom refused the incoming call (another call is up somewhere). */
     fun onIncomingConnectionFailed(extras: Bundle?) {
         val token = extras?.getString(EXTRA_CALL_TOKEN) ?: return
+        // Never decline the call already on screen.
+        if (token.isNotEmpty() && token == current?.callToken) return
         Log.w(TAG, "Telecom refused incoming call; declining as busy")
         recordHistory(
             remoteUri = extras.getString(EXTRA_CALLER_URI) ?: "Unknown",
@@ -520,6 +542,12 @@ object CallManager {
         val token = extras.getString(EXTRA_CALL_TOKEN).orEmpty()
         val callerUri = extras.getString(EXTRA_CALLER_URI) ?: "Unknown"
         val callerName = extras.getString(EXTRA_CALLER_NAME)
+        if (token.isNotEmpty() && token == current?.callToken) {
+            // The call already on screen (ringing, answered or just ended),
+            // reported again: neither a second call nor a busy one.
+            Log.i(TAG, "Ignoring a second report of the current call")
+            return null
+        }
         if (current?.finished == false) {
             // One call at a time: a second caller gets busy and a missed entry.
             recordHistory(callerUri, callerName, CallDirection.INBOUND, System.currentTimeMillis(), 0, EndReason.MISSED)

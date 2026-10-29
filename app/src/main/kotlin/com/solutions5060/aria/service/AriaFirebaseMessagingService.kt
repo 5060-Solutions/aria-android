@@ -64,7 +64,8 @@ class AriaFirebaseMessagingService : FirebaseMessagingService() {
         Log.i(TAG, "Incoming call push")
 
         // Ring first; building the engine below can take a network round-trip.
-        CallManager.reportIncomingCall(applicationContext, callToken, callerUri, callerName)
+        // A repeated push for a call already handled is dropped entirely.
+        if (!CallManager.reportIncomingCall(applicationContext, callToken, callerUri, callerName)) return
 
         // Fetch the offer so the engine knows the call: it is what lets the
         // engine report a caller who hangs up before we answer. This runs on
