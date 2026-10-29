@@ -27,6 +27,7 @@ import com.solutions5060.aria.call.AudioRouteType
 import com.solutions5060.aria.call.CallPhase
 import com.solutions5060.aria.call.CallStateMapping
 import com.solutions5060.aria.call.CallUiState
+import com.solutions5060.aria.ui.SecureWindow
 import com.solutions5060.aria.service.SipEngineHolder
 import kotlinx.coroutines.delay
 
@@ -42,6 +43,9 @@ fun CallScreen(
     onSelectAudioRoute: (AudioRouteOption) -> Unit,
 ) {
     val isSpeaker = call.audio.isSpeaker
+
+    // Shown over the lock screen for incoming calls.
+    SecureWindow()
     var elapsedSeconds by remember { mutableLongStateOf(0L) }
     var showAudioPicker by remember { mutableStateOf(false) }
     var showDtmfKeypad by remember { mutableStateOf(false) }

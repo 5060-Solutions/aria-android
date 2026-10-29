@@ -22,10 +22,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -33,6 +31,8 @@ import androidx.compose.ui.unit.sp
 import com.google.firebase.messaging.FirebaseMessaging
 import com.solutions5060.aria.R
 import com.solutions5060.aria.security.SecurePrefs
+import com.solutions5060.aria.security.SensitiveClipboard
+import com.solutions5060.aria.ui.SecureWindow
 import com.solutions5060.aria.provisioning.DEFAULT_SIP_TRANSPORT
 import com.solutions5060.aria.provisioning.defaultSipPort
 import com.solutions5060.aria.service.EngineManager
@@ -51,6 +51,9 @@ fun SettingsScreen(
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
+
+    // Renders the account and device identifiers.
+    SecureWindow()
 
     // Core SIP fields (read-only after QR scan)
     var sipUsername by rememberSaveable { mutableStateOf(prefs.getString("sip_username", "") ?: "") }
@@ -594,8 +597,6 @@ private fun CopyableIdRow(
     onToggle: () -> Unit,
     context: Context,
 ) {
-    val clipboard = LocalClipboardManager.current
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -635,8 +636,8 @@ private fun CopyableIdRow(
             Spacer(modifier = Modifier.height(8.dp))
             FilledTonalButton(
                 onClick = {
-                    clipboard.setText(AnnotatedString(value))
-                    Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                    SensitiveClipboard.copy(context, value)
+                    Toast.makeText(context, "Copied; clears in a minute", Toast.LENGTH_SHORT).show()
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),

@@ -25,6 +25,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.solutions5060.aria.ui.SecureWindow
 import com.solutions5060.aria.voicemail.VoicemailJson
 import com.solutions5060.aria.voicemail.VoicemailMessage
 import com.solutions5060.aria.voicemail.VoicemailRepository
@@ -46,6 +47,9 @@ private const val TAG = "VoicemailScreen"
 fun VoicemailScreen(onCall: (String) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+
+    // Caller ids and transcribed messages.
+    SecureWindow()
     val repository = remember { VoicemailRepository(context) }
     val accessNumber = remember { repository.accessNumber() }
 

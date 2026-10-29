@@ -35,6 +35,7 @@ import com.google.mlkit.vision.common.InputImage
 import com.solutions5060.aria.provisioning.ProvisioningCredentials
 import com.solutions5060.aria.provisioning.parseProvisioningUri
 import com.solutions5060.aria.provisioning.validateProvisioning
+import com.solutions5060.aria.ui.SecureWindow
 import java.util.concurrent.Executors
 
 private const val TAG = "QRScanner"
@@ -44,6 +45,9 @@ fun QRScannerScreen(
     onCredentialsScanned: (ProvisioningCredentials) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // The camera frames hold the provisioning code, password included.
+    SecureWindow()
+
     var hasCameraPermission by remember { mutableStateOf(false) }
     var permissionDenied by remember { mutableStateOf(false) }
     var flashEnabled by remember { mutableStateOf(false) }
