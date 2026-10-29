@@ -882,6 +882,10 @@ internal open class UniffiVTableCallbackInterfacePlatformAudioBridge(
 
 
 
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -959,6 +963,8 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_make_call(`ptr`: Pointer,`uri`: RustBuffer.ByValue,`credentials`: RustBuffer.ByValue,`preferredCodecs`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_make_call_with_id(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`uri`: RustBuffer.ByValue,`credentials`: RustBuffer.ByValue,`preferredCodecs`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_notify_network_change(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_register_device(`ptr`: Pointer,`registration`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -991,6 +997,8 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_aria_mobile_core_fn_func_init_runtime(uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_aria_mobile_core_fn_func_new_outgoing_call_id(uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_aria_mobile_core_fn_func_shutdown_runtime(uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun ffi_aria_mobile_core_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -1107,6 +1115,8 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_aria_mobile_core_checksum_func_init_runtime(
     ): Short
+    fun uniffi_aria_mobile_core_checksum_func_new_outgoing_call_id(
+    ): Short
     fun uniffi_aria_mobile_core_checksum_func_shutdown_runtime(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_accept_incoming_call(
@@ -1158,6 +1168,8 @@ internal interface UniffiLib : Library {
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_hangup(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_make_call(
+    ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_make_call_with_id(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_notify_network_change(
     ): Short
@@ -1221,6 +1233,9 @@ private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_aria_mobile_core_checksum_func_init_runtime() != 32843.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_func_new_outgoing_call_id() != 37587.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_func_shutdown_runtime() != 2017.toShort()) {
@@ -1299,6 +1314,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_make_call() != 192.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_make_call_with_id() != 48628.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_notify_network_change() != 62643.toShort()) {
@@ -1846,7 +1864,13 @@ private class AndroidSystemCleanable(
 public interface AriaMobileEngineInterface {
     
     /**
-     * Accept an incoming call with local SDP answer.
+     * Accept an incoming call with local SDP answer. Reports `Connected`.
+     *
+     * If the gateway refuses (an HTTP error), the call stays offered and
+     * nothing is reported. If the outcome is unknown (`Timeout` or
+     * `NetworkError`: the gateway may have accepted it anyway), `Ended` is
+     * reported for `incoming-<call_token>`, and the core hangs the call up
+     * if it was accepted or rejects it if it still rings.
      */
     fun `acceptIncomingCall`(`callToken`: kotlin.String, `preferredCodecs`: List<AudioCodec>): CallInfo
     
@@ -1969,26 +1993,40 @@ public interface AriaMobileEngineInterface {
     fun `handlePushNotification`(`payload`: PushCallPayload): CallOffer
     
     /**
-     * Hang up a call, including an outgoing call that is still ringing
-     * (see `make_call`). Throws `InvalidState` for an unknown or already
-     * ended call_id.
+     * Hang up a call, including an outgoing call that is still ringing or
+     * has not been made yet (see `make_call_with_id`). Throws `InvalidState`
+     * for an unknown or already ended call_id.
      *
-     * The local call always ends and `Ended` is emitted. Throws
-     * `AuthenticationError` if the gateway rejected the token (401) for the
-     * hangup or, for a ringing call, the cancel. The far end may then stay up
-     * until the PBX times it out (a ringing call that is answered is still
-     * hung up in the background): fetch a new token and call
-     * `set_gateway_token`.
+     * Never waits on the gateway: the call is torn down locally and `Ended`
+     * is queued at once, and the gateway hangup (or, for a ringing call, the
+     * cancel) runs in the background. Throws `AuthenticationError`, after
+     * ending the call locally, only when there is no gateway token at all,
+     * in which case nothing is sent. Background failures are reported later:
+     * a rejected token through `on_auth_required`, and a hangup the gateway
+     * did not confirm (after one retry) through `on_error`.
      */
     fun `hangup`(`callId`: kotlin.String)
     
     /**
-     * Make an outgoing call through the gateway. Blocks until the far end
-     * answers or the call fails, after reporting `Ringing` with the call's
-     * `outgoing-<uuid>` id.
+     * `make_call_with_id` with an id the core picks. The app learns the id
+     * only from the `Ringing` event, which is delivered asynchronously, so
+     * it cannot reliably hang up before then. Prefer `make_call_with_id`.
+     */
+    fun `makeCall`(`uri`: kotlin.String, `credentials`: SipCredentials, `preferredCodecs`: List<AudioCodec>): CallInfo
+    
+    /**
+     * Make an outgoing call through the gateway under `call_id`, which the
+     * app chose, normally with `new_outgoing_call_id()`: `outgoing-`
+     * followed by 1-64 characters from `[A-Za-z0-9_-]`. Blocks until the far
+     * end answers or the call fails, after reporting `Ringing`.
      *
-     * `hangup(call_id)` may be called while this is blocked: `Ended` is
-     * reported for the call and this throws `Cancelled` at once. The core
+     * Throws `InvalidState` for a malformed id, or one that is in use or
+     * was used recently. Because the app knows the id up front,
+     * `hangup(call_id)` works at any point:
+     * - Before this is called: `Ended` is reported at once, and this then
+     *   throws `Cancelled` without reporting anything or sending a request.
+     * - While this is blocked: `Ended` is reported and this throws
+     *   `Cancelled` at once. The core
      * cancels the ringing call at the gateway (`POST /v1/calls/cancel` with
      * the uuid part of the call_id as `client_ref`). If the gateway has no
      * ringing call to cancel (answered meanwhile, or a gateway without the
@@ -1996,11 +2034,14 @@ public interface AriaMobileEngineInterface {
      * background. Any other failure reports `Ended` and throws
      * (`AuthenticationError` on a 401).
      */
-    fun `makeCall`(`uri`: kotlin.String, `credentials`: SipCredentials, `preferredCodecs`: List<AudioCodec>): CallInfo
+    fun `makeCallWithId`(`callId`: kotlin.String, `uri`: kotlin.String, `credentials`: SipCredentials, `preferredCodecs`: List<AudioCodec>): CallInfo
     
     /**
      * Notify the core of a network connectivity change.
      * Call this from the platform when WiFi/cellular changes, or after reconnect.
+     * Returns at once. The gateway heartbeat it triggers runs in the
+     * background, and a burst of changes is coalesced: at most one heartbeat
+     * is in flight, followed by one more if changes arrived meanwhile.
      */
     fun `notifyNetworkChange`()
     
@@ -2054,15 +2095,25 @@ public interface AriaMobileEngineInterface {
     
     /**
      * Blind-transfer an active call to `target` (a dial string such as
-     * "1002" or a "sip:" URI). The PBX takes the call over; on success the
-     * local call and its media end, and `on_call_state_changed` reports
-     * `Ended` for `call_id`, exactly as for a remote hangup.
+     * "1002" or a "sip:" URI), and wait for the outcome. On success the PBX
+     * has taken the call over: the local call and its media end, and
+     * `on_call_state_changed` reports `Ended` for `call_id`.
      *
-     * Errors leave the call up: `InvalidTarget` for a target rejected locally
-     * or by the gateway, `InvalidState` for an unknown call or one that is not
-     * active yet (still ringing), or a gateway without the transfer route,
-     * `CallFailed` when the PBX refused the transfer, `Timeout` when the PBX
-     * did not answer it. The call can block for up to about 8 s.
+     * After the PBX accepts the REFER, the core polls the call's status
+     * every 300 ms until it shows the outcome, for up to 30 s.
+     *
+     * These errors leave the call fully up: `InvalidTarget` for a target
+     * rejected locally or by the gateway; `InvalidState` for an unknown call,
+     * one that is not active yet (still ringing), or a gateway without the
+     * transfer route; `CallFailed` when the PBX refused the REFER or reported
+     * the transfer failed (the message carries the SIP status, such as 486);
+     * `Timeout` when the PBX did not answer the REFER, or no outcome arrived
+     * within 30 s; `AuthenticationError` for a rejected token.
+     *
+     * `InvalidState` after the REFER was accepted means the call ended for
+     * another reason meanwhile; `Ended` has been reported. A gateway that
+     * does not report transfer outcomes ends the call on acceptance, as
+     * before. Blocks for up to about 40 s; call it off the UI thread.
      */
     fun `transferCall`(`callId`: kotlin.String, `target`: kotlin.String)
     
@@ -2175,7 +2226,13 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
-     * Accept an incoming call with local SDP answer.
+     * Accept an incoming call with local SDP answer. Reports `Connected`.
+     *
+     * If the gateway refuses (an HTTP error), the call stays offered and
+     * nothing is reported. If the outcome is unknown (`Timeout` or
+     * `NetworkError`: the gateway may have accepted it anyway), `Ended` is
+     * reported for `incoming-<call_token>`, and the core hangs the call up
+     * if it was accepted or rejects it if it still rings.
      */
     @Throws(MobileException::class)override fun `acceptIncomingCall`(`callToken`: kotlin.String, `preferredCodecs`: List<AudioCodec>): CallInfo {
             return FfiConverterTypeCallInfo.lift(
@@ -2528,16 +2585,17 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
-     * Hang up a call, including an outgoing call that is still ringing
-     * (see `make_call`). Throws `InvalidState` for an unknown or already
-     * ended call_id.
+     * Hang up a call, including an outgoing call that is still ringing or
+     * has not been made yet (see `make_call_with_id`). Throws `InvalidState`
+     * for an unknown or already ended call_id.
      *
-     * The local call always ends and `Ended` is emitted. Throws
-     * `AuthenticationError` if the gateway rejected the token (401) for the
-     * hangup or, for a ringing call, the cancel. The far end may then stay up
-     * until the PBX times it out (a ringing call that is answered is still
-     * hung up in the background): fetch a new token and call
-     * `set_gateway_token`.
+     * Never waits on the gateway: the call is torn down locally and `Ended`
+     * is queued at once, and the gateway hangup (or, for a ringing call, the
+     * cancel) runs in the background. Throws `AuthenticationError`, after
+     * ending the call locally, only when there is no gateway token at all,
+     * in which case nothing is sent. Background failures are reported later:
+     * a rejected token through `on_auth_required`, and a hangup the gateway
+     * did not confirm (after one retry) through `on_error`.
      */
     @Throws(MobileException::class)override fun `hangup`(`callId`: kotlin.String)
         = 
@@ -2552,18 +2610,9 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
-     * Make an outgoing call through the gateway. Blocks until the far end
-     * answers or the call fails, after reporting `Ringing` with the call's
-     * `outgoing-<uuid>` id.
-     *
-     * `hangup(call_id)` may be called while this is blocked: `Ended` is
-     * reported for the call and this throws `Cancelled` at once. The core
-     * cancels the ringing call at the gateway (`POST /v1/calls/cancel` with
-     * the uuid part of the call_id as `client_ref`). If the gateway has no
-     * ringing call to cancel (answered meanwhile, or a gateway without the
-     * route) and the call is answered, the core hangs it up in the
-     * background. Any other failure reports `Ended` and throws
-     * (`AuthenticationError` on a 401).
+     * `make_call_with_id` with an id the core picks. The app learns the id
+     * only from the `Ringing` event, which is delivered asynchronously, so
+     * it cannot reliably hang up before then. Prefer `make_call_with_id`.
      */
     @Throws(MobileException::class)override fun `makeCall`(`uri`: kotlin.String, `credentials`: SipCredentials, `preferredCodecs`: List<AudioCodec>): CallInfo {
             return FfiConverterTypeCallInfo.lift(
@@ -2579,8 +2628,44 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
+     * Make an outgoing call through the gateway under `call_id`, which the
+     * app chose, normally with `new_outgoing_call_id()`: `outgoing-`
+     * followed by 1-64 characters from `[A-Za-z0-9_-]`. Blocks until the far
+     * end answers or the call fails, after reporting `Ringing`.
+     *
+     * Throws `InvalidState` for a malformed id, or one that is in use or
+     * was used recently. Because the app knows the id up front,
+     * `hangup(call_id)` works at any point:
+     * - Before this is called: `Ended` is reported at once, and this then
+     *   throws `Cancelled` without reporting anything or sending a request.
+     * - While this is blocked: `Ended` is reported and this throws
+     *   `Cancelled` at once. The core
+     * cancels the ringing call at the gateway (`POST /v1/calls/cancel` with
+     * the uuid part of the call_id as `client_ref`). If the gateway has no
+     * ringing call to cancel (answered meanwhile, or a gateway without the
+     * route) and the call is answered, the core hangs it up in the
+     * background. Any other failure reports `Ended` and throws
+     * (`AuthenticationError` on a 401).
+     */
+    @Throws(MobileException::class)override fun `makeCallWithId`(`callId`: kotlin.String, `uri`: kotlin.String, `credentials`: SipCredentials, `preferredCodecs`: List<AudioCodec>): CallInfo {
+            return FfiConverterTypeCallInfo.lift(
+    callWithPointer {
+    uniffiRustCallWithError(MobileException) { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_make_call_with_id(
+        it, FfiConverterString.lower(`callId`),FfiConverterString.lower(`uri`),FfiConverterTypeSipCredentials.lower(`credentials`),FfiConverterSequenceTypeAudioCodec.lower(`preferredCodecs`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
      * Notify the core of a network connectivity change.
      * Call this from the platform when WiFi/cellular changes, or after reconnect.
+     * Returns at once. The gateway heartbeat it triggers runs in the
+     * background, and a burst of changes is coalesced: at most one heartbeat
+     * is in flight, followed by one more if changes arrived meanwhile.
      */override fun `notifyNetworkChange`()
         = 
     callWithPointer {
@@ -2730,15 +2815,25 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
     
     /**
      * Blind-transfer an active call to `target` (a dial string such as
-     * "1002" or a "sip:" URI). The PBX takes the call over; on success the
-     * local call and its media end, and `on_call_state_changed` reports
-     * `Ended` for `call_id`, exactly as for a remote hangup.
+     * "1002" or a "sip:" URI), and wait for the outcome. On success the PBX
+     * has taken the call over: the local call and its media end, and
+     * `on_call_state_changed` reports `Ended` for `call_id`.
      *
-     * Errors leave the call up: `InvalidTarget` for a target rejected locally
-     * or by the gateway, `InvalidState` for an unknown call or one that is not
-     * active yet (still ringing), or a gateway without the transfer route,
-     * `CallFailed` when the PBX refused the transfer, `Timeout` when the PBX
-     * did not answer it. The call can block for up to about 8 s.
+     * After the PBX accepts the REFER, the core polls the call's status
+     * every 300 ms until it shows the outcome, for up to 30 s.
+     *
+     * These errors leave the call fully up: `InvalidTarget` for a target
+     * rejected locally or by the gateway; `InvalidState` for an unknown call,
+     * one that is not active yet (still ringing), or a gateway without the
+     * transfer route; `CallFailed` when the PBX refused the REFER or reported
+     * the transfer failed (the message carries the SIP status, such as 486);
+     * `Timeout` when the PBX did not answer the REFER, or no outcome arrived
+     * within 30 s; `AuthenticationError` for a rejected token.
+     *
+     * `InvalidState` after the REFER was accepted means the call ended for
+     * another reason meanwhile; `Ended` has been reported. A gateway that
+     * does not report transfer outcomes ends the call on acceptance, as
+     * before. Blocks for up to about 40 s; call it off the UI thread.
      */
     @Throws(MobileException::class)override fun `transferCall`(`callId`: kotlin.String, `target`: kotlin.String)
         = 
@@ -3590,6 +3685,10 @@ sealed class MobileException(message: String): kotlin.Exception(message) {
         
         class RegistrationFailed(message: String) : MobileException(message)
         
+    /**
+     * The call or a call operation failed; the message says why, for
+     * example the SIP status of a failed transfer.
+     */
         class CallFailed(message: String) : MobileException(message)
         
         class MediaException(message: String) : MobileException(message)
@@ -3698,8 +3797,10 @@ public object FfiConverterTypeMobileError : FfiConverterRustBuffer<MobileExcepti
 /**
  * Callback interface for receiving events from the Rust core.
  *
- * Callbacks can arrive on any thread, including background poll threads, and
- * must not block for long. They may call back into the engine. See the
+ * Callbacks are delivered one at a time on a dedicated core thread, never
+ * inside the core's runtime, and asynchronously with respect to the engine
+ * method that caused them. They may call any engine method, including the
+ * blocking ones, but should not block for long themselves. See the
  * "Event contract" section of the README for the guaranteed sequence.
  */
 public interface MobileEventHandler {
@@ -3727,15 +3828,19 @@ public interface MobileEventHandler {
     fun `onMediaStats`(`callId`: kotlin.String, `stats`: MediaStats)
     
     /**
-     * Called when an error occurs.
+     * Called when background work failed in a way the app should surface.
+     * Currently fired with context `"hangup"` when the gateway did not
+     * confirm hanging up a call even after one retry (for example a 404
+     * because it does not know the call): the call has ended here, but the
+     * other party may still be connected. `message` names the call_id.
      */
     fun `onError`(`context`: kotlin.String, `message`: kotlin.String)
     
     /**
      * Called when background work (call-status polls, the caller-cancel
-     * watch, the network-change heartbeat, hanging up an outgoing call that
-     * was answered after it was cancelled) had the gateway token rejected
-     * with 401. Fetch a new token from
+     * watch, the network-change heartbeat, `hangup`'s gateway hangup or
+     * cancel, and hanging up an outgoing call that was answered after it
+     * was cancelled) had the gateway token rejected with 401. Fetch a new token from
      * the PBX (`POST /api/v1/devices/{id}/gateway-token`) and pass it to
      * `set_gateway_token`. Emitted at most once per token: it fires again
      * only after `set_gateway_token` has been called and the new token is
@@ -4367,6 +4472,18 @@ public object FfiConverterSequenceTypeAudioCodec: FfiConverterRustBuffer<List<Au
         _status)
 }
     
+    
+
+        /**
+         * A fresh `outgoing-<uuid>` call_id for `make_call_with_id`.
+         */ fun `newOutgoingCallId`(): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_func_new_outgoing_call_id(
+        _status)
+}
+    )
+    }
     
 
         /**
