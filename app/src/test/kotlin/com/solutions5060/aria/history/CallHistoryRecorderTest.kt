@@ -50,6 +50,15 @@ class CallHistoryRecorderTest {
     }
 
     @Test
+    fun transferredCallKeepsItsDurationAndSaysSo() {
+        val e = entry(EndReason.TRANSFERRED, duration = 30)!!
+        assertTrue(e.transferred)
+        assertFalse(e.missed)
+        assertEquals("0:30 · Transferred", CallHistoryRecorder.summary(e))
+        assertEquals(e, CallHistoryRecorder.decode(CallHistoryRecorder.encode(listOf(e))).single())
+    }
+
+    @Test
     fun unconnectedOutgoingSaysNotAnswered() {
         val e = entry(EndReason.LOCAL_HANGUP, CallDirection.OUTBOUND)!!
         assertFalse(e.missed)

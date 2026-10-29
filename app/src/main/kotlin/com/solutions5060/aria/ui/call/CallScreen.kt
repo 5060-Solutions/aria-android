@@ -21,7 +21,15 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import android.content.Intent
 import android.os.SystemClock
+import android.provider.ContactsContract
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.automirrored.filled.PhoneForwarded
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
 import com.solutions5060.aria.call.AudioRouteOption
 import com.solutions5060.aria.call.AudioRouteType
 import com.solutions5060.aria.call.CallPhase
@@ -41,6 +49,8 @@ fun CallScreen(
     onToggleHold: () -> Unit,
     onDtmf: (String) -> Unit,
     onSelectAudioRoute: (AudioRouteOption) -> Unit,
+    onTransfer: (String) -> Unit,
+    onDismissTransferError: () -> Unit,
 ) {
     val isSpeaker = call.audio.isSpeaker
 
@@ -48,6 +58,7 @@ fun CallScreen(
     SecureWindow()
     var elapsedSeconds by remember { mutableLongStateOf(0L) }
     var showAudioPicker by remember { mutableStateOf(false) }
+    var showTransfer by remember { mutableStateOf(false) }
     var showDtmfKeypad by remember { mutableStateOf(false) }
     var rxLevel by remember { mutableFloatStateOf(0f) }
     var txLevel by remember { mutableFloatStateOf(0f) }
@@ -101,6 +112,22 @@ fun CallScreen(
     val displayName = call.displayName
 
     // Audio picker dialog
+    // Close the transfer dialog if the call is no longer one that can be transferred.
+    if (showTransfer && phase != CallPhase.ACTIVE && phase != CallPhase.HELD) showTransfer = false
+    if (showTransfer) {
+        TransferDialog(
+            transferring = call.transferring,
+            error = call.transferError,
+            onTransfer = onTransfer,
+            onDismiss = {
+                if (!call.transferring) {
+                    showTransfer = false
+                    onDismissTransferError()
+                }
+            },
+        )
+    }
+
     if (showAudioPicker) {
         AlertDialog(
             onDismissRequest = { showAudioPicker = false },
@@ -322,6 +349,12 @@ fun CallScreen(
                         isActive = false,
                         onClick = { showAudioPicker = true }
                     )
+                    CallControlButton(
+                        icon = Icons.AutoMirrored.Filled.PhoneForwarded,
+                        label = "Transfer",
+                        isActive = showTransfer,
+                        onClick = { showTransfer = true }
+                    )
                 }
             }
 
@@ -367,6 +400,88 @@ fun CallScreen(
             Spacer(modifier = Modifier.height(48.dp))
         }
     }
+}
+
+/**
+ * Blind transfer: a number field, or a number picked from contacts. The PBX
+ * can take several seconds to answer, so the dialog stays up with progress
+ * until it does; on success the call ends and the call screen closes.
+ */
+@Composable
+private fun TransferDialog(
+    transferring: Boolean,
+    error: String?,
+    onTransfer: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    var target by remember { mutableStateOf("") }
+
+    // ACTION_PICK on phone numbers grants read access to the one picked row,
+    // so this needs no contacts permission of its own.
+    val pickContact = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val uri = result.data?.data ?: return@rememberLauncherForActivityResult
+        try {
+            context.contentResolver.query(
+                uri,
+                arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) target = cursor.getString(0).orEmpty()
+            }
+        } catch (_: Exception) {}
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Transfer call", style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = target,
+                    onValueChange = { target = it },
+                    label = { Text("Number or extension") },
+                    singleLine = true,
+                    enabled = !transferring,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                TextButton(
+                    onClick = {
+                        pickContact.launch(
+                            Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)
+                        )
+                    },
+                    enabled = !transferring,
+                ) {
+                    Icon(Icons.Default.Contacts, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Choose contact")
+                }
+                if (transferring) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Text("Transferring...", style = MaterialTheme.typography.bodyMedium)
+                    }
+                }
+                error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onTransfer(target) },
+                enabled = !transferring && target.isNotBlank(),
+            ) { Text("Transfer") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !transferring) { Text("Cancel") }
+        },
+    )
 }
 
 private fun routeIcon(type: AudioRouteType): ImageVector = when (type) {

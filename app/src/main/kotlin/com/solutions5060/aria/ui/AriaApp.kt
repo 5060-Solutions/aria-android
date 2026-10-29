@@ -217,6 +217,8 @@ private fun MainApp(
             onToggleHold = { CallManager.setHold(!activeCall.onHold) },
             onDtmf = { CallManager.sendDtmf(it) },
             onSelectAudioRoute = { CallManager.selectAudioRoute(it) },
+            onTransfer = { CallManager.transfer(it) },
+            onDismissTransferError = { CallManager.clearTransferError() },
         )
     } else {
         Scaffold(

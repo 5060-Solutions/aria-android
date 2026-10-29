@@ -50,6 +50,10 @@ data class CallUiState(
     val audio: AudioRouteState = AudioRouteState(),
     /** Whether media is SRTP-encrypted as negotiated; null until known. */
     val encrypted: Boolean? = null,
+    /** A blind transfer is waiting on the PBX (up to ~8 s). */
+    val transferring: Boolean = false,
+    /** Why the last transfer attempt failed; the call is still up. */
+    val transferError: String? = null,
 ) {
     /** Name if the network sent one, else the user part of the URI. */
     val displayName: String
@@ -129,6 +133,10 @@ object CallManager {
         var finished = false
         var audio = AudioRouteState()
         var encrypted: Boolean? = null
+        var transferring = false
+        var transferError: String? = null
+        /** Ended arrived while a transfer was in flight; its result decides why. */
+        var endedDuringTransfer = false
     }
 
     private var current: CallRecord? = null
@@ -190,6 +198,13 @@ object CallManager {
         rec.onHold = info.onHold
 
         if (info.state == CallState.ENDED) {
+            if (rec.transferring) {
+                // transferCall emits Ended before it returns, and its result
+                // is posted after this event: let that result say whether
+                // this was the transfer or a hangup that raced it.
+                rec.endedDuringTransfer = true
+                return
+            }
             finish(
                 rec,
                 CallStateMapping.endReasonForEngineEnd(
@@ -247,7 +262,7 @@ object CallManager {
             TelecomUpdate.Active -> if (connection.state != Connection.STATE_ACTIVE) connection.setActive()
             TelecomUpdate.Hold -> if (connection.state != Connection.STATE_HOLDING) connection.setOnHold()
             is TelecomUpdate.Disconnect -> {
-                connection.setDisconnected(DisconnectCause(update.cause))
+                connection.setDisconnected(DisconnectCause(update.cause, null, null, update.reason))
                 connection.destroy()
                 rec.connection = null
             }
@@ -570,6 +585,63 @@ object CallManager {
         }
     }
 
+    // ── Transfer ──────────────────────────────────────────────────────
+
+    /**
+     * Blind-transfers the connected call to [target]. On success the engine
+     * ends the call and the screen closes; on failure the call stays up and
+     * [CallUiState.transferError] says why.
+     */
+    fun transfer(target: String) {
+        val rec = current ?: return
+        val callId = rec.callId ?: return
+        if (rec.finished || rec.transferring || rec.connectedAtElapsed == null) return
+        val dial = CallStateMapping.normalizeTransferTarget(target)
+        if (dial.isEmpty()) {
+            rec.transferError = "Enter a number to transfer to."
+            publish(rec)
+            return
+        }
+        rec.transferring = true
+        rec.transferError = null
+        publish(rec)
+
+        engineExecutor.execute {
+            val failure = try {
+                val engine = SipEngineHolder.engine ?: throw IllegalStateException("Not connected")
+                engine.transferCall(callId, dial)
+                null
+            } catch (e: Exception) {
+                Log.w(TAG, "Transfer failed: ${e.javaClass.simpleName}: ${e.message}")
+                e
+            }
+            mainHandler.post { onTransferResult(rec, failure) }
+        }
+    }
+
+    private fun onTransferResult(rec: CallRecord, failure: Exception?) {
+        rec.transferring = false
+        if (rec.finished) return
+        if (failure == null) {
+            finish(rec, EndReason.TRANSFERRED)
+            return
+        }
+        if (rec.endedDuringTransfer) {
+            // The far end hung up while the transfer was being attempted.
+            finish(rec, EndReason.REMOTE_HANGUP)
+            return
+        }
+        rec.transferError = CallStateMapping.transferErrorMessage(failure)
+        publish(rec)
+    }
+
+    fun clearTransferError() {
+        val rec = current ?: return
+        if (rec.transferError == null) return
+        rec.transferError = null
+        publish(rec)
+    }
+
     // ── Audio routing ──────────────────────────────────────────────────
 
     /** Telecom changed the available or active audio route. */
@@ -614,7 +686,7 @@ object CallManager {
         IncomingCallNotifier.cancel(appContext)
         // Telecom resets its own routing; only the no-Telecom fallback needs undoing.
         if (rec.connection == null && rec.audio.isSpeaker) SpeakerFallback.setSpeaker(appContext, false)
-        applyTelecom(rec, TelecomUpdate.Disconnect(CallStateMapping.disconnectCauseFor(reason)))
+        applyTelecom(rec, CallStateMapping.disconnectFor(reason))
 
         // Release the audio hardware so other apps can use it.
         SipEngineHolder.audioBridge?.stop()
@@ -695,6 +767,8 @@ object CallManager {
         connectedAtElapsed = connectedAtElapsed,
         audio = audio,
         encrypted = encrypted,
+        transferring = transferring,
+        transferError = transferError,
     )
 
     private fun publish(rec: CallRecord) {

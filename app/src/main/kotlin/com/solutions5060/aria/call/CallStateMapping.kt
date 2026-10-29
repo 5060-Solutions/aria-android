@@ -3,6 +3,7 @@ package com.solutions5060.aria.call
 import android.telecom.DisconnectCause
 import uniffi.aria_mobile.CallDirection
 import uniffi.aria_mobile.CallState
+import uniffi.aria_mobile.MobileException
 
 /** Where a call is, from the user's point of view. Drives the call screen. */
 enum class CallPhase {
@@ -35,6 +36,9 @@ enum class EndReason {
 
     /** The call could not be set up or dropped on an error. */
     FAILED,
+
+    /** This user blind-transferred the call to someone else. */
+    TRANSFERRED,
 }
 
 /** What the Telecom [android.telecom.Connection] should be told after an engine update. */
@@ -54,8 +58,8 @@ sealed interface TelecomUpdate {
     /** `setOnHold()`. */
     data object Hold : TelecomUpdate
 
-    /** `setDisconnected(DisconnectCause(cause))` followed by `destroy()`. */
-    data class Disconnect(val cause: Int) : TelecomUpdate
+    /** `setDisconnected(DisconnectCause(cause, ..., reason))` followed by `destroy()`. */
+    data class Disconnect(val cause: Int, val reason: String? = null) : TelecomUpdate
 }
 
 /**
@@ -93,9 +97,20 @@ object CallStateMapping {
         CallState.INCOMING -> TelecomUpdate.Ringing
         CallState.CONNECTED -> TelecomUpdate.Active
         CallState.ON_HOLD -> TelecomUpdate.Hold
-        CallState.ENDED -> TelecomUpdate.Disconnect(disconnectCauseFor(endReason))
+        CallState.ENDED -> disconnectFor(endReason)
         CallState.IDLE -> TelecomUpdate.None
     }
+
+    /** The full Telecom disconnect for [reason], including the reason string where one applies. */
+    fun disconnectFor(reason: EndReason): TelecomUpdate.Disconnect =
+        TelecomUpdate.Disconnect(disconnectCauseFor(reason), disconnectReasonFor(reason))
+
+    /**
+     * Telecom's free-form reason. Only a transfer needs one: OTHER alone
+     * would read as an unexplained failure.
+     */
+    fun disconnectReasonFor(reason: EndReason): String? =
+        if (reason == EndReason.TRANSFERRED) "transferred" else null
 
     /** The [DisconnectCause] code Telecom expects for each way a call can end. */
     fun disconnectCauseFor(reason: EndReason): Int = when (reason) {
@@ -104,6 +119,7 @@ object CallStateMapping {
         EndReason.REJECTED -> DisconnectCause.REJECTED
         EndReason.MISSED -> DisconnectCause.MISSED
         EndReason.FAILED -> DisconnectCause.ERROR
+        EndReason.TRANSFERRED -> DisconnectCause.OTHER
     }
 
     /** Why an engine-reported end happened, given whether this side asked to hang up. */
@@ -122,6 +138,31 @@ object CallStateMapping {
         CallPhase.ACTIVE -> formatElapsed(elapsedSeconds)
         CallPhase.HELD -> "On Hold"
         CallPhase.ENDED -> "Call Ended"
+    }
+
+    /**
+     * What to tell the user when transferCall throws. Every one of these
+     * leaves the call up, which the message says where it is not obvious.
+     */
+    fun transferErrorMessage(error: Throwable): String = when (error) {
+        is MobileException.InvalidTarget -> "That number can't be used as a transfer target."
+        is MobileException.InvalidState -> "This call can't be transferred right now."
+        is MobileException.CallFailed -> "The phone system refused the transfer. You're still on the call."
+        is MobileException.Timeout -> "The phone system didn't respond in time. You're still on the call."
+        is MobileException.GatewayException -> "The transfer failed at the gateway. You're still on the call."
+        is MobileException.NetworkException -> "Network error. You're still on the call."
+        else -> "The transfer failed. You're still on the call."
+    }
+
+    /**
+     * Cleans a typed or picked number into a dial string: a SIP URI is kept
+     * as-is, otherwise only dialable characters survive ("(555) 123-4567"
+     * becomes "5551234567"). Empty means there is nothing to transfer to.
+     */
+    fun normalizeTransferTarget(input: String): String {
+        val trimmed = input.trim()
+        if (trimmed.startsWith("sip:", ignoreCase = true)) return trimmed
+        return trimmed.filter { it.isDigit() || it == '+' || it == '*' || it == '#' }
     }
 
     fun formatElapsed(seconds: Long): String {

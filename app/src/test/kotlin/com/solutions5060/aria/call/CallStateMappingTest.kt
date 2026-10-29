@@ -3,9 +3,11 @@ package com.solutions5060.aria.call
 import android.telecom.DisconnectCause
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 import uniffi.aria_mobile.CallDirection
 import uniffi.aria_mobile.CallState
+import uniffi.aria_mobile.MobileException
 
 class CallStateMappingTest {
 
@@ -90,6 +92,38 @@ class CallStateMappingTest {
             EndReason.REMOTE_HANGUP,
             CallStateMapping.endReasonForEngineEnd(localHangupRequested = false, wasAnswered = false, direction = CallDirection.OUTBOUND),
         )
+    }
+
+    @Test
+    fun transferDisconnectsAsOtherWithAReason() {
+        assertEquals(
+            TelecomUpdate.Disconnect(DisconnectCause.OTHER, "transferred"),
+            CallStateMapping.disconnectFor(EndReason.TRANSFERRED),
+        )
+        assertEquals(TelecomUpdate.Disconnect(DisconnectCause.REMOTE, null), CallStateMapping.disconnectFor(EndReason.REMOTE_HANGUP))
+    }
+
+    @Test
+    fun transferErrorsSayTheCallIsStillUp() {
+        assertTrue(CallStateMapping.transferErrorMessage(MobileException.InvalidTarget("bad")).contains("transfer target"))
+        assertTrue(CallStateMapping.transferErrorMessage(MobileException.InvalidState("x")).contains("can't be transferred"))
+        for (e in listOf(
+            MobileException.CallFailed("x"),
+            MobileException.Timeout("x"),
+            MobileException.GatewayException("x"),
+            IllegalStateException("x"),
+        )) {
+            assertTrue(e.toString(), CallStateMapping.transferErrorMessage(e).contains("still on the call"))
+        }
+        assertTrue(CallStateMapping.transferErrorMessage(MobileException.Timeout("x")).contains("didn't respond"))
+    }
+
+    @Test
+    fun transferTargetIsReducedToADialString() {
+        assertEquals("5551234567", CallStateMapping.normalizeTransferTarget(" (555) 123-4567 "))
+        assertEquals("+4420*1#", CallStateMapping.normalizeTransferTarget("+44 20 *1#"))
+        assertEquals("sip:bob@acme.example", CallStateMapping.normalizeTransferTarget(" sip:bob@acme.example "))
+        assertEquals("", CallStateMapping.normalizeTransferTarget("abc"))
     }
 
     @Test

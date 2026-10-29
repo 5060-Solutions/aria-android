@@ -20,6 +20,8 @@ data class CallHistoryEntry(
     val missed: Boolean,
     /** An incoming call this user declined. */
     val rejected: Boolean = false,
+    /** A call this user handed on to someone else. */
+    val transferred: Boolean = false,
 ) {
     val displayName: String get() = remoteName ?: remoteUri
 
@@ -35,6 +37,7 @@ data class CallHistoryEntry(
         put("durationSeconds", durationSeconds)
         put("missed", missed)
         put("rejected", rejected)
+        put("transferred", transferred)
     }
 
     companion object {
@@ -46,8 +49,9 @@ data class CallHistoryEntry(
             timestamp = json.getLong("timestamp"),
             durationSeconds = json.getInt("durationSeconds"),
             missed = json.getBoolean("missed"),
-            // Absent in entries written before the field existed.
+            // Absent in entries written before these fields existed.
             rejected = json.optBoolean("rejected", false),
+            transferred = json.optBoolean("transferred", false),
         )
     }
 }
@@ -83,6 +87,7 @@ object CallHistoryRecorder {
             durationSeconds = durationSeconds.coerceAtLeast(0),
             missed = reason == EndReason.MISSED,
             rejected = reason == EndReason.REJECTED,
+            transferred = reason == EndReason.TRANSFERRED,
         )
     }
 
@@ -115,7 +120,10 @@ object CallHistoryRecorder {
         entry.missed -> "Missed"
         entry.rejected -> "Declined"
         entry.durationSeconds <= 0 -> if (entry.direction == "outbound") "Not answered" else "Not connected"
-        else -> "%d:%02d".format(java.util.Locale.ROOT, entry.durationSeconds / 60, entry.durationSeconds % 60)
+        else -> {
+            val duration = "%d:%02d".format(java.util.Locale.ROOT, entry.durationSeconds / 60, entry.durationSeconds % 60)
+            if (entry.transferred) "$duration · Transferred" else duration
+        }
     }
 }
 
