@@ -53,7 +53,7 @@ data class CallUiState(
     val audio: AudioRouteState = AudioRouteState(),
     /** Whether media is SRTP-encrypted as negotiated; null until known. */
     val encrypted: Boolean? = null,
-    /** A blind transfer is waiting for its outcome (up to about 40 s). */
+    /** A blind transfer is waiting for its outcome (up to about 45 s). */
     val transferring: Boolean = false,
     /** Why the last transfer attempt failed; the call is still up. */
     val transferError: String? = null,
@@ -148,6 +148,8 @@ object CallManager {
         /** acceptIncomingCall is still running; an Ended now may mean it is about to throw. */
         var answerInFlight = false
         var endedDuringAnswer = false
+        /** The core's reason on an Ended held back for a method's result. */
+        var deferredEndReason: EndReason? = null
     }
 
     private var current: CallRecord? = null
@@ -236,6 +238,7 @@ object CallManager {
         rec.onHold = info.onHold
 
         if (info.state == CallState.ENDED) {
+            info.endReason?.let { rec.deferredEndReason = CallStateMapping.endReasonFor(it) }
             // Events arrive asynchronously, before or after the engine method
             // that caused them returns. While one is running its result says
             // why the call ended, so an Ended now waits for that result.
@@ -256,15 +259,15 @@ object CallManager {
                 rec.endedDuringTransfer = true
                 return
             }
-            // An unanswered incoming call that ends was cancelled by the
-            // caller or answered on another device. The core does not say
-            // which, so both are recorded as missed.
+            // A local hangup or decline was finished before this arrived and
+            // is ignored above, so nothing is recorded twice.
             finish(
                 rec,
                 CallStateMapping.endReasonForEngineEnd(
                     localHangupRequested = rec.localHangupRequested,
                     wasAnswered = rec.connectedAtElapsed != null,
                     direction = rec.direction,
+                    coreReason = info.endReason,
                 ),
             )
             return
@@ -422,7 +425,7 @@ object CallManager {
                     // Connected arrives as an event, before or after this.
                     if (!rec.finished && rec.endedDuringDial) {
                         // Answered and hung up before makeCallWithId returned.
-                        finish(rec, EndReason.REMOTE_HANGUP)
+                        finish(rec, rec.deferredEndReason ?: EndReason.REMOTE_HANGUP)
                     }
                 }
             } catch (e: Exception) {
@@ -604,7 +607,7 @@ object CallManager {
                         engineExecutor.execute { hangupLate(info.callId) }
                     } else if (rec.endedDuringAnswer) {
                         // Connected and hung up before the accept returned.
-                        finish(rec, EndReason.REMOTE_HANGUP)
+                        finish(rec, rec.deferredEndReason ?: EndReason.REMOTE_HANGUP)
                     }
                 }
             } catch (e: Exception) {
@@ -755,8 +758,8 @@ object CallManager {
             return
         }
         if (rec.endedDuringTransfer) {
-            // The far end hung up while the transfer was being attempted.
-            finish(rec, EndReason.REMOTE_HANGUP)
+            // The call ended another way while the transfer was attempted.
+            finish(rec, rec.deferredEndReason ?: EndReason.REMOTE_HANGUP)
             return
         }
         rec.transferError = CallStateMapping.transferErrorMessage(failure)

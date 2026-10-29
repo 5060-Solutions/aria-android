@@ -404,9 +404,10 @@ fun CallScreen(
 }
 
 /**
- * Blind transfer: a number field, or a number picked from contacts. The PBX
- * can take several seconds to answer, so the dialog stays up with progress
- * until it does; on success the call ends and the call screen closes.
+ * Blind transfer: a number field, or a number picked from contacts. Finding
+ * out whether the transfer worked can take up to about 45 s, so the dialog
+ * stays up with progress until it does; on success the call ends and the
+ * call screen closes.
  */
 @Composable
 private fun TransferDialog(
@@ -465,7 +466,10 @@ private fun TransferDialog(
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                         Spacer(Modifier.width(10.dp))
-                        Text("Transferring...", style = MaterialTheme.typography.bodyMedium)
+                        Text(
+                            "Transferring... This can take up to 45 seconds.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
                     }
                 }
                 error?.let {

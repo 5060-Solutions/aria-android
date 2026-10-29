@@ -4,6 +4,7 @@ import android.telecom.DisconnectCause
 import uniffi.aria_mobile.CallDirection
 import uniffi.aria_mobile.CallState
 import uniffi.aria_mobile.MobileException
+import uniffi.aria_mobile.EndReason as CoreEndReason
 
 /** Where a call is, from the user's point of view. Drives the call screen. */
 enum class CallPhase {
@@ -39,6 +40,9 @@ enum class EndReason {
 
     /** This user blind-transferred the call to someone else. */
     TRANSFERRED,
+
+    /** An incoming call was answered on another of this user's devices. */
+    ANSWERED_ELSEWHERE,
 }
 
 /** What the Telecom [android.telecom.Connection] should be told after an engine update. */
@@ -120,12 +124,38 @@ object CallStateMapping {
         EndReason.MISSED -> DisconnectCause.MISSED
         EndReason.FAILED -> DisconnectCause.ERROR
         EndReason.TRANSFERRED -> DisconnectCause.OTHER
+        EndReason.ANSWERED_ELSEWHERE -> DisconnectCause.ANSWERED_ELSEWHERE
     }
 
-    /** Why an engine-reported end happened, given whether this side asked to hang up. */
-    fun endReasonForEngineEnd(localHangupRequested: Boolean, wasAnswered: Boolean, direction: CallDirection): EndReason =
+    /**
+     * The app's end reason for the core's `end_reason` on an Ended event.
+     * A local decline (`Rejected`) and a cancelled dial (`Cancelled`) are
+     * normally finished by the app before the event arrives; the mapping
+     * covers them for the rare case the event wins.
+     */
+    fun endReasonFor(reason: CoreEndReason): EndReason = when (reason) {
+        CoreEndReason.LOCAL_HANGUP, CoreEndReason.CANCELLED -> EndReason.LOCAL_HANGUP
+        CoreEndReason.REMOTE_HANGUP -> EndReason.REMOTE_HANGUP
+        CoreEndReason.CALLER_CANCELLED -> EndReason.MISSED
+        CoreEndReason.ANSWERED_ELSEWHERE -> EndReason.ANSWERED_ELSEWHERE
+        CoreEndReason.REJECTED -> EndReason.REJECTED
+        CoreEndReason.TRANSFERRED -> EndReason.TRANSFERRED
+        CoreEndReason.FAILED -> EndReason.FAILED
+    }
+
+    /**
+     * Why an engine-reported end happened: the core's [coreReason] when it
+     * gave one, else inferred from whether this side asked to hang up.
+     */
+    fun endReasonForEngineEnd(
+        localHangupRequested: Boolean,
+        wasAnswered: Boolean,
+        direction: CallDirection,
+        coreReason: CoreEndReason? = null,
+    ): EndReason =
         when {
             localHangupRequested -> EndReason.LOCAL_HANGUP
+            coreReason != null -> endReasonFor(coreReason)
             !wasAnswered && direction == CallDirection.INBOUND -> EndReason.MISSED
             else -> EndReason.REMOTE_HANGUP
         }
@@ -179,8 +209,10 @@ object CallStateMapping {
         is MobileException.CallFailed -> sipStatusIn(error.message)?.let { code ->
             "The transfer failed: ${sipStatusText(code)} (SIP $code). You're still on the call."
         } ?: "The phone system refused the transfer. You're still on the call."
+        // Covers a 408 too: no one answered, or no outcome was reported.
         is MobileException.Timeout ->
-            "The phone system didn't say whether the transfer worked. You're still on the call."
+            "The transfer didn't go through: no one answered, or the phone system didn't say whether it worked. " +
+                "You're still on the call."
         is MobileException.GatewayException -> "The transfer failed at the gateway. You're still on the call."
         is MobileException.NetworkException -> "Network error. You're still on the call."
         else -> "The transfer failed. You're still on the call."

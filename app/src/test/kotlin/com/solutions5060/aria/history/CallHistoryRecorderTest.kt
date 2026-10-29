@@ -43,6 +43,18 @@ class CallHistoryRecorderTest {
     }
 
     @Test
+    fun answeredElsewhereIsNotMissed() {
+        val e = entry(EndReason.ANSWERED_ELSEWHERE)!!
+        assertTrue(e.answeredElsewhere)
+        assertFalse(e.missed)
+        assertFalse(e.rejected)
+        assertEquals("Answered elsewhere", CallHistoryRecorder.summary(e))
+        // Survives a save and load.
+        val back = CallHistoryRecorder.decode(CallHistoryRecorder.encode(listOf(e))).single()
+        assertTrue(back.answeredElsewhere)
+    }
+
+    @Test
     fun unansweredIncomingIsMissed() {
         val e = entry(EndReason.MISSED)!!
         assertTrue(e.missed)

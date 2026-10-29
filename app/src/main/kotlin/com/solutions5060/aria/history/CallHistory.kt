@@ -22,6 +22,8 @@ data class CallHistoryEntry(
     val rejected: Boolean = false,
     /** A call this user handed on to someone else. */
     val transferred: Boolean = false,
+    /** An incoming call picked up on another of this user's devices. */
+    val answeredElsewhere: Boolean = false,
 ) {
     val displayName: String get() = remoteName ?: remoteUri
 
@@ -38,6 +40,7 @@ data class CallHistoryEntry(
         put("missed", missed)
         put("rejected", rejected)
         put("transferred", transferred)
+        put("answeredElsewhere", answeredElsewhere)
     }
 
     companion object {
@@ -52,6 +55,7 @@ data class CallHistoryEntry(
             // Absent in entries written before these fields existed.
             rejected = json.optBoolean("rejected", false),
             transferred = json.optBoolean("transferred", false),
+            answeredElsewhere = json.optBoolean("answeredElsewhere", false),
         )
     }
 }
@@ -88,6 +92,7 @@ object CallHistoryRecorder {
             missed = reason == EndReason.MISSED,
             rejected = reason == EndReason.REJECTED,
             transferred = reason == EndReason.TRANSFERRED,
+            answeredElsewhere = reason == EndReason.ANSWERED_ELSEWHERE,
         )
     }
 
@@ -119,6 +124,7 @@ object CallHistoryRecorder {
     fun summary(entry: CallHistoryEntry): String = when {
         entry.missed -> "Missed"
         entry.rejected -> "Declined"
+        entry.answeredElsewhere -> "Answered elsewhere"
         entry.durationSeconds <= 0 -> if (entry.direction == "outbound") "Not answered" else "Not connected"
         else -> {
             val duration = "%d:%02d".format(java.util.Locale.ROOT, entry.durationSeconds / 60, entry.durationSeconds % 60)

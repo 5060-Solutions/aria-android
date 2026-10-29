@@ -9,6 +9,7 @@ import org.junit.Test
 import uniffi.aria_mobile.CallDirection
 import uniffi.aria_mobile.CallState
 import uniffi.aria_mobile.MobileException
+import uniffi.aria_mobile.EndReason as CoreEndReason
 
 class CallStateMappingTest {
 
@@ -116,7 +117,7 @@ class CallStateMappingTest {
         )) {
             assertTrue(e.toString(), CallStateMapping.transferErrorMessage(e).contains("still on the call"))
         }
-        assertTrue(CallStateMapping.transferErrorMessage(MobileException.Timeout("x")).contains("didn't say whether"))
+        assertTrue(CallStateMapping.transferErrorMessage(MobileException.Timeout("x")).contains("didn't go through"))
     }
 
     @Test
@@ -188,6 +189,42 @@ class CallStateMappingTest {
         assertFalse(CallStateMapping.acceptFailureNeedsReject(MobileException.NetworkException("reset")))
         assertTrue(CallStateMapping.acceptFailureNeedsReject(MobileException.CallFailed("accept refused (HTTP 409)")))
         assertTrue(CallStateMapping.acceptFailureNeedsReject(IllegalStateException("Not connected")))
+    }
+
+    @Test
+    fun coreEndReasonsMapToTelecomAndHistory() {
+        val expected = mapOf(
+            CoreEndReason.LOCAL_HANGUP to (EndReason.LOCAL_HANGUP to DisconnectCause.LOCAL),
+            CoreEndReason.CANCELLED to (EndReason.LOCAL_HANGUP to DisconnectCause.LOCAL),
+            CoreEndReason.REMOTE_HANGUP to (EndReason.REMOTE_HANGUP to DisconnectCause.REMOTE),
+            CoreEndReason.CALLER_CANCELLED to (EndReason.MISSED to DisconnectCause.MISSED),
+            CoreEndReason.ANSWERED_ELSEWHERE to (EndReason.ANSWERED_ELSEWHERE to DisconnectCause.ANSWERED_ELSEWHERE),
+            CoreEndReason.REJECTED to (EndReason.REJECTED to DisconnectCause.REJECTED),
+            CoreEndReason.TRANSFERRED to (EndReason.TRANSFERRED to DisconnectCause.OTHER),
+            CoreEndReason.FAILED to (EndReason.FAILED to DisconnectCause.ERROR),
+        )
+        assertEquals(CoreEndReason.entries.toSet(), expected.keys)
+        for ((core, pair) in expected) {
+            val (reason, cause) = pair
+            assertEquals(core.toString(), reason, CallStateMapping.endReasonFor(core))
+            assertEquals(core.toString(), cause, CallStateMapping.disconnectCauseFor(reason))
+        }
+        assertEquals("transferred", CallStateMapping.disconnectReasonFor(EndReason.TRANSFERRED))
+    }
+
+    @Test
+    fun theCoreReasonWinsUnlessThisSideHungUp() {
+        val inbound = CallDirection.INBOUND
+        assertEquals(
+            EndReason.ANSWERED_ELSEWHERE,
+            CallStateMapping.endReasonForEngineEnd(false, false, inbound, CoreEndReason.ANSWERED_ELSEWHERE),
+        )
+        assertEquals(
+            EndReason.LOCAL_HANGUP,
+            CallStateMapping.endReasonForEngineEnd(true, true, inbound, CoreEndReason.REMOTE_HANGUP),
+        )
+        // Without a reason (an older core), the old inference stands.
+        assertEquals(EndReason.MISSED, CallStateMapping.endReasonForEngineEnd(false, false, inbound, null))
     }
 
     @Test
