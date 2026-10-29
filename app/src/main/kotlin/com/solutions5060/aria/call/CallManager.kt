@@ -48,6 +48,8 @@ data class CallUiState(
     val connectedAtElapsed: Long? = null,
     /** Audio outputs Telecom offers, and the one in use. */
     val audio: AudioRouteState = AudioRouteState(),
+    /** Whether media is SRTP-encrypted as negotiated; null until known. */
+    val encrypted: Boolean? = null,
 ) {
     /** Name if the network sent one, else the user part of the URI. */
     val displayName: String
@@ -126,6 +128,7 @@ object CallManager {
         var localHangupRequested = false
         var finished = false
         var audio = AudioRouteState()
+        var encrypted: Boolean? = null
     }
 
     private var current: CallRecord? = null
@@ -214,6 +217,22 @@ object CallManager {
         IncomingCallNotifier.cancel(appContext)
         startActiveCallService(rec)
         val callId = rec.callId ?: return
+        // Ask the engine what SRTP negotiation produced; a padlock derived
+        // from settings would lie whenever the peer declined the crypto line.
+        engineExecutor.execute {
+            val encrypted = try {
+                SipEngineHolder.engine?.callIsEncrypted(callId)
+            } catch (e: Exception) {
+                Log.w(TAG, "Could not read call encryption: ${e.message}")
+                null
+            }
+            mainHandler.post {
+                if (!rec.finished && encrypted != null) {
+                    rec.encrypted = encrypted
+                    publish(rec)
+                }
+            }
+        }
         // Opt-in and a no-op unless the user turned transcription on and a
         // speech model is installed.
         scope.launch { CallTranscription.onCallStarted(appContext, callId) }
@@ -675,6 +694,7 @@ object CallManager {
         onHold = onHold,
         connectedAtElapsed = connectedAtElapsed,
         audio = audio,
+        encrypted = encrypted,
     )
 
     private fun publish(rec: CallRecord) {

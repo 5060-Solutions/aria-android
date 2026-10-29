@@ -229,6 +229,26 @@ fun CallScreen(
                 },
             )
 
+            // Media encryption, as negotiated (not as configured)
+            if (isActive && call.encrypted != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                val encrypted = call.encrypted
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        if (encrypted) Icons.Default.Lock else Icons.Default.LockOpen,
+                        contentDescription = null,
+                        tint = if (encrypted) Color(0xFF22C55E) else Color(0xFFFBBF24),
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        if (encrypted) "Encrypted" else "Not encrypted",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.7f),
+                    )
+                }
+            }
+
             // Audio level meters
             if (isActive) {
                 Spacer(modifier = Modifier.height(20.dp))
