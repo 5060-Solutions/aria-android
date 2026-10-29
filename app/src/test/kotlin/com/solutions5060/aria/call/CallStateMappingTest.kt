@@ -116,7 +116,7 @@ class CallStateMappingTest {
         )) {
             assertTrue(e.toString(), CallStateMapping.transferErrorMessage(e).contains("still on the call"))
         }
-        assertTrue(CallStateMapping.transferErrorMessage(MobileException.Timeout("x")).contains("didn't respond"))
+        assertTrue(CallStateMapping.transferErrorMessage(MobileException.Timeout("x")).contains("didn't say whether"))
     }
 
     @Test
@@ -144,6 +144,50 @@ class CallStateMappingTest {
         assertEquals("Call failed: 486 Busy Here", CallStateMapping.dialFailureMessage(failed))
         assertEquals(TelecomUpdate.Disconnect(DisconnectCause.ERROR), CallStateMapping.disconnectFor(reason))
         assertEquals(EndReason.FAILED, CallStateMapping.endReasonForDialFailure(MobileException.AuthenticationException("401")))
+    }
+
+    @Test
+    fun anExpiredTokenFailsTheDialWithAClearMessage() {
+        val error = MobileException.AuthenticationException("401")
+        assertEquals(EndReason.FAILED, CallStateMapping.endReasonForDialFailure(error))
+        val message = CallStateMapping.dialFailureMessage(error)!!
+        assertTrue(message.contains("please call again"))
+    }
+
+    @Test
+    fun aFailedTransferShowsTheSipStatus() {
+        val busy = MobileException.CallFailed("Call failed: the transfer failed (SIP 486); the call is still up")
+        assertEquals(
+            "The transfer failed: the line is busy (SIP 486). You're still on the call.",
+            CallStateMapping.transferErrorMessage(busy),
+        )
+        val other = MobileException.CallFailed("Call failed: the transfer failed (SIP 500); the call is still up")
+        assertEquals(
+            "The transfer failed: the phone system reported an error (SIP 500). You're still on the call.",
+            CallStateMapping.transferErrorMessage(other),
+        )
+        // A REFER the PBX refused outright carries no SIP status.
+        assertEquals(
+            "The phone system refused the transfer. You're still on the call.",
+            CallStateMapping.transferErrorMessage(MobileException.CallFailed("Call failed: the PBX refused the transfer")),
+        )
+        assertTrue(CallStateMapping.transferErrorMessage(MobileException.Timeout("Timeout")).contains("still on the call"))
+    }
+
+    @Test
+    fun sipStatusIsReadOnlyWhereTheCoreWroteIt() {
+        assertEquals(486, CallStateMapping.sipStatusIn("the transfer failed (SIP 486); the call is still up"))
+        assertNull(CallStateMapping.sipStatusIn("accept refused (HTTP 502)"))
+        assertNull(CallStateMapping.sipStatusIn(null))
+    }
+
+    @Test
+    fun onlyARefusedAnswerIsDeclinedByTheApp() {
+        // The core resolves an accept whose outcome is unknown.
+        assertFalse(CallStateMapping.acceptFailureNeedsReject(MobileException.Timeout("Timeout")))
+        assertFalse(CallStateMapping.acceptFailureNeedsReject(MobileException.NetworkException("reset")))
+        assertTrue(CallStateMapping.acceptFailureNeedsReject(MobileException.CallFailed("accept refused (HTTP 409)")))
+        assertTrue(CallStateMapping.acceptFailureNeedsReject(IllegalStateException("Not connected")))
     }
 
     @Test

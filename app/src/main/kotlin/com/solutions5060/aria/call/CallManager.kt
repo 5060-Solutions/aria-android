@@ -10,6 +10,7 @@ import android.telecom.Connection
 import android.telecom.DisconnectCause
 import android.telecom.TelecomManager
 import android.util.Log
+import android.widget.Toast
 import com.solutions5060.aria.ai.CallTranscription
 import com.solutions5060.aria.service.AriaConnection
 import com.solutions5060.aria.service.EngineManager
@@ -31,8 +32,7 @@ import uniffi.aria_mobile.CallState
 import uniffi.aria_mobile.MediaStats
 import uniffi.aria_mobile.MobileEventHandler
 import uniffi.aria_mobile.MobileException
-import uniffi.aria_mobile.SipCredentials
-import uniffi.aria_mobile.AriaMobileEngine
+import uniffi.aria_mobile.newOutgoingCallId
 import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.FutureTask
@@ -53,7 +53,7 @@ data class CallUiState(
     val audio: AudioRouteState = AudioRouteState(),
     /** Whether media is SRTP-encrypted as negotiated; null until known. */
     val encrypted: Boolean? = null,
-    /** A blind transfer is waiting on the PBX (up to ~8 s). */
+    /** A blind transfer is waiting for its outcome (up to about 40 s). */
     val transferring: Boolean = false,
     /** Why the last transfer attempt failed; the call is still up. */
     val transferError: String? = null,
@@ -142,19 +142,16 @@ object CallManager {
         var transferError: String? = null
         /** Ended arrived while a transfer was in flight; its result decides why. */
         var endedDuringTransfer = false
-        /** makeCall is still running; an Ended now means it is about to throw. */
+        /** makeCallWithId is still running; an Ended now may mean it is about to throw. */
         var dialInFlight = false
         var endedDuringDial = false
+        /** acceptIncomingCall is still running; an Ended now may mean it is about to throw. */
+        var answerInFlight = false
+        var endedDuringAnswer = false
     }
 
     private var current: CallRecord? = null
 
-    /**
-     * An outgoing call hung up before its Ringing event arrived, so before its
-     * id was known. Its Ringing still arrives, and is cancelled at the gateway
-     * then. Main-thread only.
-     */
-    private var cancelOnRinging: CallRecord? = null
     private val ringTimeout = Runnable {
         val rec = current ?: return@Runnable
         if (rec.phase != CallPhase.INCOMING || rec.finished) return@Runnable
@@ -202,7 +199,20 @@ object CallManager {
         override fun onMediaStats(callId: String, stats: MediaStats) {}
 
         override fun onError(context: String, message: String) {
-            Log.w(TAG, "Engine error in $context: $message")
+            // The message names the call_id, which embeds an incoming call's
+            // token, so it is not logged.
+            Log.w(TAG, "Engine error in $context")
+            if (context == "hangup") {
+                // The call ended here, but the gateway did not confirm hanging
+                // it up. Not a registration problem; just let the user know.
+                mainHandler.post {
+                    Toast.makeText(
+                        appContext,
+                        "The call ended on this phone, but the other party may still be connected.",
+                        Toast.LENGTH_LONG,
+                    ).show()
+                }
+            }
         }
 
         override fun onAuthRequired() {
@@ -214,45 +224,41 @@ object CallManager {
     }
 
     private fun onEngineCallState(info: CallInfo) {
-        cancelOnRinging?.let { pending ->
-            if (info.direction == CallDirection.OUTBOUND && info.state != CallState.ENDED) {
-                // The call the user already hung up has just told us its id:
-                // cancel it at the gateway now.
-                cancelOnRinging = null
-                pending.callId = info.callId
-                engineExecutor.execute { safeHangup(info.callId) }
-                return
-            }
-        }
         val rec = current ?: return
         if (rec.finished) return
-        if (rec.callId == null) {
-            // make_call emits Ringing before it returns, which is the first
-            // time an outgoing call's id is known.
-            if (rec.direction != info.direction || info.state == CallState.ENDED) return
-            rec.callId = info.callId
-        } else if (rec.callId != info.callId) {
-            return
-        }
+        // Outgoing ids are chosen before dialling and incoming ids come from
+        // the push, so every event can be matched; one without a match is
+        // for some other call.
+        if (rec.callId == null || rec.callId != info.callId) return
 
         info.remoteName?.takeIf { it.isNotBlank() }?.let { rec.remoteName = it }
         rec.muted = info.muted
         rec.onHold = info.onHold
 
         if (info.state == CallState.ENDED) {
+            // Events arrive asynchronously, before or after the engine method
+            // that caused them returns. While one is running its result says
+            // why the call ended, so an Ended now waits for that result.
             if (rec.dialInFlight && !rec.localHangupRequested) {
-                // make_call emits Ended and then throws; wait for the throw so
-                // the user sees why and Telecom gets ERROR, not REMOTE.
+                // makeCallWithId reports Ended and throws, so the user sees
+                // why and Telecom gets ERROR, not REMOTE.
                 rec.endedDuringDial = true
                 return
             }
+            if (rec.answerInFlight && !rec.localHangupRequested) {
+                // An accept with an unknown outcome reports Ended and throws.
+                rec.endedDuringAnswer = true
+                return
+            }
             if (rec.transferring) {
-                // transferCall emits Ended before it returns, and its result
-                // is posted after this event: let that result say whether
+                // A successful transfer reports Ended; the result says whether
                 // this was the transfer or a hangup that raced it.
                 rec.endedDuringTransfer = true
                 return
             }
+            // An unanswered incoming call that ends was cancelled by the
+            // caller or answered on another device. The core does not say
+            // which, so both are recorded as missed.
             finish(
                 rec,
                 CallStateMapping.endReasonForEngineEnd(
@@ -337,6 +343,9 @@ object CallManager {
             remoteName = null,
             dialUri = sipUri,
         )
+        // Known before dialling, so hangup(id) works at any point, even before
+        // makeCallWithId runs (it then never dials).
+        rec.callId = newOutgoingCallId()
         current = rec
         _error.value = null
         publish(rec)
@@ -401,35 +410,35 @@ object CallManager {
         // Main thread, call not finished: audio may start for this call.
         SipEngineHolder.audioBridge?.beginCall()
         startActiveCallService(rec)
+        val callId = rec.callId ?: return
         engineExecutor.execute {
             try {
                 // The dialled number is not logged.
                 Log.d(TAG, "Placing call")
-                val info = dial(rec, engine, uri, credentials)
+                // An empty codec list defers to the engine's preferences.
+                engine.makeCallWithId(callId, uri, credentials, emptyList())
                 mainHandler.post {
                     rec.dialInFlight = false
-                    if (cancelOnRinging === rec) cancelOnRinging = null
-                    if (rec.finished) {
-                        // Cancelled while the INVITE was in flight; the engine
-                        // only knows the call now, so hang it up now.
-                        engineExecutor.execute { hangupLate(info.callId) }
-                    } else if (rec.endedDuringDial) {
-                        // Answered and hung up before makeCall returned.
+                    // Connected arrives as an event, before or after this.
+                    if (!rec.finished && rec.endedDuringDial) {
+                        // Answered and hung up before makeCallWithId returned.
                         finish(rec, EndReason.REMOTE_HANGUP)
-                    } else if (rec.callId == null) {
-                        rec.callId = info.callId
                     }
                 }
             } catch (e: Exception) {
                 val reason = CallStateMapping.endReasonForDialFailure(e)
                 if (reason == EndReason.FAILED) {
-                    Log.e(TAG, "makeCall failed: ${e.message}", e)
+                    Log.e(TAG, "makeCallWithId failed: ${e.javaClass.simpleName}")
                 } else {
                     Log.i(TAG, "Outgoing call cancelled before it was answered")
                 }
+                if (e is MobileException.AuthenticationException) {
+                    // Renew in the background and let the user redial: retrying
+                    // here could ring the callee twice.
+                    EngineManager.onAuthRequired(appContext)
+                }
                 mainHandler.post {
                     rec.dialInFlight = false
-                    if (cancelOnRinging === rec) cancelOnRinging = null
                     if (!rec.finished) {
                         CallStateMapping.dialFailureMessage(e)?.let { _error.value = it }
                         finish(rec, reason)
@@ -437,35 +446,6 @@ object CallManager {
                 }
             }
         }
-    }
-
-    /**
-     * `makeCall`, renewing the gateway token and dialling once more if the
-     * gateway rejected it. Runs on [engineExecutor].
-     */
-    private fun dial(rec: CallRecord, engine: AriaMobileEngine, uri: String, credentials: SipCredentials): CallInfo {
-        val renewal = EngineManager.tokenRenewal(appContext)
-        val seen = renewal.generation
-        return try {
-            // An empty codec list defers to the engine's preferences.
-            engine.makeCall(uri, credentials, emptyList())
-        } catch (e: MobileException.AuthenticationException) {
-            renewal.renewBlocking(seen) ?: throw e
-            // The rejected attempt has reported Ringing and Ended under its own
-            // id; the next attempt gets a new one.
-            if (!onMain { prepareRedial(rec) }) throw MobileException.Cancelled("Hung up during token renewal")
-            engine.makeCall(uri, credentials, emptyList())
-        }
-    }
-
-    /** Forgets the rejected attempt's id. False when the user hung up meanwhile. */
-    private fun prepareRedial(rec: CallRecord): Boolean {
-        if (rec.finished) return false
-        rec.callId = null
-        rec.endedDuringDial = false
-        rec.phase = CallPhase.CONNECTING
-        publish(rec)
-        return true
     }
 
     /** Runs [block] on the main thread and waits for it. Never call from the main thread. */
@@ -603,7 +583,10 @@ object CallManager {
                 // the engine was being built. Checked on the main thread, where
                 // finish() runs, so the two cannot interleave.
                 val stillWanted = onMain {
-                    if (!rec.finished) SipEngineHolder.audioBridge?.beginCall()
+                    if (!rec.finished) {
+                        SipEngineHolder.audioBridge?.beginCall()
+                        rec.answerInFlight = true
+                    }
                     !rec.finished
                 }
                 if (!stillWanted) {
@@ -614,13 +597,29 @@ object CallManager {
                 // An empty codec list defers to the engine's preferences.
                 val info = EngineManager.withAuthRetry(appContext) { engine.acceptIncomingCall(token, emptyList()) }
                 mainHandler.post {
-                    // Hung up while the accept was in flight: the engine only
-                    // holds the call now, so end it now.
-                    if (rec.finished) engineExecutor.execute { hangupLate(info.callId) }
+                    rec.answerInFlight = false
+                    if (rec.finished) {
+                        // Hung up while the accept was in flight: the engine
+                        // only holds the call now, so end it now.
+                        engineExecutor.execute { hangupLate(info.callId) }
+                    } else if (rec.endedDuringAnswer) {
+                        // Connected and hung up before the accept returned.
+                        finish(rec, EndReason.REMOTE_HANGUP)
+                    }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to accept call: ${e.message}", e)
+                Log.e(TAG, "Failed to accept call: ${e.javaClass.simpleName}")
+                if (CallStateMapping.acceptFailureNeedsReject(e)) {
+                    // Refused: the call is still offered and the caller still
+                    // hears it ring. Timeout/NetworkError are resolved by the core.
+                    try {
+                        SipEngineHolder.engine?.rejectIncomingCall(token)
+                    } catch (r: Exception) {
+                        Log.w(TAG, "Could not decline after a failed answer: ${r.javaClass.simpleName}")
+                    }
+                }
                 mainHandler.post {
+                    rec.answerInFlight = false
                     if (!rec.finished) {
                         _error.value = "Failed to answer: ${e.message}"
                         finish(rec, EndReason.FAILED)
@@ -662,21 +661,17 @@ object CallManager {
         }
         rec.localHangupRequested = true
         val callId = rec.callId
-        if (callId == null || rec.phase == CallPhase.CONNECTING && rec.direction == CallDirection.INBOUND) {
-            // Nothing for the engine to hang up yet (the accept is in flight,
-            // or makeCall's Ringing, which carries the id, has not arrived):
-            // end it here. An outgoing call is cancelled at the gateway when
-            // its Ringing arrives; an accepted one is hung up when the accept
-            // returns.
-            if (rec.direction == CallDirection.OUTBOUND && rec.dialInFlight) cancelOnRinging = rec
-            finish(rec, EndReason.LOCAL_HANGUP)
+        // hangup never waits on the gateway, so the call ends here at once;
+        // the Ended it reports is then ignored.
+        finish(rec, EndReason.LOCAL_HANGUP)
+        if (callId == null || rec.direction == CallDirection.INBOUND && rec.connectedAtElapsed == null) {
+            // An answer still in flight: answer() hangs the call up when the
+            // accept returns.
             return
         }
-        engineExecutor.execute {
-            safeHangup(callId)
-            // The engine emits Ended from hangup(); this covers it failing.
-            mainHandler.post { finish(rec, EndReason.LOCAL_HANGUP) }
-        }
+        // Valid at any point for an outgoing call, even before makeCallWithId
+        // runs: the core then never dials, and cancels a ringing call.
+        engineExecutor.execute { safeHangup(callId) }
     }
 
     fun setMuted(muted: Boolean) {
@@ -818,10 +813,10 @@ object CallManager {
         try {
             SipEngineHolder.engine?.hangup(callId)
         } catch (e: MobileException.AuthenticationException) {
-            // The core has already ended the call locally and forgotten it, so
-            // retrying would reach nothing. Renew the token so its background
-            // fallback hangup, and every later request, can get through.
-            Log.w(TAG, "Hangup rejected by the gateway; renewing the token")
+            // Only when there is no gateway token at all: the call has ended
+            // here and nothing was sent. A rejected token is reported through
+            // on_auth_required instead.
+            Log.w(TAG, "Hangup without a gateway token; renewing")
             EngineManager.onAuthRequired(appContext)
         } catch (e: Exception) {
             Log.w(TAG, "Hangup failed: ${e.message}")

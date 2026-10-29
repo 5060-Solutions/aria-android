@@ -131,15 +131,22 @@ object CallStateMapping {
         }
 
     /**
-     * Why a failed `makeCall` ended the call. `Cancelled` means this user hung
+     * Why a failed `makeCallWithId` ended the call. `Cancelled` means this user hung
      * up while it rang, which is a hangup, not a failure.
      */
     fun endReasonForDialFailure(error: Throwable): EndReason =
         if (error is MobileException.Cancelled) EndReason.LOCAL_HANGUP else EndReason.FAILED
 
-    /** What the dialer shows when `makeCall` throws, or null when nothing went wrong. */
-    fun dialFailureMessage(error: Throwable): String? =
-        if (error is MobileException.Cancelled) null else "Call failed: ${error.message}"
+    /** What the dialer shows when `makeCallWithId` throws, or null when nothing went wrong. */
+    fun dialFailureMessage(error: Throwable): String? = when (error) {
+        is MobileException.Cancelled -> null
+        // The token is renewed in the background; the call is not redialled
+        // on the user's behalf (the callee could ring twice).
+        is MobileException.AuthenticationException ->
+            "The call couldn't be placed because the connection to the call service had expired. " +
+                "It is being renewed; please call again."
+        else -> "Call failed: ${error.message}"
+    }
 
     /** Longest call token accepted from an intent. */
     private const val MAX_CALL_TOKEN_LEN = 8192
@@ -169,12 +176,39 @@ object CallStateMapping {
     fun transferErrorMessage(error: Throwable): String = when (error) {
         is MobileException.InvalidTarget -> "That number can't be used as a transfer target."
         is MobileException.InvalidState -> "This call can't be transferred right now."
-        is MobileException.CallFailed -> "The phone system refused the transfer. You're still on the call."
-        is MobileException.Timeout -> "The phone system didn't respond in time. You're still on the call."
+        is MobileException.CallFailed -> sipStatusIn(error.message)?.let { code ->
+            "The transfer failed: ${sipStatusText(code)} (SIP $code). You're still on the call."
+        } ?: "The phone system refused the transfer. You're still on the call."
+        is MobileException.Timeout ->
+            "The phone system didn't say whether the transfer worked. You're still on the call."
         is MobileException.GatewayException -> "The transfer failed at the gateway. You're still on the call."
         is MobileException.NetworkException -> "Network error. You're still on the call."
         else -> "The transfer failed. You're still on the call."
     }
+
+    /** The SIP status a core error message carries ("... (SIP 486) ..."), if any. */
+    fun sipStatusIn(message: String?): Int? =
+        message?.let { Regex("""\bSIP (\d{3})\b""").find(it) }?.groupValues?.get(1)?.toIntOrNull()
+
+    /** Plain words for the SIP statuses a failed transfer usually reports. */
+    fun sipStatusText(code: Int): String = when (code) {
+        486, 600 -> "the line is busy"
+        480, 408 -> "no one answered"
+        404, 484, 604 -> "that number wasn't found"
+        403, 603 -> "the call was declined"
+        487 -> "the transfer was cancelled"
+        else -> "the phone system reported an error"
+    }
+
+    /**
+     * After a failed answer, whether this app must still decline the call at
+     * the gateway. On `Timeout` or `NetworkError` the gateway may have taken
+     * the answer, so the core resolves it (hangs up or rejects) and reports
+     * `Ended`. Any other failure was a refusal that left the call offered,
+     * with the caller still hearing it ring.
+     */
+    fun acceptFailureNeedsReject(error: Throwable): Boolean =
+        error !is MobileException.Timeout && error !is MobileException.NetworkException
 
     /**
      * Cleans a typed or picked number into a dial string: a SIP URI is kept
