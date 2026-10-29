@@ -1,7 +1,6 @@
 package com.solutions5060.aria.call
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.os.Handler
@@ -279,7 +278,6 @@ object CallManager {
         rec.connectedAtElapsed = SystemClock.elapsedRealtime()
         mainHandler.removeCallbacks(ringTimeout)
         IncomingCallNotifier.cancel(appContext)
-        startActiveCallService(rec)
         val callId = rec.callId ?: return
         // Ask the engine what SRTP negotiation produced; a padlock derived
         // from settings would lie whenever the peer declined the crypto line.
@@ -402,6 +400,7 @@ object CallManager {
         rec.dialInFlight = true
         // Main thread, call not finished: audio may start for this call.
         SipEngineHolder.audioBridge?.beginCall()
+        startActiveCallService(rec)
         engineExecutor.execute {
             try {
                 // The dialled number is not logged.
@@ -590,6 +589,9 @@ object CallManager {
         IncomingCallNotifier.cancel(appContext)
         rec.phase = CallPhase.CONNECTING
         publish(rec)
+        // Now, while the user's answer still counts as foreground use; see
+        // IncomingCallService for why the microphone type depends on it.
+        startActiveCallService(rec)
 
         engineExecutor.execute {
             try {
@@ -886,20 +888,11 @@ object CallManager {
 
     private fun startActiveCallService(rec: CallRecord) {
         // Keeps the process (and microphone access) alive while the call is up.
-        try {
-            val intent = Intent(appContext, IncomingCallService::class.java).apply {
-                putExtra(IncomingCallService.EXTRA_CALLER_NAME, rec.displayName())
-            }
-            appContext.startForegroundService(intent)
-        } catch (e: Exception) {
-            Log.w(TAG, "Failed to start call foreground service: ${e.message}")
-        }
+        IncomingCallService.start(appContext, rec.displayName())
     }
 
     private fun stopActiveCallService() {
-        try {
-            appContext.stopService(Intent(appContext, IncomingCallService::class.java))
-        } catch (_: Exception) {}
+        IncomingCallService.stop(appContext)
     }
 
     private fun CallRecord.displayName(): String = toUiState().displayName
