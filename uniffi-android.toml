@@ -1,0 +1,9 @@
+# UniFFI binding-generation settings for the Android app (passed to
+# uniffi-bindgen by build-rust.sh).
+#
+# The default (JVM) cleaner probes for java.lang.ref.Cleaner at runtime, which
+# works but is invisible to lint: it reports the API-33 calls as NewApi errors
+# against minSdk 26. The Android cleaner gates SystemCleaner behind an explicit
+# SDK_INT check and @RequiresApi, falling back to JNA's cleaner below it.
+[bindings.kotlin]
+android_cleaner = true

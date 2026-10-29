@@ -163,6 +163,7 @@ mkdir -p "$OUT_DIR"
 cargo run --manifest-path "$RUST_DIR/Cargo.toml" \
     --bin uniffi-bindgen -- \
     generate "$RUST_DIR/src/aria_mobile.udl" \
+    --config "$(pwd)/uniffi-android.toml" \
     --language kotlin \
     --out-dir "$OUT_DIR"
 
@@ -170,4 +171,3 @@ echo "=== Done ==="
 echo "JNI libraries: $JNI_DIR/"
 echo "Kotlin bindings: $OUT_DIR/"
 echo ""
-echo "The UniFFI-generated Kotlin replaces the stub types in AriaMobileCore.kt"
