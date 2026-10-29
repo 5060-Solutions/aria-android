@@ -146,4 +146,9 @@ object CallHistoryStore {
     fun add(context: Context, entry: CallHistoryEntry) {
         save(context, CallHistoryRecorder.prepend(load(context), entry))
     }
+
+    /** Forgets every call (sign-out: the next account must not see this one's calls). */
+    fun clear(context: Context) {
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().clear().apply()
+    }
 }

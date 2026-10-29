@@ -390,7 +390,8 @@ object CallManager {
         rec.dialInFlight = true
         engineExecutor.execute {
             try {
-                Log.d(TAG, "Placing call to $uri")
+                // The dialled number is not logged.
+                Log.d(TAG, "Placing call")
                 val info = dial(rec, engine, uri, credentials)
                 mainHandler.post {
                     rec.dialInFlight = false
@@ -796,7 +797,7 @@ object CallManager {
             scope.launch {
                 val insight = CallTranscription.onCallEnded(appContext, callId)
                 if (insight != null) {
-                    Log.i(TAG, "Transcript for $callId: ${insight.segments.size} segments (${insight.status})")
+                    Log.i(TAG, "Transcript ready: ${insight.segments.size} segments (${insight.status})")
                 }
             }
         }

@@ -60,7 +60,8 @@ class AriaFirebaseMessagingService : FirebaseMessagingService() {
         // MainActivity will accept it (and reject any injected/fabricated token).
         IncomingCallService.expectCallToken(callToken)
 
-        Log.i(TAG, "Incoming call (token: ${callToken.take(8)})")
+        // Neither the token nor the caller is logged.
+        Log.i(TAG, "Incoming call push")
 
         // Ring first; building the engine below can take a network round-trip.
         CallManager.reportIncomingCall(applicationContext, callToken, callerUri, callerName)

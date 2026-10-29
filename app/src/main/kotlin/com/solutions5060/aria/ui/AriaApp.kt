@@ -32,6 +32,7 @@ import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.solutions5060.aria.call.CallManager
+import com.solutions5060.aria.history.CallHistoryStore
 import com.solutions5060.aria.security.SecurePrefs
 import com.solutions5060.aria.service.EngineManager
 import com.solutions5060.aria.service.SipEngineHolder
@@ -162,6 +163,7 @@ fun AriaApp() {
                 onSignOut = {
                     prefs.edit().clear().apply()
                     SecurePrefs.clear(context)
+                    CallHistoryStore.clear(context)
                     EngineManager.reset()
                     phase = AppPhase.SETUP
                 },

@@ -21,10 +21,14 @@ import androidx.compose.ui.unit.sp
 import com.solutions5060.aria.history.CallHistoryEntry
 import com.solutions5060.aria.history.CallHistoryRecorder
 import com.solutions5060.aria.history.CallHistoryStore
+import com.solutions5060.aria.ui.SecureWindow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(onCall: (String) -> Unit) {
+    // Call parties and times are personal data: keep them out of screenshots
+    // and the recents thumbnail.
+    SecureWindow()
     val context = LocalContext.current
     val history = remember { CallHistoryStore.load(context) }
 
