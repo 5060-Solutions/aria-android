@@ -147,6 +147,13 @@ object CallManager {
     }
 
     private var current: CallRecord? = null
+
+    /**
+     * An outgoing call hung up before its Ringing event arrived, so before its
+     * id was known. Its Ringing still arrives, and is cancelled at the gateway
+     * then. Main-thread only.
+     */
+    private var cancelOnRinging: CallRecord? = null
     private val ringTimeout = Runnable { current?.let { if (it.phase == CallPhase.INCOMING) finish(it, EndReason.MISSED) } }
 
     fun init(context: Context) {
@@ -196,6 +203,16 @@ object CallManager {
     }
 
     private fun onEngineCallState(info: CallInfo) {
+        cancelOnRinging?.let { pending ->
+            if (info.direction == CallDirection.OUTBOUND && info.state != CallState.ENDED) {
+                // The call the user already hung up has just told us its id:
+                // cancel it at the gateway now.
+                cancelOnRinging = null
+                pending.callId = info.callId
+                engineExecutor.execute { safeHangup(info.callId) }
+                return
+            }
+        }
         val rec = current ?: return
         if (rec.finished) return
         if (rec.callId == null) {
@@ -377,6 +394,7 @@ object CallManager {
                 val info = dial(rec, engine, uri, credentials)
                 mainHandler.post {
                     rec.dialInFlight = false
+                    if (cancelOnRinging === rec) cancelOnRinging = null
                     if (rec.finished) {
                         // Cancelled while the INVITE was in flight; the engine
                         // only knows the call now, so hang it up now.
@@ -389,12 +407,18 @@ object CallManager {
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "makeCall failed: ${e.message}", e)
+                val reason = CallStateMapping.endReasonForDialFailure(e)
+                if (reason == EndReason.FAILED) {
+                    Log.e(TAG, "makeCall failed: ${e.message}", e)
+                } else {
+                    Log.i(TAG, "Outgoing call cancelled before it was answered")
+                }
                 mainHandler.post {
                     rec.dialInFlight = false
+                    if (cancelOnRinging === rec) cancelOnRinging = null
                     if (!rec.finished) {
-                        _error.value = "Call failed: ${e.message}"
-                        finish(rec, EndReason.FAILED)
+                        CallStateMapping.dialFailureMessage(e)?.let { _error.value = it }
+                        finish(rec, reason)
                     }
                 }
             }
@@ -594,9 +618,12 @@ object CallManager {
         rec.localHangupRequested = true
         val callId = rec.callId
         if (callId == null || rec.phase == CallPhase.CONNECTING && rec.direction == CallDirection.INBOUND) {
-            // Nothing for the engine to hang up yet (the INVITE or accept is
-            // still in flight): end it here, and startOutgoing hangs up the
-            // call if the engine reports it later.
+            // Nothing for the engine to hang up yet (the accept is in flight,
+            // or makeCall's Ringing, which carries the id, has not arrived):
+            // end it here. An outgoing call is cancelled at the gateway when
+            // its Ringing arrives; an accepted one is hung up when the accept
+            // returns.
+            if (rec.direction == CallDirection.OUTBOUND && rec.dialInFlight) cancelOnRinging = rec
             finish(rec, EndReason.LOCAL_HANGUP)
             return
         }

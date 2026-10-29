@@ -130,6 +130,17 @@ object CallStateMapping {
             else -> EndReason.REMOTE_HANGUP
         }
 
+    /**
+     * Why a failed `makeCall` ended the call. `Cancelled` means this user hung
+     * up while it rang, which is a hangup, not a failure.
+     */
+    fun endReasonForDialFailure(error: Throwable): EndReason =
+        if (error is MobileException.Cancelled) EndReason.LOCAL_HANGUP else EndReason.FAILED
+
+    /** What the dialer shows when `makeCall` throws, or null when nothing went wrong. */
+    fun dialFailureMessage(error: Throwable): String? =
+        if (error is MobileException.Cancelled) null else "Call failed: ${error.message}"
+
     /** The status line under the caller's name. */
     fun statusText(phase: CallPhase, elapsedSeconds: Long): String = when (phase) {
         CallPhase.INCOMING -> "Incoming Call"

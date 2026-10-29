@@ -127,6 +127,25 @@ class CallStateMappingTest {
     }
 
     @Test
+    fun cancelledDialIsAQuietLocalHangup() {
+        val cancelled = MobileException.Cancelled("cancelled")
+        val reason = CallStateMapping.endReasonForDialFailure(cancelled)
+        assertEquals(EndReason.LOCAL_HANGUP, reason)
+        assertNull(CallStateMapping.dialFailureMessage(cancelled))
+        assertEquals(TelecomUpdate.Disconnect(DisconnectCause.LOCAL), CallStateMapping.disconnectFor(reason))
+    }
+
+    @Test
+    fun otherDialErrorsAreFailures() {
+        val failed = MobileException.CallFailed("486 Busy Here")
+        val reason = CallStateMapping.endReasonForDialFailure(failed)
+        assertEquals(EndReason.FAILED, reason)
+        assertEquals("Call failed: 486 Busy Here", CallStateMapping.dialFailureMessage(failed))
+        assertEquals(TelecomUpdate.Disconnect(DisconnectCause.ERROR), CallStateMapping.disconnectFor(reason))
+        assertEquals(EndReason.FAILED, CallStateMapping.endReasonForDialFailure(MobileException.AuthenticationException("401")))
+    }
+
+    @Test
     fun statusTextFollowsThePhase() {
         assertEquals("Incoming Call", CallStateMapping.statusText(CallPhase.INCOMING, 0))
         assertEquals("Calling...", CallStateMapping.statusText(CallPhase.CONNECTING, 0))

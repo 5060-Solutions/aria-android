@@ -33,6 +33,16 @@ class CallHistoryRecorderTest {
     }
 
     @Test
+    fun outgoingCancelledWhileRingingIsNotAnswered() {
+        // makeCall throwing Cancelled ends the call as LOCAL_HANGUP, unanswered.
+        val e = entry(EndReason.LOCAL_HANGUP, CallDirection.OUTBOUND)!!
+        assertEquals("outbound", e.direction)
+        assertFalse(e.missed)
+        assertFalse(e.rejected)
+        assertEquals("Not answered", CallHistoryRecorder.summary(e))
+    }
+
+    @Test
     fun unansweredIncomingIsMissed() {
         val e = entry(EndReason.MISSED)!!
         assertTrue(e.missed)
