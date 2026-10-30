@@ -41,7 +41,6 @@ import com.solutions5060.aria.call.CallWaiting
 import com.solutions5060.aria.ui.SecureWindow
 import com.solutions5060.aria.service.SipEngineHolder
 import kotlinx.coroutines.delay
-import uniffi.aria_mobile.CallDirection
 
 @Composable
 fun CallScreen(
@@ -416,16 +415,12 @@ fun CallScreen(
                         isActive = false,
                         onClick = { showAudioPicker = true }
                     )
-                    // The PBX only acts on a REFER from the side that answered,
-                    // so a call this phone placed cannot be transferred.
-                    if (call.direction == CallDirection.INBOUND) {
-                        CallControlButton(
-                            icon = Icons.AutoMirrored.Filled.PhoneForwarded,
-                            label = "Transfer",
-                            isActive = showTransfer,
-                            onClick = { showTransfer = true }
-                        )
-                    }
+                    CallControlButton(
+                        icon = Icons.AutoMirrored.Filled.PhoneForwarded,
+                        label = "Transfer",
+                        isActive = showTransfer,
+                        onClick = { showTransfer = true }
+                    )
                     if (canAddCall) {
                         CallControlButton(
                             icon = Icons.Default.AddIcCall,
@@ -440,8 +435,8 @@ fun CallScreen(
                 }
             }
 
-            // Attended transfer: an answered call and a call placed to the
-            // transfer target are both up, so the PBX can join them.
+            // Attended transfer: two connected calls, placed or answered, that
+            // the PBX can join.
             if (transferPair != null) {
                 Spacer(modifier = Modifier.height(20.dp))
                 CompleteTransfer(
@@ -718,7 +713,7 @@ private fun OtherCallRow(
     }
 }
 
-/** "Complete transfer" for an answered call and a consultation call, with progress and errors. */
+/** "Complete transfer" for a transferred call and a consultation call, with progress and errors. */
 @Composable
 private fun CompleteTransfer(
     pair: CallWaiting.TransferPair,

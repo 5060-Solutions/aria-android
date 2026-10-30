@@ -207,7 +207,7 @@ object CallStateMapping {
         is MobileException.InvalidTarget -> "That number can't be used as a transfer target."
         is MobileException.InvalidState -> "This call can't be transferred right now."
         is MobileException.TransferUnsupported ->
-            "The phone system can only transfer a call you answered. You're still on the call."
+            "The phone system can't transfer this call. You're still on the call."
         is MobileException.CallFailed -> sipStatusIn(error.message)?.let { code ->
             "The transfer failed: ${sipStatusText(code)} (SIP $code). You're still on the call."
         } ?: "The phone system refused the transfer. You're still on the call."
