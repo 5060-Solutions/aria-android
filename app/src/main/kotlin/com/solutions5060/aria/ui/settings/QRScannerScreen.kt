@@ -1,8 +1,6 @@
 package com.solutions5060.aria.ui.settings
 
 import android.Manifest
-import android.net.Uri
-import android.util.Base64
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -25,130 +23,40 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.viewinterop.AndroidView
+import androidx.compose.ui.window.DialogProperties
+import androidx.compose.ui.window.SecureFlagPolicy
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
+import com.solutions5060.aria.provisioning.ProvisioningCredentials
+import com.solutions5060.aria.provisioning.parseProvisioningUri
+import com.solutions5060.aria.provisioning.validateProvisioning
+import com.solutions5060.aria.ui.SecureWindow
 import java.util.concurrent.Executors
 
 private const val TAG = "QRScanner"
-
-data class ProvisioningCredentials(
-    val server: String,
-    val port: Int,
-    val username: String,
-    val password: String,
-    val displayName: String,
-    val transport: String,
-    val voicemail: String,
-    val apiUrl: String,
-    val tenantDomain: String,
-)
-
-fun parseProvisioningUri(uriString: String): ProvisioningCredentials? {
-    return try {
-        // Do not log the provisioning URI — it contains the base64 SIP password.
-        Log.d(TAG, "Parsing provisioning URI")
-        val uri = Uri.parse(uriString)
-        if (uri.scheme != "aria" || uri.host != "provision") return null
-
-        val server = uri.getQueryParameter("server") ?: return null
-        val port = uri.getQueryParameter("port")?.toIntOrNull() ?: 5060
-        val user = uri.getQueryParameter("user") ?: return null
-        val passEncoded = uri.getQueryParameter("pass") ?: return null
-        val password = String(Base64.decode(passEncoded, Base64.DEFAULT))
-        val name = uri.getQueryParameter("name") ?: ""
-        // Normalised here; an unrecognised value is rejected by
-        // validateProvisioning rather than silently becoming udp.
-        val transport = (uri.getQueryParameter("transport") ?: "udp").lowercase()
-        val voicemail = uri.getQueryParameter("vm") ?: ""
-        val apiUrl = uri.getQueryParameter("api") ?: ""
-        val tenantDomain = uri.getQueryParameter("tenant") ?: ""
-
-        Log.d(TAG, "Parsed params: server=$server, user=$user, name=$name, api=$apiUrl, tenant=$tenantDomain")
-
-        ProvisioningCredentials(
-            server = server,
-            port = port,
-            username = user,
-            password = password,
-            displayName = name,
-            transport = transport,
-            voicemail = voicemail,
-            tenantDomain = tenantDomain,
-            apiUrl = apiUrl,
-        )
-    } catch (e: Exception) {
-        // Do not log the raw URI — it embeds the base64 SIP password.
-        Log.e(TAG, "Failed to parse provisioning URI", e)
-        null
-    }
-}
-
-// Hostname (RFC-1123-ish) or bare IPv4. Rejects empty, whitespace, scheme/path
-// artifacts, and anything that does not look like a real host.
-private val HOSTNAME_REGEX = Regex(
-    "^(([a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)\\.)+[a-zA-Z]{2,}$"
-)
-private val IPV4_REGEX = Regex("^(\\d{1,3})(\\.\\d{1,3}){3}$")
-
-private fun isValidHost(host: String?): Boolean {
-    if (host.isNullOrBlank()) return false
-    if (host.any { it.isWhitespace() }) return false
-    return HOSTNAME_REGEX.matches(host) || IPV4_REGEX.matches(host)
-}
-
-/**
- * Validates a parsed provisioning payload before it is trusted for login/SIP
- * registration, so a hostile QR cannot silently point the client at an
- * attacker-controlled server or a plain-http API endpoint.
- *
- * Returns null when the payload is acceptable, or a user-facing error message
- * describing why it was rejected.
- */
-fun validateProvisioning(creds: ProvisioningCredentials): String? {
-    if (!isValidHost(creds.server)) {
-        return "Rejected: the provisioning server host is missing or invalid."
-    }
-    if (creds.apiUrl.isBlank()) {
-        return "Rejected: the provisioning code is missing a secure API endpoint."
-    }
-    val apiUri = try {
-        Uri.parse(creds.apiUrl)
-    } catch (e: Exception) {
-        null
-    }
-    if (apiUri == null ||
-        !apiUri.scheme.equals("https", ignoreCase = true) ||
-        !isValidHost(apiUri.host)
-    ) {
-        return "Rejected: the API endpoint must use https with a valid hostname."
-    }
-    // The transport was the one provisioning field taken verbatim: anything
-    // unrecognised fell through to the "udp" default, so a QR could quietly
-    // downgrade signalling to cleartext. An unknown value is now refused
-    // outright rather than silently becoming the weakest option.
-    if (creds.transport !in ALLOWED_TRANSPORTS) {
-        return "Rejected: unsupported SIP transport \"${creds.transport}\"."
-    }
-    return null
-}
-
-/// The transports this client actually implements. Anything else is a
-/// provisioning error, not a reason to fall back.
-private val ALLOWED_TRANSPORTS = setOf("udp", "tcp", "tls")
 
 @Composable
 fun QRScannerScreen(
     onCredentialsScanned: (ProvisioningCredentials) -> Unit,
     onDismiss: () -> Unit,
 ) {
+    // The camera frames hold the provisioning code, password included.
+    SecureWindow()
+
     var hasCameraPermission by remember { mutableStateOf(false) }
     var permissionDenied by remember { mutableStateOf(false) }
     var flashEnabled by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
+    // A valid code waiting for the user to confirm where it signs them in.
+    var pending by remember { mutableStateOf<ProvisioningCredentials?>(null) }
+    // Cleared after the first detection so one code is handled once; re-armed
+    // if the user declines the confirmation.
+    val scanArmed = remember { mutableStateOf(true) }
 
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -185,6 +93,7 @@ fun QRScannerScreen(
             hasCameraPermission -> {
                 CameraPreviewWithAnalysis(
                     flashEnabled = flashEnabled,
+                    scanArmed = scanArmed,
                     onBarcodeDetected = { rawValue ->
                         val creds = parseProvisioningUri(rawValue)
                         when {
@@ -196,12 +105,29 @@ fun QRScannerScreen(
                                     // Untrusted / insecure endpoint — do not auto-login.
                                     errorMessage = rejection
                                 } else {
-                                    onCredentialsScanned(creds)
+                                    // Anyone can print a QR code. Show where it
+                                    // points before logging in with it.
+                                    errorMessage = null
+                                    pending = creds
                                 }
                             }
                         }
                     },
                 )
+
+                pending?.let { creds ->
+                    ProvisioningConfirmDialog(
+                        creds = creds,
+                        onConfirm = {
+                            pending = null
+                            onCredentialsScanned(creds)
+                        },
+                        onCancel = {
+                            pending = null
+                            scanArmed.value = true
+                        },
+                    )
+                }
 
                 // Overlay controls
                 Box(
@@ -291,15 +217,68 @@ fun QRScannerScreen(
     }
 }
 
+/**
+ * Shows the endpoints a scanned code will sign in to. The password is never
+ * shown; the dialog window is FLAG_SECURE so the account details stay out of
+ * screenshots and the recents thumbnail.
+ */
+@Composable
+private fun ProvisioningConfirmDialog(
+    creds: ProvisioningCredentials,
+    onConfirm: () -> Unit,
+    onCancel: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onCancel,
+        properties = DialogProperties(securePolicy = SecureFlagPolicy.SecureOn),
+        title = { Text("Sign in with this code?", style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(
+                    "Only continue if you trust the source of this QR code.",
+                    style = MaterialTheme.typography.bodyMedium,
+                )
+                ConfirmRow("API host", creds.apiHost)
+                ConfirmRow("Domain", creds.tenantDomain.ifEmpty { creds.server })
+                ConfirmRow("SIP server", "${creds.server}:${creds.port}")
+                ConfirmRow("Transport", creds.transport.uppercase())
+                ConfirmRow("User", creds.username)
+                if (creds.transport != "tls") {
+                    Text(
+                        "This code uses unencrypted ${creds.transport.uppercase()} signalling.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.error,
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onConfirm) { Text("Sign In") }
+        },
+        dismissButton = {
+            TextButton(onClick = onCancel) { Text("Cancel") }
+        },
+    )
+}
+
+@Composable
+private fun ConfirmRow(label: String, value: String) {
+    Row(Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+        Text(label, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        Spacer(Modifier.width(12.dp))
+        Text(value, style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Medium)
+    }
+}
+
 @Composable
 private fun CameraPreviewWithAnalysis(
     flashEnabled: Boolean,
+    scanArmed: MutableState<Boolean>,
     onBarcodeDetected: (String) -> Unit,
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     var cameraControl by remember { mutableStateOf<androidx.camera.core.CameraControl?>(null) }
-    val hasDetected = remember { mutableStateOf(false) }
 
     LaunchedEffect(flashEnabled) {
         cameraControl?.enableTorch(flashEnabled)
@@ -326,8 +305,8 @@ private fun CameraPreviewWithAnalysis(
 
                 imageAnalysis.setAnalyzer(executor) { imageProxy ->
                     processImage(imageProxy, barcodeScanner) { rawValue ->
-                        if (!hasDetected.value) {
-                            hasDetected.value = true
+                        if (scanArmed.value) {
+                            scanArmed.value = false
                             onBarcodeDetected(rawValue)
                         }
                     }

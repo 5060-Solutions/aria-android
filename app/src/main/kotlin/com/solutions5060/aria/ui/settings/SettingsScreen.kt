@@ -22,10 +22,8 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -33,10 +31,14 @@ import androidx.compose.ui.unit.sp
 import com.google.firebase.messaging.FirebaseMessaging
 import com.solutions5060.aria.R
 import com.solutions5060.aria.security.SecurePrefs
+import com.solutions5060.aria.security.SensitiveClipboard
+import com.solutions5060.aria.ui.SecureWindow
+import com.solutions5060.aria.provisioning.DEFAULT_SIP_TRANSPORT
+import com.solutions5060.aria.provisioning.defaultSipPort
+import com.solutions5060.aria.service.EngineManager
 import com.solutions5060.aria.service.PbxApiClient
 import com.solutions5060.aria.service.SipEngineHolder
 import com.solutions5060.aria.ui.theme.AriaGreen
-import uniffi.aria_mobile.*
 
 private const val PREFS_NAME = "aria_prefs"
 
@@ -50,6 +52,9 @@ fun SettingsScreen(
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
 
+    // Renders the account and device identifiers.
+    SecureWindow()
+
     // Core SIP fields (read-only after QR scan)
     var sipUsername by rememberSaveable { mutableStateOf(prefs.getString("sip_username", "") ?: "") }
     // Password is sensitive: read from encrypted storage and keep it out of the
@@ -58,8 +63,8 @@ fun SettingsScreen(
     var sipDomain by rememberSaveable { mutableStateOf(prefs.getString("sip_domain", "") ?: "") }
     var sipRegistrar by rememberSaveable { mutableStateOf(prefs.getString("sip_registrar", "") ?: "") }
     var sipDisplayName by rememberSaveable { mutableStateOf(prefs.getString("sip_display_name", "") ?: "") }
-    var sipTransport by rememberSaveable { mutableStateOf(prefs.getString("sip_transport", "udp") ?: "udp") }
-    var sipPort by rememberSaveable { mutableStateOf(prefs.getString("sip_port", "5060") ?: "5060") }
+    var sipTransport by rememberSaveable { mutableStateOf(prefs.getString("sip_transport", null) ?: DEFAULT_SIP_TRANSPORT) }
+    var sipPort by rememberSaveable { mutableStateOf(prefs.getString("sip_port", null) ?: defaultSipPort(sipTransport).toString()) }
     var apiUrl by rememberSaveable { mutableStateOf(prefs.getString("api_url", "") ?: "") }
     var tenantDomain by rememberSaveable { mutableStateOf(prefs.getString("tenant_domain", "") ?: "") }
 
@@ -102,66 +107,12 @@ fun SettingsScreen(
 
         Thread {
             try {
-                val client = PbxApiClient(apiUrl)
-
-                val loginResult = client.extensionLogin(
-                    extensionNumber = sipUsername,
-                    password = sipPassword,
-                    tenantDomain = tenantDomain,
-                )
-                jwt = loginResult.jwt
-                extensionId = loginResult.extensionId
-                tenantId = loginResult.tenantId
-
-                prefs.edit()
-                    .putString("extension_id", loginResult.extensionId)
-                    .putString("tenant_id", loginResult.tenantId)
-                    .apply()
-                // JWT is a sensitive bearer token — store encrypted.
-                SecurePrefs.putString(context, "jwt", loginResult.jwt)
-
-                val token = fcmToken ?: ""
-                val deviceResult = client.registerDevice(
-                    jwt = loginResult.jwt,
-                    pushToken = token,
-                    platform = "android",
-                )
-                deviceId = deviceResult.deviceId
-                gatewayUrl = deviceResult.gatewayUrl
-
-                prefs.edit()
-                    .putString("device_id", deviceResult.deviceId)
-                    .putString("gateway_url", deviceResult.gatewayUrl)
-                    .apply()
-                // Gateway token is sensitive — store encrypted.
-                SecurePrefs.putString(context, "gateway_token", deviceResult.gatewayToken)
-
-                val gwUrl = deviceResult.gatewayUrl.ifEmpty { "https://push.ariaroute.com" }
-                val gwToken = deviceResult.gatewayToken.ifEmpty { loginResult.jwt }
-                val config = GatewayConfig(baseUrl = gwUrl, apiKey = gwToken)
-                val engine = AriaMobileEngine(config)
-                val bridge = com.solutions5060.aria.service.AudioBridge()
-                engine.setAudioBridge(bridge)
-                SipEngineHolder.engine = engine
-                SipEngineHolder.audioBridge = bridge
-
-                val credentials = SipCredentials(
-                    username = sipUsername,
-                    password = sipPassword,
-                    domain = sipDomain,
-                    registrar = sipRegistrar.ifEmpty { null },
-                    transport = sipTransport,
-                    port = sipPort.toUShortOrNull() ?: 5060u,
-                    authUsername = null,
-                    displayName = sipDisplayName,
-                )
-                val registration = DeviceRegistration(
-                    platform = "android",
-                    pushToken = token,
-                    bundleId = "com.solutions5060.aria",
-                    sip = credentials,
-                )
-                engine.registerDevice(registration)
+                EngineManager.login(context, fcmToken)
+                jwt = SecurePrefs.getString(context, "jwt", null)
+                extensionId = prefs.getString("extension_id", null)
+                tenantId = prefs.getString("tenant_id", null)
+                deviceId = prefs.getString("device_id", null)
+                gatewayUrl = prefs.getString("gateway_url", null)
 
                 isRegistered = true
                 isConnecting = false
@@ -195,6 +146,7 @@ fun SettingsScreen(
                     .putString("sip_port", creds.port.toString())
                     .putString("api_url", creds.apiUrl)
                     .putString("tenant_domain", creds.tenantDomain)
+                    .putString("voicemail_access", creds.voicemail)
                     .apply()
                 // SIP password is sensitive — store encrypted.
                 SecurePrefs.putString(context, "sip_password", creds.password)
@@ -645,8 +597,6 @@ private fun CopyableIdRow(
     onToggle: () -> Unit,
     context: Context,
 ) {
-    val clipboard = LocalClipboardManager.current
-
     Column(
         modifier = Modifier
             .fillMaxWidth()
@@ -686,8 +636,8 @@ private fun CopyableIdRow(
             Spacer(modifier = Modifier.height(8.dp))
             FilledTonalButton(
                 onClick = {
-                    clipboard.setText(AnnotatedString(value))
-                    Toast.makeText(context, "Copied to clipboard", Toast.LENGTH_SHORT).show()
+                    SensitiveClipboard.copy(context, value)
+                    Toast.makeText(context, "Copied; clears in a minute", Toast.LENGTH_SHORT).show()
                 },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(8.dp),

@@ -95,15 +95,15 @@ object CallTranscription {
         if (!isEnabled(context)) return
         if (capturing.contains(callId)) return
         if (!isReady(context)) {
-            Log.i(TAG, "Transcription on but no speech model installed; skipping $callId")
+            Log.i(TAG, "Transcription on but no speech model installed; skipping")
             return
         }
         try {
             withContext(Dispatchers.IO) { SipEngineHolder.engine?.aiStartCapture(callId) }
             capturing.add(callId)
-            Log.i(TAG, "Capturing audio for $callId")
+            Log.i(TAG, "Capturing call audio")
         } catch (e: Exception) {
-            Log.w(TAG, "Could not start capture for $callId: ${e.message}")
+            Log.w(TAG, "Could not start capture: ${e.message}")
         }
     }
 
@@ -123,7 +123,7 @@ object CallTranscription {
                 engine.aiTranscribe(callId)
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Transcription failed for $callId: ${e.message}")
+            Log.w(TAG, "Transcription failed: ${e.message}")
             // Drop the audio rather than leaving it on disk after a failure.
             try {
                 withContext(Dispatchers.IO) { engine.aiDiscardCapture(callId) }
@@ -138,7 +138,7 @@ object CallTranscription {
         try {
             withContext(Dispatchers.IO) { SipEngineHolder.engine?.aiDiscardCapture(callId) }
         } catch (e: Exception) {
-            Log.w(TAG, "Could not discard capture for $callId: ${e.message}")
+            Log.w(TAG, "Could not discard capture: ${e.message}")
         }
     }
 }

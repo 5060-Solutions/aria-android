@@ -99,4 +99,9 @@ dependencies {
 
     // Debug
     debugImplementation("androidx.compose.ui:ui-tooling")
+
+    // Unit tests (JVM, src/test)
+    testImplementation("junit:junit:4.13.2")
+    // The android.jar stubs throw for org.json; tests need the real thing.
+    testImplementation("org.json:json:20240303")
 }

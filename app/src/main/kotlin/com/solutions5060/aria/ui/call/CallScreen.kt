@@ -1,7 +1,5 @@
 package com.solutions5060.aria.ui.call
 
-import android.content.Context
-import android.media.AudioManager
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
@@ -20,34 +18,56 @@ import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import uniffi.aria_mobile.CallState
+import android.content.Intent
+import android.os.SystemClock
+import android.provider.ContactsContract
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.automirrored.filled.PhoneForwarded
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.input.KeyboardType
+import com.solutions5060.aria.call.AudioRouteOption
+import com.solutions5060.aria.call.AudioRouteType
+import com.solutions5060.aria.call.CallPhase
+import com.solutions5060.aria.call.CallStateMapping
+import com.solutions5060.aria.call.CallManager
+import com.solutions5060.aria.call.CallUiState
+import com.solutions5060.aria.ui.SecureWindow
 import com.solutions5060.aria.service.SipEngineHolder
 import kotlinx.coroutines.delay
 
-@Suppress("DEPRECATION")
 @Composable
-fun CallScreen(onDismiss: () -> Unit) {
-    val context = LocalContext.current
-    val audioManager = remember {
-        context.getSystemService(Context.AUDIO_SERVICE) as AudioManager
-    }
+fun CallScreen(
+    call: CallUiState,
+    onAnswer: () -> Unit,
+    onDecline: () -> Unit,
+    onHangup: () -> Unit,
+    onToggleMute: () -> Unit,
+    onToggleHold: () -> Unit,
+    onDtmf: (String) -> Unit,
+    onSelectAudioRoute: (AudioRouteOption) -> Unit,
+    onTransfer: (String) -> Unit,
+    onDismissTransferError: () -> Unit,
+) {
+    val isSpeaker = call.audio.isSpeaker
 
-    var isMuted by remember { mutableStateOf(false) }
-    var isOnHold by remember { mutableStateOf(false) }
-    var isSpeaker by remember { mutableStateOf(false) }
-    var elapsedSeconds by remember { mutableIntStateOf(0) }
-    var callerName by remember { mutableStateOf("") }
-    var callerUri by remember { mutableStateOf("") }
-    var callId by remember { mutableStateOf<String?>(null) }
-    var callState by remember { mutableStateOf(CallState.CONNECTING) }
+    // Shown over the lock screen for incoming calls.
+    SecureWindow()
+    var elapsedSeconds by remember { mutableLongStateOf(0L) }
     var showAudioPicker by remember { mutableStateOf(false) }
+    var showTransfer by remember { mutableStateOf(false) }
     var showDtmfKeypad by remember { mutableStateOf(false) }
     var rxLevel by remember { mutableFloatStateOf(0f) }
     var txLevel by remember { mutableFloatStateOf(0f) }
+
+    val phase = call.phase
+    val callId = call.callId
+    val isMuted = call.muted
+    val isOnHold = call.onHold
 
     // Pulsing animation for ringing/connecting states
     val infiniteTransition = rememberInfiniteTransition(label = "pulse")
@@ -61,103 +81,70 @@ fun CallScreen(onDismiss: () -> Unit) {
         label = "pulseScale"
     )
 
-    // Observe call state from engine
-    LaunchedEffect(Unit) {
+    // Call state comes from engine events via CallManager; only the level
+    // meters are sampled, since the engine has no event for them.
+    LaunchedEffect(callId, phase) {
+        if (callId == null || phase != CallPhase.ACTIVE) return@LaunchedEffect
         while (true) {
-            val activeCall = SipEngineHolder.engine?.getActiveCall()
-            if (activeCall != null) {
-                callId = activeCall.callId
-                callerName = activeCall.remoteName ?: ""
-                callerUri = activeCall.remoteUri
-                callState = activeCall.state
-                isMuted = activeCall.muted
-                isOnHold = activeCall.onHold
-                // Poll audio levels
-                try {
-                    rxLevel = SipEngineHolder.engine?.getRxAudioLevel(activeCall.callId) ?: 0f
-                    txLevel = SipEngineHolder.engine?.getTxAudioLevel(activeCall.callId) ?: 0f
-                } catch (_: Exception) {}
-            } else if (callState != CallState.IDLE && callState != CallState.CONNECTING) {
-                // Call disappeared (remote hangup or ended)
-                callState = CallState.ENDED
-                delay(1000) // Brief pause so user sees "Call Ended"
-                onDismiss()
-                break
-            } else if (callState == CallState.ENDED || callState == CallState.IDLE) {
-                delay(500)
-                onDismiss()
-                break
-            }
+            val engine = SipEngineHolder.engine ?: break
+            try {
+                rxLevel = engine.getRxAudioLevel(callId)
+                txLevel = engine.getTxAudioLevel(callId)
+            } catch (_: Exception) {}
             delay(300)
         }
     }
 
-    // Timer — only counts when connected
-    LaunchedEffect(callState) {
-        if (callState == CallState.CONNECTED) {
-            while (true) {
-                delay(1000)
-                elapsedSeconds++
-            }
+    // Timer — counts from the Connected event
+    LaunchedEffect(call.connectedAtElapsed, phase) {
+        val connectedAt = call.connectedAtElapsed ?: return@LaunchedEffect
+        while (phase == CallPhase.ACTIVE || phase == CallPhase.HELD) {
+            elapsedSeconds = (SystemClock.elapsedRealtime() - connectedAt) / 1000
+            delay(1000)
         }
     }
 
     // Status text
-    val statusText = when (callState) {
-        CallState.IDLE -> "Call Ended"
-        CallState.INCOMING -> "Incoming Call"
-        CallState.RINGING -> "Ringing..."
-        CallState.CONNECTING -> "Calling..."
-        CallState.CONNECTED -> formatDuration(elapsedSeconds)
-        CallState.ON_HOLD -> "On Hold"
-        CallState.ENDED -> "Call Ended"
-    }
+    val statusText = CallStateMapping.statusText(phase, elapsedSeconds)
 
-    val isRingingOrConnecting = callState == CallState.RINGING || callState == CallState.CONNECTING
-    val isActive = callState == CallState.CONNECTED || callState == CallState.ON_HOLD
+    val isRingingOrConnecting = phase == CallPhase.RINGING || phase == CallPhase.CONNECTING || phase == CallPhase.INCOMING
+    val isActive = phase == CallPhase.ACTIVE || phase == CallPhase.HELD
 
-    // Display name: prefer remoteName, fall back to URI minus sip: prefix
-    val displayName = callerName.ifEmpty {
-        callerUri.removePrefix("sip:").substringBefore("@")
-    }
+    val displayName = call.displayName
 
     // Audio picker dialog
+    // Close the transfer dialog if the call is no longer one that can be transferred.
+    if (showTransfer && phase != CallPhase.ACTIVE && phase != CallPhase.HELD) showTransfer = false
+    if (showTransfer) {
+        TransferDialog(
+            transferring = call.transferring,
+            error = call.transferError,
+            onTransfer = onTransfer,
+            onDismiss = {
+                if (!call.transferring) {
+                    showTransfer = false
+                    onDismissTransferError()
+                }
+            },
+        )
+    }
+
     if (showAudioPicker) {
         AlertDialog(
             onDismissRequest = { showAudioPicker = false },
             title = { Text("Audio Output", style = MaterialTheme.typography.titleLarge) },
             text = {
                 Column {
-                    AudioOutputOption(
-                        label = "Earpiece",
-                        icon = Icons.Default.PhoneInTalk,
-                        selected = !isSpeaker && !audioManager.isBluetoothScoOn,
-                        onClick = {
-                            audioManager.isSpeakerphoneOn = false
-                            audioManager.stopBluetoothSco()
-                            isSpeaker = false
-                            showAudioPicker = false
-                        },
-                    )
-                    AudioOutputOption(
-                        label = "Speaker",
-                        icon = Icons.AutoMirrored.Filled.VolumeUp,
-                        selected = isSpeaker,
-                        onClick = {
-                            audioManager.isSpeakerphoneOn = true
-                            isSpeaker = true
-                            showAudioPicker = false
-                        },
-                    )
-                    if (audioManager.isBluetoothScoAvailableOffCall) {
+                    if (call.audio.options.isEmpty()) {
+                        Text("No audio outputs reported yet.", style = MaterialTheme.typography.bodyMedium)
+                    }
+                    call.audio.options.forEach { option ->
                         AudioOutputOption(
-                            label = "Bluetooth",
-                            icon = Icons.Default.Bluetooth,
-                            selected = audioManager.isBluetoothScoOn,
+                            label = option.label,
+                            icon = routeIcon(option.type),
+                            selected = option.id == call.audio.currentId,
                             onClick = {
-                                audioManager.startBluetoothSco()
-                                audioManager.isBluetoothScoOn = true
-                                isSpeaker = false
+                                onSelectAudioRoute(option)
                                 showAudioPicker = false
                             },
                         )
@@ -264,11 +251,31 @@ fun CallScreen(onDismiss: () -> Unit) {
                 fontSize = 16.sp,
                 fontWeight = if (isRingingOrConnecting) FontWeight.Normal else FontWeight.Medium,
                 color = when {
-                    callState == CallState.ON_HOLD -> Color(0xFFFBBF24) // Amber
+                    phase == CallPhase.HELD -> Color(0xFFFBBF24) // Amber
                     isActive -> Color(0xFF22C55E) // Green
                     else -> Color.White.copy(alpha = 0.6f)
                 },
             )
+
+            // Media encryption, as negotiated (not as configured)
+            if (isActive && call.encrypted != null) {
+                Spacer(modifier = Modifier.height(8.dp))
+                val encrypted = call.encrypted
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        if (encrypted) Icons.Default.Lock else Icons.Default.LockOpen,
+                        contentDescription = null,
+                        tint = if (encrypted) Color(0xFF22C55E) else Color(0xFFFBBF24),
+                        modifier = Modifier.size(14.dp),
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        if (encrypted) "Encrypted" else "Not encrypted",
+                        fontSize = 12.sp,
+                        color = Color.White.copy(alpha = 0.7f),
+                    )
+                }
+            }
 
             // Audio level meters
             if (isActive) {
@@ -309,33 +316,19 @@ fun CallScreen(onDismiss: () -> Unit) {
                         icon = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
                         label = if (isMuted) "Unmute" else "Mute",
                         isActive = isMuted,
-                        onClick = {
-                            val id = callId ?: return@CallControlButton
-                            val newMuted = !isMuted
-                            isMuted = newMuted
-                            Thread { SipEngineHolder.engine?.setMute(id, newMuted) }.start()
-                        }
+                        onClick = onToggleMute
                     )
                     CallControlButton(
                         icon = if (isSpeaker) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeDown,
                         label = "Speaker",
                         isActive = isSpeaker,
-                        onClick = {
-                            val newSpeaker = !isSpeaker
-                            audioManager.isSpeakerphoneOn = newSpeaker
-                            isSpeaker = newSpeaker
-                        },
+                        onClick = { call.audio.speakerToggleTarget()?.let(onSelectAudioRoute) },
                     )
                     CallControlButton(
                         icon = if (isOnHold) Icons.Default.PlayArrow else Icons.Default.Pause,
                         label = if (isOnHold) "Resume" else "Hold",
                         isActive = isOnHold,
-                        onClick = {
-                            val id = callId ?: return@CallControlButton
-                            val newHold = !isOnHold
-                            isOnHold = newHold
-                            Thread { SipEngineHolder.engine?.setHold(id, newHold) }.start()
-                        }
+                        onClick = onToggleHold
                     )
                 }
 
@@ -352,10 +345,16 @@ fun CallScreen(onDismiss: () -> Unit) {
                         onClick = { showDtmfKeypad = !showDtmfKeypad }
                     )
                     CallControlButton(
-                        icon = Icons.Default.Bluetooth,
-                        label = "Audio",
+                        icon = routeIcon(call.audio.current?.type ?: AudioRouteType.EARPIECE),
+                        label = call.audio.current?.label ?: "Audio",
                         isActive = false,
                         onClick = { showAudioPicker = true }
+                    )
+                    CallControlButton(
+                        icon = Icons.AutoMirrored.Filled.PhoneForwarded,
+                        label = "Transfer",
+                        isActive = showTransfer,
+                        onClick = { showTransfer = true }
                     )
                 }
             }
@@ -363,48 +362,170 @@ fun CallScreen(onDismiss: () -> Unit) {
             // DTMF Keypad overlay
             if (showDtmfKeypad) {
                 Spacer(modifier = Modifier.height(16.dp))
-                DtmfKeypad(onDigit = { digit ->
-                    val id = callId ?: return@DtmfKeypad
-                    Thread { SipEngineHolder.engine?.sendDtmf(id, digit) }.start()
-                })
+                DtmfKeypad(onDigit = onDtmf)
             }
 
             Spacer(modifier = Modifier.weight(0.6f))
 
-            // End call button
-            Box(contentAlignment = Alignment.Center) {
-                Box(
-                    modifier = Modifier
-                        .size(84.dp)
-                        .clip(CircleShape)
-                        .background(Color.Red.copy(alpha = 0.15f))
-                )
-                FloatingActionButton(
-                    onClick = {
-                        audioManager.isSpeakerphoneOn = false
-                        val id = callId
-                        if (id != null) {
-                            Thread { SipEngineHolder.engine?.hangup(id) }.start()
-                        }
-                        onDismiss()
-                    },
-                    containerColor = Color.Red,
-                    shape = CircleShape,
-                    modifier = Modifier.size(72.dp),
-                    elevation = FloatingActionButtonDefaults.elevation(
-                        defaultElevation = 8.dp,
-                    ),
+            if (phase == CallPhase.INCOMING) {
+                // Answer / decline
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceEvenly,
                 ) {
-                    Icon(
-                        Icons.Default.CallEnd,
-                        contentDescription = "End Call",
-                        modifier = Modifier.size(30.dp),
-                        tint = Color.White,
+                    RoundCallButton(
+                        icon = Icons.Default.CallEnd,
+                        contentDescription = "Decline",
+                        color = Color.Red,
+                        onClick = onDecline,
+                    )
+                    RoundCallButton(
+                        icon = Icons.Default.Call,
+                        contentDescription = "Answer",
+                        color = Color(0xFF22C55E),
+                        onClick = onAnswer,
                     )
                 }
+            } else if (phase != CallPhase.ENDED) {
+                // End call button
+                RoundCallButton(
+                    icon = Icons.Default.CallEnd,
+                    contentDescription = "End Call",
+                    color = Color.Red,
+                    onClick = onHangup,
+                )
+            } else {
+                Spacer(modifier = Modifier.height(84.dp))
             }
 
             Spacer(modifier = Modifier.height(48.dp))
+        }
+    }
+}
+
+/**
+ * Blind transfer: a number field, or a number picked from contacts. Finding
+ * out whether the transfer worked can take up to about 45 s, so the dialog
+ * stays up with progress until it does; on success the call ends and the
+ * call screen closes.
+ */
+@Composable
+private fun TransferDialog(
+    transferring: Boolean,
+    error: String?,
+    onTransfer: (String) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    val context = LocalContext.current
+    var target by remember { mutableStateOf("") }
+
+    // ACTION_PICK on phone numbers grants read access to the one picked row,
+    // so this needs no contacts permission of its own.
+    val pickContact = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
+        val uri = result.data?.data ?: return@rememberLauncherForActivityResult
+        try {
+            context.contentResolver.query(
+                uri,
+                arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
+                null,
+                null,
+                null,
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) target = cursor.getString(0).orEmpty()
+            }
+        } catch (_: Exception) {}
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("Transfer call", style = MaterialTheme.typography.titleLarge) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                OutlinedTextField(
+                    value = target,
+                    onValueChange = { target = it },
+                    label = { Text("Number or extension") },
+                    singleLine = true,
+                    enabled = !transferring,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                    modifier = Modifier.fillMaxWidth(),
+                )
+                TextButton(
+                    onClick = {
+                        pickContact.launch(
+                            Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)
+                        )
+                    },
+                    enabled = !transferring,
+                ) {
+                    Icon(Icons.Default.Contacts, contentDescription = null, modifier = Modifier.size(18.dp))
+                    Spacer(Modifier.width(8.dp))
+                    Text("Choose contact")
+                }
+                if (transferring) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                        Spacer(Modifier.width(10.dp))
+                        Text(
+                            "Transferring... This can take up to 45 seconds.",
+                            style = MaterialTheme.typography.bodyMedium,
+                        )
+                    }
+                }
+                error?.let {
+                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { onTransfer(target) },
+                enabled = !transferring && target.isNotBlank(),
+            ) { Text("Transfer") }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !transferring) { Text("Cancel") }
+        },
+    )
+}
+
+private fun routeIcon(type: AudioRouteType): ImageVector = when (type) {
+    AudioRouteType.EARPIECE -> Icons.Default.PhoneInTalk
+    AudioRouteType.SPEAKER -> Icons.AutoMirrored.Filled.VolumeUp
+    AudioRouteType.BLUETOOTH -> Icons.Default.Bluetooth
+    AudioRouteType.WIRED_HEADSET -> Icons.Default.Headset
+    AudioRouteType.STREAMING -> Icons.Default.Cast
+}
+
+@Composable
+private fun RoundCallButton(
+    icon: ImageVector,
+    contentDescription: String,
+    color: Color,
+    onClick: () -> Unit,
+) {
+    Box(contentAlignment = Alignment.Center) {
+        Box(
+            modifier = Modifier
+                .size(84.dp)
+                .clip(CircleShape)
+                .background(color.copy(alpha = 0.15f))
+        )
+        FloatingActionButton(
+            onClick = onClick,
+            containerColor = color,
+            shape = CircleShape,
+            modifier = Modifier.size(72.dp),
+            elevation = FloatingActionButtonDefaults.elevation(
+                defaultElevation = 8.dp,
+            ),
+        ) {
+            Icon(
+                icon,
+                contentDescription = contentDescription,
+                modifier = Modifier.size(30.dp),
+                tint = Color.White,
+            )
         }
     }
 }
@@ -540,8 +661,19 @@ private fun AudioLevelBar(
     }
 }
 
-private fun formatDuration(seconds: Int): String {
-    val mins = seconds / 60
-    val secs = seconds % 60
-    return "%02d:%02d".format(mins, secs)
+/** [CallScreen] driven by [CallManager]: used by the app and by the lock-screen call activity. */
+@Composable
+fun ManagedCallScreen(call: CallUiState) {
+    CallScreen(
+        call = call,
+        onAnswer = { CallManager.answer() },
+        onDecline = { CallManager.reject() },
+        onHangup = { CallManager.hangup() },
+        onToggleMute = { CallManager.setMuted(!call.muted) },
+        onToggleHold = { CallManager.setHold(!call.onHold) },
+        onDtmf = { CallManager.sendDtmf(it) },
+        onSelectAudioRoute = { CallManager.selectAudioRoute(it) },
+        onTransfer = { CallManager.transfer(it) },
+        onDismissTransferError = { CallManager.clearTransferError() },
+    )
 }

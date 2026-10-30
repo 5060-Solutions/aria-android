@@ -26,6 +26,13 @@ class PbxApiClient(private val baseUrl: String) {
         .readTimeout(15, TimeUnit.SECONDS)
         .build()
 
+    /**
+     * A non-2xx response. [code] lets callers tell an expired token (401) apart.
+     * [deviceId] is set when a failed registration still stored the device, so
+     * a gateway token can be renewed for it.
+     */
+    class HttpException(val code: Int, message: String, val deviceId: String? = null) : Exception(message)
+
     data class LoginResult(
         val jwt: String,
         val extensionId: String,
@@ -36,7 +43,12 @@ class PbxApiClient(private val baseUrl: String) {
         val deviceId: String,
         val sipDomain: String,
         val gatewayUrl: String,
+        /** Empty when the PBX sent none; renew one with [renewGatewayToken]. */
         val gatewayToken: String,
+        /** `udp`, `tcp` or `tls`, or null when the PBX does not say. */
+        val sipTransport: String?,
+        /** The port [sipTransport] belongs to, or null when the PBX does not say. */
+        val sipPort: Int?,
     )
 
     /**
@@ -103,12 +115,17 @@ class PbxApiClient(private val baseUrl: String) {
             ?: throw Exception("Empty response from server")
 
         if (!response.isSuccessful) {
-            val errorMsg = try {
-                JSONObject(responseBody).optString("error", responseBody)
+            val error = try {
+                JSONObject(responseBody)
             } catch (_: Exception) {
-                responseBody
+                null
             }
-            throw Exception("Device registration failed (${response.code}): $errorMsg")
+            val errorMsg = error?.optString("error", "")?.ifEmpty { null } ?: responseBody
+            throw HttpException(
+                response.code,
+                "Device registration failed (${response.code}): $errorMsg",
+                deviceId = error?.optString("device_id", "")?.ifEmpty { null },
+            )
         }
 
         val json = JSONObject(responseBody)
@@ -117,7 +134,29 @@ class PbxApiClient(private val baseUrl: String) {
             sipDomain = json.optString("sip_domain", ""),
             gatewayUrl = json.optString("gateway_url", ""),
             gatewayToken = json.optString("gateway_token", ""),
+            sipTransport = json.optString("sip_transport", "").lowercase().ifEmpty { null },
+            sipPort = json.optInt("sip_port", 0).takeIf { it in 1..65535 },
         )
+    }
+
+    /**
+     * POST /api/v1/devices/{id}/gateway-token — a fresh gateway token for this
+     * device, for when the one from registration has expired or was never issued.
+     */
+    fun renewGatewayToken(jwt: String, deviceId: String): String {
+        val body = send(jwt, "POST", "/api/v1/devices/${encode(deviceId)}/gateway-token", ByteArray(0).toRequestBody(null))
+        val token = JSONObject(body).optString("gateway_token", "")
+        if (token.isEmpty()) throw Exception("The PBX returned no gateway token")
+        return token
+    }
+
+    /**
+     * PUT /api/v1/devices/{id}/push-token — replaces the push token the PBX
+     * holds for this device. 409 means another device already has the token.
+     */
+    fun updatePushToken(jwt: String, deviceId: String, pushToken: String) {
+        val body = JSONObject().apply { put("push_token", pushToken) }
+        send(jwt, "PUT", "/api/v1/devices/${encode(deviceId)}/push-token", body.toString().toRequestBody(JSON_MEDIA))
     }
 
     /**
@@ -141,6 +180,63 @@ class PbxApiClient(private val baseUrl: String) {
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to unregister device: $e")
+        }
+    }
+
+    // ── Self-service (voicemail) ────────────────────────────────────────
+
+    /** GET /api/v1/me — who this credential is. */
+    fun me(jwt: String): String = send(jwt, "GET", "/api/v1/me")
+
+    /** GET /api/v1/extensions/{ext_id}/voicemail — the extension's box (without messages). */
+    fun voicemailBox(jwt: String, extensionId: String): String =
+        send(jwt, "GET", "/api/v1/extensions/${encode(extensionId)}/voicemail")
+
+    /** GET /api/v1/voicemail/boxes/{box_id}/messages — newest first. */
+    fun voicemailMessages(jwt: String, boxId: String, limit: Int = 100): String =
+        send(jwt, "GET", "/api/v1/voicemail/boxes/${encode(boxId)}/messages?limit=$limit")
+
+    /** PATCH /api/v1/voicemail/messages/{id}/read */
+    fun markVoicemailRead(jwt: String, messageId: String) {
+        send(jwt, "PATCH", "/api/v1/voicemail/messages/${encode(messageId)}/read", ByteArray(0).toRequestBody(null))
+    }
+
+    /** DELETE /api/v1/voicemail/messages/{id} */
+    fun deleteVoicemail(jwt: String, messageId: String) {
+        send(jwt, "DELETE", "/api/v1/voicemail/messages/${encode(messageId)}")
+    }
+
+    /**
+     * POST /api/v1/voicemail/messages/{id}/audio-grant — a short-lived token
+     * that fetches this one message's audio and nothing else, for a player
+     * that cannot send an Authorization header.
+     */
+    fun voicemailAudioGrant(jwt: String, messageId: String): String =
+        send(jwt, "POST", "/api/v1/voicemail/messages/${encode(messageId)}/audio-grant", ByteArray(0).toRequestBody(null))
+
+    /** GET /api/v1/voicemail/messages/{id}/audio?token= — streamable with the grant alone. */
+    fun voicemailAudioUrl(messageId: String, grantToken: String): String =
+        "$baseUrl/api/v1/voicemail/messages/${encode(messageId)}/audio?token=${encode(grantToken)}"
+
+    private fun encode(value: String): String = java.net.URLEncoder.encode(value, "UTF-8")
+
+    private fun send(jwt: String, method: String, path: String, body: okhttp3.RequestBody? = null): String {
+        val request = Request.Builder()
+            .url("$baseUrl$path")
+            .addHeader("Authorization", "Bearer $jwt")
+            .method(method, body)
+            .build()
+        client.newCall(request).execute().use { response ->
+            val responseBody = response.body?.string().orEmpty()
+            if (!response.isSuccessful) {
+                val errorMsg = try {
+                    JSONObject(responseBody).optString("error", "")
+                } catch (_: Exception) {
+                    ""
+                }.ifEmpty { "HTTP ${response.code}" }
+                throw HttpException(response.code, errorMsg)
+            }
+            return responseBody
         }
     }
 }

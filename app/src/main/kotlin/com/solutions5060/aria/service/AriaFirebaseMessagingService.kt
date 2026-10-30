@@ -1,28 +1,19 @@
 package com.solutions5060.aria.service
 
-import android.app.Notification
-import android.app.PendingIntent
-import android.content.ComponentName
-import android.content.Intent
-import android.net.Uri
-import android.os.Bundle
-import android.telecom.PhoneAccount
-import android.telecom.PhoneAccountHandle
-import android.telecom.TelecomManager
 import android.util.Log
-import androidx.core.app.NotificationCompat
 import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
-import com.solutions5060.aria.AriaApplication
-import com.solutions5060.aria.MainActivity
-import com.solutions5060.aria.R
+import com.solutions5060.aria.AppScope
+import com.solutions5060.aria.call.CallManager
+import kotlinx.coroutines.launch
 import uniffi.aria_mobile.PushCallPayload
 
 /**
  * Firebase Cloud Messaging service for receiving push notifications.
  *
  * When a VoIP push arrives, reports the call to the Telecom framework
- * via ConnectionService (Android's equivalent of CallKit).
+ * via ConnectionService (Android's equivalent of CallKit). That is the only
+ * path to an incoming-call UI.
  */
 class AriaFirebaseMessagingService : FirebaseMessagingService() {
 
@@ -31,13 +22,24 @@ class AriaFirebaseMessagingService : FirebaseMessagingService() {
     }
 
     override fun onNewToken(token: String) {
-        Log.i(TAG, "FCM token refreshed: ${token.take(10)}...")
+        // Do not log the token: it is what the gateway pushes calls to.
+        Log.i(TAG, "FCM token refreshed")
 
-        // Store the token and update the gateway if registered
-        // SharedPreferences or DataStore would be used in production
-        SipEngineHolder.engine?.let { engine ->
-            // Re-register with new token
-            Log.i(TAG, "Updating push token with gateway")
+        // Remember it now, so a registration that starts before the update
+        // below finishes still uses the new token.
+        val context = applicationContext
+        EngineManager.rememberPushToken(context, token)
+
+        // The PBX and gateway round-trips (and any token renewal) can outlast
+        // this service, which Android may stop once this returns, so they run
+        // in the process-wide scope. If the app was never provisioned the
+        // token is only remembered for the eventual first registration.
+        AppScope.scope.launch {
+            try {
+                EngineManager.updatePushToken(context, token)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to update push token: ${e.message}")
+            }
         }
     }
 
@@ -58,118 +60,27 @@ class AriaFirebaseMessagingService : FirebaseMessagingService() {
         // MainActivity will accept it (and reject any injected/fabricated token).
         IncomingCallService.expectCallToken(callToken)
 
-        Log.i(TAG, "Incoming call from $callerUri (token: ${callToken.take(8)})")
+        // Neither the token nor the caller is logged.
+        Log.i(TAG, "Incoming call push")
 
-        // Start foreground service for the incoming call (ringtone + notification)
+        // Ring first; building the engine below can take a network round-trip.
+        // A repeated push for a call already handled is dropped entirely.
+        if (!CallManager.reportIncomingCall(applicationContext, callToken, callerUri, callerName)) return
+
+        // Fetch the offer so the engine knows the call: it is what lets the
+        // engine report a caller who hangs up before we answer. This runs on
+        // Firebase's background thread, so blocking here is fine.
         try {
-            val serviceIntent = Intent(this, IncomingCallService::class.java).apply {
-                putExtra(IncomingCallService.EXTRA_CALL_TOKEN, callToken)
-                putExtra(IncomingCallService.EXTRA_CALLER_URI, callerUri)
-                putExtra(IncomingCallService.EXTRA_CALLER_NAME, callerName)
-                putExtra(IncomingCallService.EXTRA_GATEWAY_URL, gatewayUrl)
-                putExtra(IncomingCallService.EXTRA_MODE, IncomingCallService.MODE_INCOMING)
-            }
-            startForegroundService(serviceIntent)
+            val engine = EngineManager.ensureEngine(applicationContext) ?: return
+            val payload = PushCallPayload(
+                callToken = callToken,
+                callerUri = callerUri,
+                callerName = callerName,
+                gatewayUrl = gatewayUrl,
+            )
+            EngineManager.withAuthRetry(applicationContext) { engine.handlePushNotification(payload) }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start foreground service: $e")
-            // Fallback to notification
-            showIncomingCallNotification(callToken, callerUri, callerName)
+            Log.e(TAG, "Failed to handle push notification: $e")
         }
-
-        // Try Telecom ConnectionService for native call UI (may fail without permission)
-        try {
-            reportIncomingCall(callToken, callerUri, callerName)
-        } catch (e: Exception) {
-            Log.e(TAG, "Telecom reportIncomingCall failed: $e")
-        }
-
-        // Also fetch the full call offer from the gateway
-        Thread {
-            try {
-                val payload = PushCallPayload(
-                    callToken = callToken,
-                    callerUri = callerUri,
-                    callerName = callerName,
-                    gatewayUrl = gatewayUrl
-                )
-                SipEngineHolder.engine?.handlePushNotification(payload)
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to handle push notification: $e")
-            }
-        }.start()
-    }
-
-    private fun reportIncomingCall(callToken: String, callerUri: String, callerName: String?) {
-        val telecomManager = getSystemService(TelecomManager::class.java)
-
-        // Register phone account if needed
-        val componentName = ComponentName(this, AriaConnectionService::class.java)
-        val phoneAccountHandle = PhoneAccountHandle(componentName, "aria_voip")
-
-        val phoneAccount = PhoneAccount.builder(phoneAccountHandle, "Aria VoIP")
-            .setCapabilities(
-                PhoneAccount.CAPABILITY_SELF_MANAGED or
-                PhoneAccount.CAPABILITY_CALL_PROVIDER
-            )
-            .build()
-
-        telecomManager.registerPhoneAccount(phoneAccount)
-
-        // Add incoming call
-        val extras = Bundle().apply {
-            putString("call_token", callToken)
-            putString("caller_uri", callerUri)
-            putString("caller_name", callerName)
-            putParcelable(
-                TelecomManager.EXTRA_INCOMING_CALL_ADDRESS,
-                Uri.fromParts("sip", callerUri, null)
-            )
-        }
-
-        try {
-            telecomManager.addNewIncomingCall(phoneAccountHandle, extras)
-        } catch (e: SecurityException) {
-            Log.e(TAG, "Cannot report incoming call (missing permission): $e")
-            // Fallback: show notification
-            showIncomingCallNotification(callToken, callerUri, callerName)
-        }
-    }
-
-    private fun showIncomingCallNotification(
-        callToken: String,
-        callerUri: String,
-        callerName: String?
-    ) {
-        val intent = Intent(this, MainActivity::class.java).apply {
-            flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP
-            putExtra("call_token", callToken)
-            putExtra("caller_uri", callerUri)
-            putExtra("caller_name", callerName)
-        }
-
-        val pendingIntent = PendingIntent.getActivity(
-            this, 0, intent,
-            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
-        )
-
-        val notification = NotificationCompat.Builder(this, AriaApplication.CHANNEL_INCOMING_CALL)
-            .setSmallIcon(R.drawable.ic_phone)
-            .setContentTitle("Incoming Call")
-            .setContentText(callerName ?: callerUri)
-            .setPriority(NotificationCompat.PRIORITY_MAX)
-            .setCategory(NotificationCompat.CATEGORY_CALL)
-            .setFullScreenIntent(pendingIntent, true)
-            .setAutoCancel(true)
-            .addAction(
-                R.drawable.ic_phone,
-                "Answer",
-                pendingIntent
-            )
-            .build()
-
-        notification.flags = notification.flags or Notification.FLAG_INSISTENT
-
-        val manager = getSystemService(android.app.NotificationManager::class.java)
-        manager.notify(1001, notification)
     }
 }

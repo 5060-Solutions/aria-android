@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:tools="http://schemas.android.com/tools">
 
     <!-- Permissions -->
     <uses-permission android:name="android.permission.INTERNET" />
@@ -37,8 +38,6 @@
             android:name=".MainActivity"
             android:exported="true"
             android:launchMode="singleTask"
-            android:showOnLockScreen="true"
-            android:turnScreenOn="true"
             android:theme="@style/Theme.Aria.Splash">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
@@ -52,6 +51,25 @@
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
         </activity>
+
+        <!--
+            The call screen, and the only screen shown over the lock screen.
+            showWhenLocked is declared here, not set at runtime, because the
+            system reads it from the manifest to decide whether a notification's
+            Answer action can open it without unlocking. It shows nothing but
+            the call, in its own task, so settings and account details stay
+            behind the keyguard. Not exported: only our notifications open it.
+        -->
+        <activity
+            android:name=".call.CallActivity"
+            android:exported="false"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTask"
+            android:showWhenLocked="true"
+            android:taskAffinity="com.solutions5060.aria.call"
+            android:theme="@style/Theme.Aria"
+            android:turnScreenOn="true"
+            tools:targetApi="27" />
 
         <!-- ConnectionService for call management -->
         <service
@@ -72,10 +90,15 @@
             </intent-filter>
         </service>
 
-        <!-- Incoming call foreground service -->
+        <!-- Active call foreground service -->
         <service
             android:name=".service.IncomingCallService"
             android:foregroundServiceType="phoneCall|microphone"
+            android:exported="false" />
+
+        <!-- Incoming-call notification's Decline action -->
+        <receiver
+            android:name=".call.CallActionReceiver"
             android:exported="false" />
 
     </application>

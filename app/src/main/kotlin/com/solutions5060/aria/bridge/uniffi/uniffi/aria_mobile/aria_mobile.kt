@@ -30,6 +30,8 @@ import java.nio.CharBuffer
 import java.nio.charset.CodingErrorAction
 import java.util.concurrent.atomic.AtomicLong
 import java.util.concurrent.ConcurrentHashMap
+import android.os.Build
+import androidx.annotation.RequiresApi
 import java.util.concurrent.atomic.AtomicBoolean
 
 // This is a helper for safely working with byte buffers returned from the Rust code.
@@ -669,19 +671,23 @@ internal interface UniffiCallbackInterfaceMobileEventHandlerMethod3 : com.sun.jn
 internal interface UniffiCallbackInterfaceMobileEventHandlerMethod4 : com.sun.jna.Callback {
     fun callback(`uniffiHandle`: Long,`context`: RustBuffer.ByValue,`message`: RustBuffer.ByValue,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
 }
+internal interface UniffiCallbackInterfaceMobileEventHandlerMethod5 : com.sun.jna.Callback {
+    fun callback(`uniffiHandle`: Long,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
+}
 internal interface UniffiCallbackInterfacePlatformAudioBridgeMethod0 : com.sun.jna.Callback {
     fun callback(`uniffiHandle`: Long,`samples`: RustBuffer.ByValue,`sampleRate`: Int,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,)
 }
 internal interface UniffiCallbackInterfacePlatformAudioBridgeMethod1 : com.sun.jna.Callback {
     fun callback(`uniffiHandle`: Long,`sampleRate`: Int,`frameSize`: Int,`uniffiOutReturn`: RustBuffer,uniffiCallStatus: UniffiRustCallStatus,)
 }
-@Structure.FieldOrder("onRegistrationChanged", "onIncomingCall", "onCallStateChanged", "onMediaStats", "onError", "uniffiFree")
+@Structure.FieldOrder("onRegistrationChanged", "onIncomingCall", "onCallStateChanged", "onMediaStats", "onError", "onAuthRequired", "uniffiFree")
 internal open class UniffiVTableCallbackInterfaceMobileEventHandler(
     @JvmField internal var `onRegistrationChanged`: UniffiCallbackInterfaceMobileEventHandlerMethod0? = null,
     @JvmField internal var `onIncomingCall`: UniffiCallbackInterfaceMobileEventHandlerMethod1? = null,
     @JvmField internal var `onCallStateChanged`: UniffiCallbackInterfaceMobileEventHandlerMethod2? = null,
     @JvmField internal var `onMediaStats`: UniffiCallbackInterfaceMobileEventHandlerMethod3? = null,
     @JvmField internal var `onError`: UniffiCallbackInterfaceMobileEventHandlerMethod4? = null,
+    @JvmField internal var `onAuthRequired`: UniffiCallbackInterfaceMobileEventHandlerMethod5? = null,
     @JvmField internal var `uniffiFree`: UniffiCallbackInterfaceFree? = null,
 ) : Structure() {
     class UniffiByValue(
@@ -690,8 +696,9 @@ internal open class UniffiVTableCallbackInterfaceMobileEventHandler(
         `onCallStateChanged`: UniffiCallbackInterfaceMobileEventHandlerMethod2? = null,
         `onMediaStats`: UniffiCallbackInterfaceMobileEventHandlerMethod3? = null,
         `onError`: UniffiCallbackInterfaceMobileEventHandlerMethod4? = null,
+        `onAuthRequired`: UniffiCallbackInterfaceMobileEventHandlerMethod5? = null,
         `uniffiFree`: UniffiCallbackInterfaceFree? = null,
-    ): UniffiVTableCallbackInterfaceMobileEventHandler(`onRegistrationChanged`,`onIncomingCall`,`onCallStateChanged`,`onMediaStats`,`onError`,`uniffiFree`,), Structure.ByValue
+    ): UniffiVTableCallbackInterfaceMobileEventHandler(`onRegistrationChanged`,`onIncomingCall`,`onCallStateChanged`,`onMediaStats`,`onError`,`onAuthRequired`,`uniffiFree`,), Structure.ByValue
 
    internal fun uniffiSetValue(other: UniffiVTableCallbackInterfaceMobileEventHandler) {
         `onRegistrationChanged` = other.`onRegistrationChanged`
@@ -699,6 +706,7 @@ internal open class UniffiVTableCallbackInterfaceMobileEventHandler(
         `onCallStateChanged` = other.`onCallStateChanged`
         `onMediaStats` = other.`onMediaStats`
         `onError` = other.`onError`
+        `onAuthRequired` = other.`onAuthRequired`
         `uniffiFree` = other.`uniffiFree`
     }
 
@@ -722,6 +730,15 @@ internal open class UniffiVTableCallbackInterfacePlatformAudioBridge(
     }
 
 }
+
+
+
+
+
+
+
+
+
 
 
 
@@ -946,6 +963,8 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_make_call(`ptr`: Pointer,`uri`: RustBuffer.ByValue,`credentials`: RustBuffer.ByValue,`preferredCodecs`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_make_call_with_id(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`uri`: RustBuffer.ByValue,`credentials`: RustBuffer.ByValue,`preferredCodecs`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_notify_network_change(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_register_device(`ptr`: Pointer,`registration`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -960,9 +979,13 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_set_event_handler(`ptr`: Pointer,`handler`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_set_gateway_token(`ptr`: Pointer,`token`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_set_hold(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`onHold`: Byte,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_set_mute(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`muted`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_transfer_call(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`target`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_unregister_device(`ptr`: Pointer,`deviceId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
@@ -974,6 +997,8 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_aria_mobile_core_fn_func_init_runtime(uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_aria_mobile_core_fn_func_new_outgoing_call_id(uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_aria_mobile_core_fn_func_shutdown_runtime(uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun ffi_aria_mobile_core_rustbuffer_alloc(`size`: Long,uniffi_out_err: UniffiRustCallStatus, 
@@ -1090,6 +1115,8 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_aria_mobile_core_checksum_func_init_runtime(
     ): Short
+    fun uniffi_aria_mobile_core_checksum_func_new_outgoing_call_id(
+    ): Short
     fun uniffi_aria_mobile_core_checksum_func_shutdown_runtime(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_accept_incoming_call(
@@ -1142,6 +1169,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_make_call(
     ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_make_call_with_id(
+    ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_notify_network_change(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_register_device(
@@ -1156,9 +1185,13 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_event_handler(
     ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_gateway_token(
+    ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_hold(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_mute(
+    ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_transfer_call(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_unregister_device(
     ): Short
@@ -1175,6 +1208,8 @@ internal interface UniffiLib : Library {
     fun uniffi_aria_mobile_core_checksum_method_mobileeventhandler_on_media_stats(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_mobileeventhandler_on_error(
+    ): Short
+    fun uniffi_aria_mobile_core_checksum_method_mobileeventhandler_on_auth_required(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_platformaudiobridge_on_playback_audio(
     ): Short
@@ -1198,6 +1233,9 @@ private fun uniffiCheckContractApiVersion(lib: UniffiLib) {
 @Suppress("UNUSED_PARAMETER")
 private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_aria_mobile_core_checksum_func_init_runtime() != 32843.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_func_new_outgoing_call_id() != 37587.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_func_shutdown_runtime() != 2017.toShort()) {
@@ -1278,6 +1316,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_make_call() != 192.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_make_call_with_id() != 48628.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_notify_network_change() != 62643.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1299,10 +1340,16 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_event_handler() != 11057.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_gateway_token() != 1521.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_hold() != 58318.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_mute() != 20691.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_transfer_call() != 38156.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_unregister_device() != 61754.toShort()) {
@@ -1327,6 +1374,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_mobileeventhandler_on_error() != 53165.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_method_mobileeventhandler_on_auth_required() != 40744.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_platformaudiobridge_on_playback_audio() != 63626.toShort()) {
@@ -1783,28 +1833,28 @@ private class UniffiJnaCleanable(
 // using Android or not.
 // There are further runtime checks to chose the correct implementation
 // of the cleaner.
+
+
 private fun UniffiCleaner.Companion.create(): UniffiCleaner =
-    try {
-        // For safety's sake: if the library hasn't been run in android_cleaner = true
-        // mode, but is being run on Android, then we still need to think about
-        // Android API versions.
-        // So we check if java.lang.ref.Cleaner is there, and use that…
-        java.lang.Class.forName("java.lang.ref.Cleaner")
-        JavaLangRefCleaner()
-    } catch (e: ClassNotFoundException) {
-        // … otherwise, fallback to the JNA cleaner.
+    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE) {
+        AndroidSystemCleaner()
+    } else {
         UniffiJnaCleaner()
     }
 
-private class JavaLangRefCleaner : UniffiCleaner {
-    val cleaner = java.lang.ref.Cleaner.create()
+// The SystemCleaner, available from API Level 33.
+// Some API Level 33 OSes do not support using it, so we require API Level 34.
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+private class AndroidSystemCleaner : UniffiCleaner {
+    val cleaner = android.system.SystemCleaner.cleaner()
 
     override fun register(value: Any, cleanUpTask: Runnable): UniffiCleaner.Cleanable =
-        JavaLangRefCleanable(cleaner.register(value, cleanUpTask))
+        AndroidSystemCleanable(cleaner.register(value, cleanUpTask))
 }
 
-private class JavaLangRefCleanable(
-    val cleanable: java.lang.ref.Cleaner.Cleanable
+@RequiresApi(Build.VERSION_CODES.UPSIDE_DOWN_CAKE)
+private class AndroidSystemCleanable(
+    private val cleanable: java.lang.ref.Cleaner.Cleanable,
 ) : UniffiCleaner.Cleanable {
     override fun clean() = cleanable.clean()
 }
@@ -1814,7 +1864,13 @@ private class JavaLangRefCleanable(
 public interface AriaMobileEngineInterface {
     
     /**
-     * Accept an incoming call with local SDP answer.
+     * Accept an incoming call with local SDP answer. Reports `Connected`.
+     *
+     * If the gateway refuses (an HTTP error), the call stays offered and
+     * nothing is reported. If the outcome is unknown (`Timeout` or
+     * `NetworkError`: the gateway may have accepted it anyway), `Ended` is
+     * reported for `incoming-<call_token>`, and the core hangs the call up
+     * if it was accepted or rejects it if it still rings.
      */
     fun `acceptIncomingCall`(`callToken`: kotlin.String, `preferredCodecs`: List<AudioCodec>): CallInfo
     
@@ -1903,7 +1959,11 @@ public interface AriaMobileEngineInterface {
     /**
      * Check if any active call was ended by the remote party.
      * Returns the call_id if detected, null otherwise.
-     * The app should call this periodically from a UI timer (~2s).
+     *
+     * Kept for apps that poll. The core now detects a remote hangup itself
+     * and reports it through `on_call_state_changed` (`Ended`) before the
+     * call_id appears here, so an app using the event handler does not need
+     * to call this. Only the most recent 16 IDs are retained.
      */
     fun `checkRemoteHangup`(): kotlin.String?
     
@@ -1933,29 +1993,69 @@ public interface AriaMobileEngineInterface {
     fun `handlePushNotification`(`payload`: PushCallPayload): CallOffer
     
     /**
-     * Hang up an active call.
+     * Hang up a call, including an outgoing call that is still ringing or
+     * has not been made yet (see `make_call_with_id`). Throws `InvalidState`
+     * for an unknown or already ended call_id.
+     *
+     * Never waits on the gateway: the call is torn down locally and `Ended`
+     * is queued at once, and the gateway hangup (or, for a ringing call, the
+     * cancel) runs in the background. Throws `AuthenticationError`, after
+     * ending the call locally, only when there is no gateway token at all,
+     * in which case nothing is sent. Background failures are reported later:
+     * a rejected token through `on_auth_required`, and a hangup the gateway
+     * did not confirm (after one retry) through `on_error`.
      */
     fun `hangup`(`callId`: kotlin.String)
     
     /**
-     * Make an outgoing call directly via SIP.
+     * `make_call_with_id` with an id the core picks. The app learns the id
+     * only from the `Ringing` event, which is delivered asynchronously, so
+     * it cannot reliably hang up before then. Prefer `make_call_with_id`.
      */
     fun `makeCall`(`uri`: kotlin.String, `credentials`: SipCredentials, `preferredCodecs`: List<AudioCodec>): CallInfo
     
     /**
+     * Make an outgoing call through the gateway under `call_id`, which the
+     * app chose, normally with `new_outgoing_call_id()`: `outgoing-`
+     * followed by 1-64 characters from `[A-Za-z0-9_-]`. Blocks until the far
+     * end answers or the call fails, after reporting `Ringing`.
+     *
+     * Throws `InvalidState` for a malformed id, or one that is in use or
+     * was used recently. Because the app knows the id up front,
+     * `hangup(call_id)` works at any point:
+     * - Before this is called: `Ended` is reported at once, and this then
+     *   throws `Cancelled` without reporting anything or sending a request.
+     * - While this is blocked: `Ended` is reported and this throws
+     *   `Cancelled` at once. The core
+     * cancels the ringing call at the gateway (`POST /v1/calls/cancel` with
+     * the uuid part of the call_id as `client_ref`). If the gateway has no
+     * ringing call to cancel (answered meanwhile, or a gateway without the
+     * route) and the call is answered, the core hangs it up in the
+     * background. Any other failure reports `Ended` and throws
+     * (`AuthenticationError` on a 401).
+     */
+    fun `makeCallWithId`(`callId`: kotlin.String, `uri`: kotlin.String, `credentials`: SipCredentials, `preferredCodecs`: List<AudioCodec>): CallInfo
+    
+    /**
      * Notify the core of a network connectivity change.
      * Call this from the platform when WiFi/cellular changes, or after reconnect.
+     * Returns at once. The gateway heartbeat it triggers runs in the
+     * background, and a burst of changes is coalesced: at most one heartbeat
+     * is in flight, followed by one more if changes arrived meanwhile.
      */
     fun `notifyNetworkChange`()
     
     /**
-     * Register this device with the push gateway.
-     * Returns device_id and auth token.
+     * Register this device with the push gateway, authenticating with the
+     * current PBX-issued gateway token. Returns device_id and the token used.
      */
     fun `registerDevice`(`registration`: DeviceRegistration): DeviceRegistrationResponse
     
     /**
-     * Reject an incoming call.
+     * Reject an incoming call. Once the gateway accepts the reject, `Ended`
+     * with `end_reason` `Rejected` is reported for `incoming-<call_token>`,
+     * if the call was offered through `handle_push_notification` and had
+     * not already ended.
      */
     fun `rejectIncomingCall`(`callToken`: kotlin.String)
     
@@ -1980,6 +2080,13 @@ public interface AriaMobileEngineInterface {
     fun `setEventHandler`(`handler`: MobileEventHandler)
     
     /**
+     * Replace the bearer token used for all gateway requests, including the
+     * background call-status polls. Pass a token fetched from the PBX
+     * (`POST /api/v1/devices/{id}/gateway-token`). Does not re-register.
+     */
+    fun `setGatewayToken`(`token`: kotlin.String)
+    
+    /**
      * Set hold state.
      */
     fun `setHold`(`callId`: kotlin.String, `onHold`: kotlin.Boolean)
@@ -1988,6 +2095,33 @@ public interface AriaMobileEngineInterface {
      * Set mute state.
      */
     fun `setMute`(`callId`: kotlin.String, `muted`: kotlin.Boolean)
+    
+    /**
+     * Blind-transfer an active call to `target` (a dial string such as
+     * "1002" or a "sip:" URI), and wait for the outcome. On success the PBX
+     * has taken the call over: the local call and its media end, and
+     * `on_call_state_changed` reports `Ended` for `call_id`.
+     *
+     * After the PBX accepts the REFER, the core polls the call's status
+     * every 300 ms until it shows the outcome, for up to 35 s (longer than
+     * the gateway's own 30 s NOTIFY watchdog, so its verdict normally wins).
+     *
+     * These errors leave the call fully up: `InvalidTarget` for a target
+     * rejected locally or by the gateway; `InvalidState` for an unknown call,
+     * one that is not active yet (still ringing), or a gateway without the
+     * transfer route; `CallFailed` when the PBX refused the REFER or reported
+     * the transfer failed (the message carries the SIP status, such as 486);
+     * `Timeout` when the PBX did not answer the REFER, the transfer failed
+     * with 408 (no outcome: the gateway's watchdog, or a 408 from the PBX),
+     * or the gateway stopped answering for 35 s; `AuthenticationError` for
+     * a rejected token.
+     *
+     * `InvalidState` after the REFER was accepted means the call ended for
+     * another reason meanwhile; `Ended` has been reported. A gateway that
+     * does not report transfer outcomes ends the call on acceptance, as
+     * before. Blocks for up to about 45 s; call it off the UI thread.
+     */
+    fun `transferCall`(`callId`: kotlin.String, `target`: kotlin.String)
     
     /**
      * Unregister this device from the push gateway.
@@ -2098,7 +2232,13 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
-     * Accept an incoming call with local SDP answer.
+     * Accept an incoming call with local SDP answer. Reports `Connected`.
+     *
+     * If the gateway refuses (an HTTP error), the call stays offered and
+     * nothing is reported. If the outcome is unknown (`Timeout` or
+     * `NetworkError`: the gateway may have accepted it anyway), `Ended` is
+     * reported for `incoming-<call_token>`, and the core hangs the call up
+     * if it was accepted or rejects it if it still rings.
      */
     @Throws(MobileException::class)override fun `acceptIncomingCall`(`callToken`: kotlin.String, `preferredCodecs`: List<AudioCodec>): CallInfo {
             return FfiConverterTypeCallInfo.lift(
@@ -2356,7 +2496,11 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
     /**
      * Check if any active call was ended by the remote party.
      * Returns the call_id if detected, null otherwise.
-     * The app should call this periodically from a UI timer (~2s).
+     *
+     * Kept for apps that poll. The core now detects a remote hangup itself
+     * and reports it through `on_call_state_changed` (`Ended`) before the
+     * call_id appears here, so an app using the event handler does not need
+     * to call this. Only the most recent 16 IDs are retained.
      */override fun `checkRemoteHangup`(): kotlin.String? {
             return FfiConverterOptionalString.lift(
     callWithPointer {
@@ -2447,7 +2591,17 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
-     * Hang up an active call.
+     * Hang up a call, including an outgoing call that is still ringing or
+     * has not been made yet (see `make_call_with_id`). Throws `InvalidState`
+     * for an unknown or already ended call_id.
+     *
+     * Never waits on the gateway: the call is torn down locally and `Ended`
+     * is queued at once, and the gateway hangup (or, for a ringing call, the
+     * cancel) runs in the background. Throws `AuthenticationError`, after
+     * ending the call locally, only when there is no gateway token at all,
+     * in which case nothing is sent. Background failures are reported later:
+     * a rejected token through `on_auth_required`, and a hangup the gateway
+     * did not confirm (after one retry) through `on_error`.
      */
     @Throws(MobileException::class)override fun `hangup`(`callId`: kotlin.String)
         = 
@@ -2462,7 +2616,9 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
-     * Make an outgoing call directly via SIP.
+     * `make_call_with_id` with an id the core picks. The app learns the id
+     * only from the `Ringing` event, which is delivered asynchronously, so
+     * it cannot reliably hang up before then. Prefer `make_call_with_id`.
      */
     @Throws(MobileException::class)override fun `makeCall`(`uri`: kotlin.String, `credentials`: SipCredentials, `preferredCodecs`: List<AudioCodec>): CallInfo {
             return FfiConverterTypeCallInfo.lift(
@@ -2478,8 +2634,44 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
+     * Make an outgoing call through the gateway under `call_id`, which the
+     * app chose, normally with `new_outgoing_call_id()`: `outgoing-`
+     * followed by 1-64 characters from `[A-Za-z0-9_-]`. Blocks until the far
+     * end answers or the call fails, after reporting `Ringing`.
+     *
+     * Throws `InvalidState` for a malformed id, or one that is in use or
+     * was used recently. Because the app knows the id up front,
+     * `hangup(call_id)` works at any point:
+     * - Before this is called: `Ended` is reported at once, and this then
+     *   throws `Cancelled` without reporting anything or sending a request.
+     * - While this is blocked: `Ended` is reported and this throws
+     *   `Cancelled` at once. The core
+     * cancels the ringing call at the gateway (`POST /v1/calls/cancel` with
+     * the uuid part of the call_id as `client_ref`). If the gateway has no
+     * ringing call to cancel (answered meanwhile, or a gateway without the
+     * route) and the call is answered, the core hangs it up in the
+     * background. Any other failure reports `Ended` and throws
+     * (`AuthenticationError` on a 401).
+     */
+    @Throws(MobileException::class)override fun `makeCallWithId`(`callId`: kotlin.String, `uri`: kotlin.String, `credentials`: SipCredentials, `preferredCodecs`: List<AudioCodec>): CallInfo {
+            return FfiConverterTypeCallInfo.lift(
+    callWithPointer {
+    uniffiRustCallWithError(MobileException) { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_make_call_with_id(
+        it, FfiConverterString.lower(`callId`),FfiConverterString.lower(`uri`),FfiConverterTypeSipCredentials.lower(`credentials`),FfiConverterSequenceTypeAudioCodec.lower(`preferredCodecs`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
      * Notify the core of a network connectivity change.
      * Call this from the platform when WiFi/cellular changes, or after reconnect.
+     * Returns at once. The gateway heartbeat it triggers runs in the
+     * background, and a burst of changes is coalesced: at most one heartbeat
+     * is in flight, followed by one more if changes arrived meanwhile.
      */override fun `notifyNetworkChange`()
         = 
     callWithPointer {
@@ -2493,8 +2685,8 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
-     * Register this device with the push gateway.
-     * Returns device_id and auth token.
+     * Register this device with the push gateway, authenticating with the
+     * current PBX-issued gateway token. Returns device_id and the token used.
      */
     @Throws(MobileException::class)override fun `registerDevice`(`registration`: DeviceRegistration): DeviceRegistrationResponse {
             return FfiConverterTypeDeviceRegistrationResponse.lift(
@@ -2510,7 +2702,10 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
-     * Reject an incoming call.
+     * Reject an incoming call. Once the gateway accepts the reject, `Ended`
+     * with `end_reason` `Rejected` is reported for `incoming-<call_token>`,
+     * if the call was offered through `handle_push_notification` and had
+     * not already ended.
      */
     @Throws(MobileException::class)override fun `rejectIncomingCall`(`callToken`: kotlin.String)
         = 
@@ -2582,6 +2777,22 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
+     * Replace the bearer token used for all gateway requests, including the
+     * background call-status polls. Pass a token fetched from the PBX
+     * (`POST /api/v1/devices/{id}/gateway-token`). Does not re-register.
+     */override fun `setGatewayToken`(`token`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_set_gateway_token(
+        it, FfiConverterString.lower(`token`),_status)
+}
+    }
+    
+    
+
+    
+    /**
      * Set hold state.
      */
     @Throws(MobileException::class)override fun `setHold`(`callId`: kotlin.String, `onHold`: kotlin.Boolean)
@@ -2605,6 +2816,43 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
     uniffiRustCallWithError(MobileException) { _status ->
     UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_set_mute(
         it, FfiConverterString.lower(`callId`),FfiConverterBoolean.lower(`muted`),_status)
+}
+    }
+    
+    
+
+    
+    /**
+     * Blind-transfer an active call to `target` (a dial string such as
+     * "1002" or a "sip:" URI), and wait for the outcome. On success the PBX
+     * has taken the call over: the local call and its media end, and
+     * `on_call_state_changed` reports `Ended` for `call_id`.
+     *
+     * After the PBX accepts the REFER, the core polls the call's status
+     * every 300 ms until it shows the outcome, for up to 35 s (longer than
+     * the gateway's own 30 s NOTIFY watchdog, so its verdict normally wins).
+     *
+     * These errors leave the call fully up: `InvalidTarget` for a target
+     * rejected locally or by the gateway; `InvalidState` for an unknown call,
+     * one that is not active yet (still ringing), or a gateway without the
+     * transfer route; `CallFailed` when the PBX refused the REFER or reported
+     * the transfer failed (the message carries the SIP status, such as 486);
+     * `Timeout` when the PBX did not answer the REFER, the transfer failed
+     * with 408 (no outcome: the gateway's watchdog, or a 408 from the PBX),
+     * or the gateway stopped answering for 35 s; `AuthenticationError` for
+     * a rejected token.
+     *
+     * `InvalidState` after the REFER was accepted means the call ended for
+     * another reason meanwhile; `Ended` has been reported. A gateway that
+     * does not report transfer outcomes ends the call on acceptance, as
+     * before. Blocks for up to about 45 s; call it off the UI thread.
+     */
+    @Throws(MobileException::class)override fun `transferCall`(`callId`: kotlin.String, `target`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(MobileException) { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_transfer_call(
+        it, FfiConverterString.lower(`callId`),FfiConverterString.lower(`target`),_status)
 }
     }
     
@@ -2958,7 +3206,11 @@ data class CallInfo (
     var `direction`: CallDirection, 
     var `muted`: kotlin.Boolean, 
     var `onHold`: kotlin.Boolean, 
-    var `durationSecs`: kotlin.ULong
+    var `durationSecs`: kotlin.ULong, 
+    /**
+     * Why the call ended; set only when `state` is `Ended`.
+     */
+    var `endReason`: EndReason?
 ) {
     
     companion object
@@ -2978,6 +3230,7 @@ public object FfiConverterTypeCallInfo: FfiConverterRustBuffer<CallInfo> {
             FfiConverterBoolean.read(buf),
             FfiConverterBoolean.read(buf),
             FfiConverterULong.read(buf),
+            FfiConverterOptionalTypeEndReason.read(buf),
         )
     }
 
@@ -2989,7 +3242,8 @@ public object FfiConverterTypeCallInfo: FfiConverterRustBuffer<CallInfo> {
             FfiConverterTypeCallDirection.allocationSize(value.`direction`) +
             FfiConverterBoolean.allocationSize(value.`muted`) +
             FfiConverterBoolean.allocationSize(value.`onHold`) +
-            FfiConverterULong.allocationSize(value.`durationSecs`)
+            FfiConverterULong.allocationSize(value.`durationSecs`) +
+            FfiConverterOptionalTypeEndReason.allocationSize(value.`endReason`)
     )
 
     override fun write(value: CallInfo, buf: ByteBuffer) {
@@ -3001,6 +3255,7 @@ public object FfiConverterTypeCallInfo: FfiConverterRustBuffer<CallInfo> {
             FfiConverterBoolean.write(value.`muted`, buf)
             FfiConverterBoolean.write(value.`onHold`, buf)
             FfiConverterULong.write(value.`durationSecs`, buf)
+            FfiConverterOptionalTypeEndReason.write(value.`endReason`, buf)
     }
 }
 
@@ -3132,6 +3387,12 @@ public object FfiConverterTypeDeviceRegistrationResponse: FfiConverterRustBuffer
  */
 data class GatewayConfig (
     var `baseUrl`: kotlin.String, 
+    /**
+     * The PBX-issued gateway token (`gateway_token` from the PBX device
+     * registration), used as the bearer token for every gateway request.
+     * The core never mints tokens itself. Replace it later with
+     * `set_gateway_token`.
+     */
     var `apiKey`: kotlin.String
 ) {
     
@@ -3425,6 +3686,71 @@ public object FfiConverterTypeCallState: FfiConverterRustBuffer<CallState> {
 
 
 
+/**
+ * Why a call ended. Set only on the `Ended` event.
+ */
+
+enum class EndReason {
+    
+    /**
+     * This handset hung up.
+     */
+    LOCAL_HANGUP,
+    /**
+     * The far end hung up (BYE).
+     */
+    REMOTE_HANGUP,
+    /**
+     * The caller hung up an incoming call before it was answered.
+     */
+    CALLER_CANCELLED,
+    /**
+     * An incoming call was answered on another device.
+     */
+    ANSWERED_ELSEWHERE,
+    /**
+     * An incoming call was rejected with `reject_incoming_call`, or
+     * declined according to the gateway.
+     */
+    REJECTED,
+    /**
+     * The call was blind-transferred away from this handset.
+     */
+    TRANSFERRED,
+    /**
+     * The call could not be set up: an outgoing call failed, or an accept
+     * had an unknown outcome.
+     */
+    FAILED,
+    /**
+     * An outgoing call was hung up before it was answered.
+     */
+    CANCELLED;
+    companion object
+}
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeEndReason: FfiConverterRustBuffer<EndReason> {
+    override fun read(buf: ByteBuffer) = try {
+        EndReason.values()[buf.getInt() - 1]
+    } catch (e: IndexOutOfBoundsException) {
+        throw RuntimeException("invalid enum value, something is very wrong!!", e)
+    }
+
+    override fun allocationSize(value: EndReason) = 4UL
+
+    override fun write(value: EndReason, buf: ByteBuffer) {
+        buf.putInt(value.ordinal + 1)
+    }
+}
+
+
+
+
+
 
 
 /**
@@ -3434,10 +3760,19 @@ sealed class MobileException(message: String): kotlin.Exception(message) {
         
         class NetworkException(message: String) : MobileException(message)
         
+    /**
+     * There is no gateway token, or the gateway rejected it (HTTP 401).
+     * Every method that talks to the gateway reports a 401 this way. Fetch a
+     * new token from the PBX and pass it to `set_gateway_token`.
+     */
         class AuthenticationException(message: String) : MobileException(message)
         
         class RegistrationFailed(message: String) : MobileException(message)
         
+    /**
+     * The call or a call operation failed; the message says why, for
+     * example the SIP status of a failed transfer.
+     */
         class CallFailed(message: String) : MobileException(message)
         
         class MediaException(message: String) : MobileException(message)
@@ -3447,6 +3782,18 @@ sealed class MobileException(message: String): kotlin.Exception(message) {
         class GatewayException(message: String) : MobileException(message)
         
         class Timeout(message: String) : MobileException(message)
+        
+    /**
+     * A transfer target was empty, contained characters that are not allowed
+     * in a SIP URI header (CR, LF, '<', '>'), or was refused by the gateway.
+     */
+        class InvalidTarget(message: String) : MobileException(message)
+        
+    /**
+     * `make_call` was cancelled by `hangup` before it returned. `Ended` has
+     * already been reported for the call.
+     */
+        class Cancelled(message: String) : MobileException(message)
         
 
     companion object ErrorHandler : UniffiRustCallStatusErrorHandler<MobileException> {
@@ -3469,6 +3816,8 @@ public object FfiConverterTypeMobileError : FfiConverterRustBuffer<MobileExcepti
             6 -> MobileException.InvalidState(FfiConverterString.read(buf))
             7 -> MobileException.GatewayException(FfiConverterString.read(buf))
             8 -> MobileException.Timeout(FfiConverterString.read(buf))
+            9 -> MobileException.InvalidTarget(FfiConverterString.read(buf))
+            10 -> MobileException.Cancelled(FfiConverterString.read(buf))
             else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
         }
         
@@ -3512,6 +3861,14 @@ public object FfiConverterTypeMobileError : FfiConverterRustBuffer<MobileExcepti
                 buf.putInt(8)
                 Unit
             }
+            is MobileException.InvalidTarget -> {
+                buf.putInt(9)
+                Unit
+            }
+            is MobileException.Cancelled -> {
+                buf.putInt(10)
+                Unit
+            }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
     }
 
@@ -3523,6 +3880,12 @@ public object FfiConverterTypeMobileError : FfiConverterRustBuffer<MobileExcepti
 
 /**
  * Callback interface for receiving events from the Rust core.
+ *
+ * Callbacks are delivered one at a time on a dedicated core thread, never
+ * inside the core's runtime, and asynchronously with respect to the engine
+ * method that caused them. They may call any engine method, including the
+ * blocking ones, but should not block for long themselves. See the
+ * "Event contract" section of the README for the guaranteed sequence.
  */
 public interface MobileEventHandler {
     
@@ -3537,7 +3900,10 @@ public interface MobileEventHandler {
     fun `onIncomingCall`(`offer`: CallOffer)
     
     /**
-     * Called when call state changes.
+     * Called when call state changes. Every call_id that has been reported
+     * gets exactly one final `Ended`, whoever ended the call (local hangup,
+     * remote hangup, transfer, caller cancel, or a failed outgoing call).
+     * The `Ended` event carries `end_reason`.
      */
     fun `onCallStateChanged`(`info`: CallInfo)
     
@@ -3547,9 +3913,27 @@ public interface MobileEventHandler {
     fun `onMediaStats`(`callId`: kotlin.String, `stats`: MediaStats)
     
     /**
-     * Called when an error occurs.
+     * Called when background work failed in a way the app should surface.
+     * Currently fired with context `"hangup"` when the gateway did not
+     * confirm hanging up a call even after one retry (for example a 404
+     * because it does not know the call): the call has ended here, but the
+     * other party may still be connected. `message` names the call_id.
      */
     fun `onError`(`context`: kotlin.String, `message`: kotlin.String)
+    
+    /**
+     * Called when background work (call-status polls, the caller-cancel
+     * watch, the network-change heartbeat, `hangup`'s gateway hangup or
+     * cancel, and hanging up an outgoing call that was answered after it
+     * was cancelled) had the gateway token rejected with 401. Fetch a new token from
+     * the PBX (`POST /api/v1/devices/{id}/gateway-token`) and pass it to
+     * `set_gateway_token`. Emitted at most once per token: it fires again
+     * only after `set_gateway_token` has been called and the new token is
+     * rejected too. A rejected poll does not end the call; polling resumes
+     * with the new token. Engine methods report a 401 by throwing
+     * `AuthenticationError` instead of through this callback.
+     */
+    fun `onAuthRequired`()
     
     companion object
 }
@@ -3653,6 +4037,17 @@ internal object uniffiCallbackInterfaceMobileEventHandler {
             uniffiTraitInterfaceCall(uniffiCallStatus, makeCall, writeReturn)
         }
     }
+    internal object `onAuthRequired`: UniffiCallbackInterfaceMobileEventHandlerMethod5 {
+        override fun callback(`uniffiHandle`: Long,`uniffiOutReturn`: Pointer,uniffiCallStatus: UniffiRustCallStatus,) {
+            val uniffiObj = FfiConverterTypeMobileEventHandler.handleMap.get(uniffiHandle)
+            val makeCall = { ->
+                uniffiObj.`onAuthRequired`(
+                )
+            }
+            val writeReturn = { _: Unit -> Unit }
+            uniffiTraitInterfaceCall(uniffiCallStatus, makeCall, writeReturn)
+        }
+    }
 
     internal object uniffiFree: UniffiCallbackInterfaceFree {
         override fun callback(handle: Long) {
@@ -3666,6 +4061,7 @@ internal object uniffiCallbackInterfaceMobileEventHandler {
         `onCallStateChanged`,
         `onMediaStats`,
         `onError`,
+        `onAuthRequired`,
         uniffiFree,
     )
 
@@ -3931,6 +4327,38 @@ public object FfiConverterOptionalTypeMediaStats: FfiConverterRustBuffer<MediaSt
 /**
  * @suppress
  */
+public object FfiConverterOptionalTypeEndReason: FfiConverterRustBuffer<EndReason?> {
+    override fun read(buf: ByteBuffer): EndReason? {
+        if (buf.get().toInt() == 0) {
+            return null
+        }
+        return FfiConverterTypeEndReason.read(buf)
+    }
+
+    override fun allocationSize(value: EndReason?): ULong {
+        if (value == null) {
+            return 1UL
+        } else {
+            return 1UL + FfiConverterTypeEndReason.allocationSize(value)
+        }
+    }
+
+    override fun write(value: EndReason?, buf: ByteBuffer) {
+        if (value == null) {
+            buf.put(0)
+        } else {
+            buf.put(1)
+            FfiConverterTypeEndReason.write(value, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
 public object FfiConverterOptionalSequenceUByte: FfiConverterRustBuffer<List<kotlin.UByte>?> {
     override fun read(buf: ByteBuffer): List<kotlin.UByte>? {
         if (buf.get().toInt() == 0) {
@@ -4161,6 +4589,18 @@ public object FfiConverterSequenceTypeAudioCodec: FfiConverterRustBuffer<List<Au
         _status)
 }
     
+    
+
+        /**
+         * A fresh `outgoing-<uuid>` call_id for `make_call_with_id`.
+         */ fun `newOutgoingCallId`(): kotlin.String {
+            return FfiConverterString.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_func_new_outgoing_call_id(
+        _status)
+}
+    )
+    }
     
 
         /**

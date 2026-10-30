@@ -18,65 +18,19 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import org.json.JSONArray
-import org.json.JSONObject
-
-data class CallHistoryEntry(
-    val id: String,
-    val remoteUri: String,
-    val remoteName: String?,
-    val direction: String,
-    val timestamp: Long,
-    val durationSeconds: Int,
-    val missed: Boolean,
-) {
-    val displayName: String get() = remoteName ?: remoteUri
-
-    fun toJson(): JSONObject = JSONObject().apply {
-        put("id", id)
-        put("remoteUri", remoteUri)
-        put("remoteName", remoteName ?: JSONObject.NULL)
-        put("direction", direction)
-        put("timestamp", timestamp)
-        put("durationSeconds", durationSeconds)
-        put("missed", missed)
-    }
-
-    companion object {
-        fun fromJson(json: JSONObject): CallHistoryEntry = CallHistoryEntry(
-            id = json.getString("id"),
-            remoteUri = json.getString("remoteUri"),
-            remoteName = json.optString("remoteName").takeIf { it.isNotEmpty() && it != "null" },
-            direction = json.getString("direction"),
-            timestamp = json.getLong("timestamp"),
-            durationSeconds = json.getInt("durationSeconds"),
-            missed = json.getBoolean("missed"),
-        )
-    }
-}
-
-fun loadHistory(context: android.content.Context): List<CallHistoryEntry> {
-    val prefs = context.getSharedPreferences("aria_history", android.content.Context.MODE_PRIVATE)
-    val json = prefs.getString("call_history", null) ?: return emptyList()
-    return try {
-        val array = JSONArray(json)
-        (0 until array.length()).map { CallHistoryEntry.fromJson(array.getJSONObject(it)) }
-    } catch (_: Exception) {
-        emptyList()
-    }
-}
-
-fun saveHistory(context: android.content.Context, history: List<CallHistoryEntry>) {
-    val prefs = context.getSharedPreferences("aria_history", android.content.Context.MODE_PRIVATE)
-    val array = JSONArray().apply { history.forEach { put(it.toJson()) } }
-    prefs.edit().putString("call_history", array.toString()).apply()
-}
+import com.solutions5060.aria.history.CallHistoryEntry
+import com.solutions5060.aria.history.CallHistoryRecorder
+import com.solutions5060.aria.history.CallHistoryStore
+import com.solutions5060.aria.ui.SecureWindow
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun HistoryScreen(onCall: (String) -> Unit) {
+    // Call parties and times are personal data: keep them out of screenshots
+    // and the recents thumbnail.
+    SecureWindow()
     val context = LocalContext.current
-    var history by remember { mutableStateOf(loadHistory(context)) }
+    val history = remember { CallHistoryStore.load(context) }
 
     Scaffold(
         topBar = {
@@ -124,12 +78,8 @@ fun HistoryScreen(onCall: (String) -> Unit) {
                     .fillMaxSize()
                     .padding(padding)
             ) {
-                items(history) { entry ->
-                    // Strip SIP URI to just the extension/number for redialing
-                    val dialNumber = entry.remoteUri
-                        .removePrefix("sip:")
-                        .substringBefore("@")
-                    HistoryRow(entry = entry, onCall = { onCall(dialNumber) })
+                items(history, key = { it.id }) { entry ->
+                    HistoryRow(entry = entry, onCall = { onCall(entry.dialNumber) })
                 }
             }
         }
@@ -147,7 +97,7 @@ private fun HistoryRow(entry: CallHistoryEntry, onCall: () -> Unit) {
     ) {
         // Direction icon
         val (icon, color) = when {
-            entry.missed -> Icons.AutoMirrored.Filled.CallMissed to Color.Red
+            entry.missed || entry.rejected -> Icons.AutoMirrored.Filled.CallMissed to Color.Red
             entry.direction == "inbound" -> Icons.AutoMirrored.Filled.CallReceived to MaterialTheme.colorScheme.primary
             else -> Icons.AutoMirrored.Filled.CallMade to MaterialTheme.colorScheme.tertiary
         }
@@ -166,7 +116,7 @@ private fun HistoryRow(entry: CallHistoryEntry, onCall: () -> Unit) {
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                formatDuration(entry.durationSeconds),
+                CallHistoryRecorder.summary(entry),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -184,11 +134,4 @@ private fun HistoryRow(entry: CallHistoryEntry, onCall: () -> Unit) {
             )
         }
     }
-}
-
-private fun formatDuration(seconds: Int): String {
-    if (seconds == 0) return "Missed"
-    val mins = seconds / 60
-    val secs = seconds % 60
-    return "%d:%02d".format(mins, secs)
 }

@@ -13,6 +13,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.solutions5060.aria.ai.CallTranscription
 import com.solutions5060.aria.service.SipEngineHolder
+import com.solutions5060.aria.ui.SecureWindow
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -34,6 +35,9 @@ fun TranscriptsScreen(onBack: () -> Unit = {}) {
     val context = LocalContext.current
     val engine = SipEngineHolder.engine
     val scope = rememberCoroutineScope()
+
+    // Transcripts are recordings of calls in text form.
+    SecureWindow()
 
     var rows by remember { mutableStateOf<List<AiInsightSummary>>(emptyList()) }
     var open by remember { mutableStateOf<AiCallInsight?>(null) }
