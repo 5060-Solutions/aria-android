@@ -30,7 +30,12 @@ object IncomingCallNotifier {
     const val ACTION_ANSWER = "com.solutions5060.aria.ANSWER_CALL"
     const val ACTION_DECLINE = "com.solutions5060.aria.DECLINE_CALL"
 
-    fun show(context: Context, recordKey: String, callerName: String, callToken: String) {
+    /**
+     * Posts the incoming-call notification. [waiting] means the user is
+     * already on another call: the alert sounds once instead of insistently,
+     * and the app does not ring over the call in progress.
+     */
+    fun show(context: Context, recordKey: String, callerName: String, callToken: String, waiting: Boolean = false) {
         val fullScreen = activityIntent(context, ACTION_SHOW_INCOMING, callToken, requestCode = 0)
         val answer = activityIntent(context, ACTION_ANSWER, callToken, requestCode = 1)
         val decline = PendingIntent.getBroadcast(
@@ -46,7 +51,7 @@ object IncomingCallNotifier {
         val caller = Person.Builder().setName(callerName).setImportant(true).build()
         val notification = NotificationCompat.Builder(context, AriaApplication.CHANNEL_INCOMING_CALL)
             .setSmallIcon(R.drawable.ic_phone)
-            .setContentTitle("Incoming Call")
+            .setContentTitle(if (waiting) "Call Waiting" else "Incoming Call")
             .setContentText(callerName)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)
@@ -57,8 +62,9 @@ object IncomingCallNotifier {
             .setStyle(NotificationCompat.CallStyle.forIncomingCall(caller, decline, answer))
             .setGroup(recordKey)
             .build()
-        // Ring until answered, declined or cancelled; the channel carries the ringtone.
-        notification.flags = notification.flags or Notification.FLAG_INSISTENT
+        // Ring until answered, declined or cancelled; the channel carries the
+        // ringtone. Not over a call in progress, where it would drown it out.
+        if (!waiting) notification.flags = notification.flags or Notification.FLAG_INSISTENT
 
         val manager = context.getSystemService(NotificationManager::class.java)
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.UPSIDE_DOWN_CAKE && !manager.canUseFullScreenIntent()) {
@@ -73,8 +79,9 @@ object IncomingCallNotifier {
         } catch (e: SecurityException) {
             Log.w(TAG, "Cannot post incoming-call notification: $e")
         }
-        // Ring from the app when that notification cannot.
-        IncomingRinger.startIfNeeded(context)
+        // Ring from the app when that notification cannot, unless a call is
+        // already up: the notification and the call screen show this one.
+        if (!waiting) IncomingRinger.startIfNeeded(context)
     }
 
     /** Removes the notification and stops any ringing: on answer, decline and end. */

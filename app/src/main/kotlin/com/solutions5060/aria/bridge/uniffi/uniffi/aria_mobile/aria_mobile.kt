@@ -886,6 +886,12 @@ internal open class UniffiVTableCallbackInterfacePlatformAudioBridge(
 
 
 
+
+
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -951,6 +957,8 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_get_active_call(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_get_calls(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_get_media_stats(`ptr`: Pointer,`callId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_get_rx_audio_level(`ptr`: Pointer,`callId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -984,6 +992,10 @@ internal interface UniffiLib : Library {
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_set_hold(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`onHold`: Byte,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_set_mute(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`muted`: Byte,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_swap_calls(`ptr`: Pointer,`activeCallId`: RustBuffer.ByValue,`heldCallId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_transfer_attended(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`consultCallId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_transfer_call(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`target`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
@@ -1157,6 +1169,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_active_call(
     ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_calls(
+    ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_media_stats(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_rx_audio_level(
@@ -1190,6 +1204,10 @@ internal interface UniffiLib : Library {
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_hold(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_mute(
+    ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_swap_calls(
+    ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_transfer_attended(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_transfer_call(
     ): Short
@@ -1298,6 +1316,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_active_call() != 15775.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_calls() != 38930.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_media_stats() != 33992.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1347,6 +1368,12 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_mute() != 20691.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_swap_calls() != 26608.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_transfer_attended() != 39777.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_transfer_call() != 38156.toShort()) {
@@ -1871,6 +1898,9 @@ public interface AriaMobileEngineInterface {
      * `NetworkError`: the gateway may have accepted it anyway), `Ended` is
      * reported for `incoming-<call_token>`, and the core hangs the call up
      * if it was accepted or rejects it if it still rings.
+     *
+     * Throws `InvalidState`, without contacting the gateway, when two calls
+     * are already live (see `get_calls`); the call stays offered.
      */
     fun `acceptIncomingCall`(`callToken`: kotlin.String, `preferredCodecs`: List<AudioCodec>): CallInfo
     
@@ -1968,9 +1998,19 @@ public interface AriaMobileEngineInterface {
     fun `checkRemoteHangup`(): kotlin.String?
     
     /**
-     * Get current call info, if any.
+     * The connected call that is off hold, if any; otherwise the most
+     * recently created live call (held, or outgoing and ringing).
      */
     fun `getActiveCall`(): CallInfo?
+    
+    /**
+     * Every live call (connected, held, or outgoing and ringing), oldest
+     * first. At most two calls are live at once: a third `make_call`,
+     * `make_call_with_id` or `accept_incoming_call` throws `InvalidState`
+     * without side effects. Incoming calls are still offered
+     * (`handle_push_notification`), so the app can show and reject them.
+     */
+    fun `getCalls`(): List<CallInfo>
     
     /**
      * Get media statistics for a call.
@@ -2021,7 +2061,8 @@ public interface AriaMobileEngineInterface {
      * end answers or the call fails, after reporting `Ringing`.
      *
      * Throws `InvalidState` for a malformed id, or one that is in use or
-     * was used recently. Because the app knows the id up front,
+     * was used recently, and, without using the id up or reporting
+     * anything, when two calls are already live (see `get_calls`). Because the app knows the id up front,
      * `hangup(call_id)` works at any point:
      * - Before this is called: `Ended` is reported at once, and this then
      *   throws `Cancelled` without reporting anything or sending a request.
@@ -2087,7 +2128,12 @@ public interface AriaMobileEngineInterface {
     fun `setGatewayToken`(`token`: kotlin.String)
     
     /**
-     * Set hold state.
+     * Hold or resume a call. Local only: media to and from the far end
+     * stops (the RTP stream keeps running), but no re-INVITE is sent.
+     * Resuming a call first holds every other connected call, so at most one
+     * call is ever off hold; each call whose hold state changed is reported
+     * through `on_call_state_changed`. A call that connects (answered, or an
+     * outgoing call that is answered) likewise holds the others first.
      */
     fun `setHold`(`callId`: kotlin.String, `onHold`: kotlin.Boolean)
     
@@ -2095,6 +2141,42 @@ public interface AriaMobileEngineInterface {
      * Set mute state.
      */
     fun `setMute`(`callId`: kotlin.String, `muted`: kotlin.Boolean)
+    
+    /**
+     * Put `active_call_id` on hold and resume `held_call_id` in one step.
+     * Each call whose hold state changed is reported, the one going on hold
+     * first. Throws `InvalidState` unless both are distinct connected calls.
+     */
+    fun `swapCalls`(`activeCallId`: kotlin.String, `heldCallId`: kotlin.String)
+    
+    /**
+     * Attended (consultative) transfer: join the far ends of `call_id` and
+     * `consult_call_id` (typically a call the user placed to the transfer
+     * target while `call_id` was on hold) and drop this phone from both,
+     * then wait for the outcome as `transfer_call` does. Either call may be
+     * on hold here; the PBX bridges the far ends itself.
+     *
+     * On success both calls end: `on_call_state_changed` reports `Ended`
+     * with reason `Transferred` exactly once for each.
+     *
+     * Checked before anything is sent: `InvalidState` unless the two are
+     * distinct connected calls (not ringing, not ended);
+     * `TransferUnsupported` unless one is incoming and the other outgoing
+     * (the PBX can only join a call this phone received with one it
+     * placed). From the gateway: `InvalidState` when it does not know
+     * either call or one is not established; `TransferUnsupported` as
+     * above; `GatewayError` when a transfer of either call is already in
+     * progress; `CallFailed` when the PBX refused the REFER or reported the
+     * transfer failed (the message carries the SIP status, such as 503);
+     * `Timeout` as for `transfer_call`; `AuthenticationError` for a
+     * rejected token. All of these leave both calls up, as they were.
+     *
+     * `InvalidState` after the REFER was accepted means one of the calls
+     * ended for another reason meanwhile; that call has been reported
+     * `Ended` and the other stays up. Blocks for up to about 45 s; call it
+     * off the UI thread.
+     */
+    fun `transferAttended`(`callId`: kotlin.String, `consultCallId`: kotlin.String)
     
     /**
      * Blind-transfer an active call to `target` (a dial string such as
@@ -2239,6 +2321,9 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
      * `NetworkError`: the gateway may have accepted it anyway), `Ended` is
      * reported for `incoming-<call_token>`, and the core hangs the call up
      * if it was accepted or rejects it if it still rings.
+     *
+     * Throws `InvalidState`, without contacting the gateway, when two calls
+     * are already live (see `get_calls`); the call stays offered.
      */
     @Throws(MobileException::class)override fun `acceptIncomingCall`(`callToken`: kotlin.String, `preferredCodecs`: List<AudioCodec>): CallInfo {
             return FfiConverterTypeCallInfo.lift(
@@ -2515,12 +2600,32 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
-     * Get current call info, if any.
+     * The connected call that is off hold, if any; otherwise the most
+     * recently created live call (held, or outgoing and ringing).
      */override fun `getActiveCall`(): CallInfo? {
             return FfiConverterOptionalTypeCallInfo.lift(
     callWithPointer {
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_get_active_call(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
+     * Every live call (connected, held, or outgoing and ringing), oldest
+     * first. At most two calls are live at once: a third `make_call`,
+     * `make_call_with_id` or `accept_incoming_call` throws `InvalidState`
+     * without side effects. Incoming calls are still offered
+     * (`handle_push_notification`), so the app can show and reject them.
+     */override fun `getCalls`(): List<CallInfo> {
+            return FfiConverterSequenceTypeCallInfo.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_get_calls(
         it, _status)
 }
     }
@@ -2640,7 +2745,8 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
      * end answers or the call fails, after reporting `Ringing`.
      *
      * Throws `InvalidState` for a malformed id, or one that is in use or
-     * was used recently. Because the app knows the id up front,
+     * was used recently, and, without using the id up or reporting
+     * anything, when two calls are already live (see `get_calls`). Because the app knows the id up front,
      * `hangup(call_id)` works at any point:
      * - Before this is called: `Ended` is reported at once, and this then
      *   throws `Cancelled` without reporting anything or sending a request.
@@ -2793,7 +2899,12 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
-     * Set hold state.
+     * Hold or resume a call. Local only: media to and from the far end
+     * stops (the RTP stream keeps running), but no re-INVITE is sent.
+     * Resuming a call first holds every other connected call, so at most one
+     * call is ever off hold; each call whose hold state changed is reported
+     * through `on_call_state_changed`. A call that connects (answered, or an
+     * outgoing call that is answered) likewise holds the others first.
      */
     @Throws(MobileException::class)override fun `setHold`(`callId`: kotlin.String, `onHold`: kotlin.Boolean)
         = 
@@ -2816,6 +2927,62 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
     uniffiRustCallWithError(MobileException) { _status ->
     UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_set_mute(
         it, FfiConverterString.lower(`callId`),FfiConverterBoolean.lower(`muted`),_status)
+}
+    }
+    
+    
+
+    
+    /**
+     * Put `active_call_id` on hold and resume `held_call_id` in one step.
+     * Each call whose hold state changed is reported, the one going on hold
+     * first. Throws `InvalidState` unless both are distinct connected calls.
+     */
+    @Throws(MobileException::class)override fun `swapCalls`(`activeCallId`: kotlin.String, `heldCallId`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(MobileException) { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_swap_calls(
+        it, FfiConverterString.lower(`activeCallId`),FfiConverterString.lower(`heldCallId`),_status)
+}
+    }
+    
+    
+
+    
+    /**
+     * Attended (consultative) transfer: join the far ends of `call_id` and
+     * `consult_call_id` (typically a call the user placed to the transfer
+     * target while `call_id` was on hold) and drop this phone from both,
+     * then wait for the outcome as `transfer_call` does. Either call may be
+     * on hold here; the PBX bridges the far ends itself.
+     *
+     * On success both calls end: `on_call_state_changed` reports `Ended`
+     * with reason `Transferred` exactly once for each.
+     *
+     * Checked before anything is sent: `InvalidState` unless the two are
+     * distinct connected calls (not ringing, not ended);
+     * `TransferUnsupported` unless one is incoming and the other outgoing
+     * (the PBX can only join a call this phone received with one it
+     * placed). From the gateway: `InvalidState` when it does not know
+     * either call or one is not established; `TransferUnsupported` as
+     * above; `GatewayError` when a transfer of either call is already in
+     * progress; `CallFailed` when the PBX refused the REFER or reported the
+     * transfer failed (the message carries the SIP status, such as 503);
+     * `Timeout` as for `transfer_call`; `AuthenticationError` for a
+     * rejected token. All of these leave both calls up, as they were.
+     *
+     * `InvalidState` after the REFER was accepted means one of the calls
+     * ended for another reason meanwhile; that call has been reported
+     * `Ended` and the other stays up. Blocks for up to about 45 s; call it
+     * off the UI thread.
+     */
+    @Throws(MobileException::class)override fun `transferAttended`(`callId`: kotlin.String, `consultCallId`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(MobileException) { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_transfer_attended(
+        it, FfiConverterString.lower(`callId`),FfiConverterString.lower(`consultCallId`),_status)
 }
     }
     
@@ -3714,7 +3881,7 @@ enum class EndReason {
      */
     REJECTED,
     /**
-     * The call was blind-transferred away from this handset.
+     * The call was transferred away from this handset (blind or attended).
      */
     TRANSFERRED,
     /**
@@ -3795,6 +3962,13 @@ sealed class MobileException(message: String): kotlin.Exception(message) {
      */
         class Cancelled(message: String) : MobileException(message)
         
+    /**
+     * `transfer_attended` was asked to join two calls the PBX cannot join:
+     * both incoming or both outgoing. It needs one call this phone received
+     * and one it placed. Both calls stay up.
+     */
+        class TransferUnsupported(message: String) : MobileException(message)
+        
 
     companion object ErrorHandler : UniffiRustCallStatusErrorHandler<MobileException> {
         override fun lift(error_buf: RustBuffer.ByValue): MobileException = FfiConverterTypeMobileError.lift(error_buf)
@@ -3818,6 +3992,7 @@ public object FfiConverterTypeMobileError : FfiConverterRustBuffer<MobileExcepti
             8 -> MobileException.Timeout(FfiConverterString.read(buf))
             9 -> MobileException.InvalidTarget(FfiConverterString.read(buf))
             10 -> MobileException.Cancelled(FfiConverterString.read(buf))
+            11 -> MobileException.TransferUnsupported(FfiConverterString.read(buf))
             else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
         }
         
@@ -3867,6 +4042,10 @@ public object FfiConverterTypeMobileError : FfiConverterRustBuffer<MobileExcepti
             }
             is MobileException.Cancelled -> {
                 buf.putInt(10)
+                Unit
+            }
+            is MobileException.TransferUnsupported -> {
+                buf.putInt(11)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
@@ -4549,6 +4728,34 @@ public object FfiConverterSequenceTypeAiTranscriptSegment: FfiConverterRustBuffe
         buf.putInt(value.size)
         value.iterator().forEach {
             FfiConverterTypeAiTranscriptSegment.write(it, buf)
+        }
+    }
+}
+
+
+
+
+/**
+ * @suppress
+ */
+public object FfiConverterSequenceTypeCallInfo: FfiConverterRustBuffer<List<CallInfo>> {
+    override fun read(buf: ByteBuffer): List<CallInfo> {
+        val len = buf.getInt()
+        return List<CallInfo>(len) {
+            FfiConverterTypeCallInfo.read(buf)
+        }
+    }
+
+    override fun allocationSize(value: List<CallInfo>): ULong {
+        val sizeForLength = 4UL
+        val sizeForItems = value.map { FfiConverterTypeCallInfo.allocationSize(it) }.sum()
+        return sizeForLength + sizeForItems
+    }
+
+    override fun write(value: List<CallInfo>, buf: ByteBuffer) {
+        buf.putInt(value.size)
+        value.iterator().forEach {
+            FfiConverterTypeCallInfo.write(it, buf)
         }
     }
 }
