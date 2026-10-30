@@ -80,26 +80,28 @@ object CallWaiting {
     data class TransferPair(val transferred: CallUiState, val consult: CallUiState)
 
     /**
-     * The pair "Complete transfer" acts on, or null when there is none. The
-     * PBX only joins a call this phone answered (transferred) with one it
-     * placed (consultation), so it needs exactly two connected calls, one
-     * each way.
+     * The pair "Complete transfer" acts on, or null when there is none: exactly
+     * two connected calls, each either answered or placed by this phone. The
+     * consultation call is the one off hold (the one the user is talking on),
+     * or the newer one when neither or both are; the other is transferred.
      */
     fun attendedTransferPair(calls: List<CallUiState>): TransferPair? {
         val connected = calls.filter(::isConnected)
         if (connected.size != 2) return null
-        val inbound = connected.singleOrNull { it.direction == CallDirection.INBOUND } ?: return null
-        val outbound = connected.singleOrNull { it.direction == CallDirection.OUTBOUND } ?: return null
-        if (inbound.callId == null || outbound.callId == null) return null
-        return TransferPair(transferred = inbound, consult = outbound)
+        if (connected.any { it.callId == null }) return null
+        val (older, newer) = connected
+        val consult = connected.singleOrNull { it.phase == CallPhase.ACTIVE } ?: newer
+        val transferred = if (consult === older) newer else older
+        return TransferPair(transferred = transferred, consult = consult)
     }
 
     /**
-     * Whether [call] can start a consultation: an answered incoming call with
-     * no other call yet, so the call placed next completes the pair.
+     * Whether [call] can start a consultation: an answered call, incoming or
+     * outgoing, with no other call yet, so the call placed next completes the
+     * pair.
      */
     fun canConsult(call: CallUiState, calls: List<CallUiState>): Boolean =
-        call.direction == CallDirection.INBOUND && isConnected(call) && calls.count(::isLive) == 1
+        isConnected(call) && calls.count(::isLive) == 1
 
     /**
      * True when every call left is still ringing here: nothing is connected
@@ -162,7 +164,7 @@ object CallWaiting {
 
     private fun attendedTransferFailure(error: Throwable): String = when (error) {
         is MobileException.TransferUnsupported ->
-            "These calls can't be joined: the phone system can only transfer a call you answered to a call you placed."
+            "The phone system can't join these two calls. Both calls are still up."
         is MobileException.InvalidState -> "The transfer can't be completed right now. Both calls are still up."
         is MobileException.GatewayException -> "A transfer is already in progress. Both calls are still up."
         is MobileException.CallFailed -> CallStateMapping.sipStatusIn(error.message)?.let { code ->

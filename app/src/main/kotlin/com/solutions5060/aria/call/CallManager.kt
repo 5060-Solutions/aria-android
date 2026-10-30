@@ -952,8 +952,8 @@ object CallManager {
     }
 
     /**
-     * Consult first: places a call to [target] from the answered incoming
-     * call on screen, which the core holds. Once it is answered, "Complete
+     * Consult first: places a call to [target] from the answered call on
+     * screen (incoming or outgoing), which the core holds. Once it is answered, "Complete
      * transfer" ([transferAttended]) joins the two.
      */
     fun consult(target: String) {
@@ -976,8 +976,8 @@ object CallManager {
     }
 
     /**
-     * Joins the answered incoming call with the consultation call this phone
-     * placed. On success the core ends both (Transferred) and they are logged
+     * Joins the two connected calls ([CallWaiting.attendedTransferPair]),
+     * whichever way each went. On success the core ends both (Transferred) and they are logged
      * as transferred; on failure both stay up and each says why.
      */
     fun transferAttended() {

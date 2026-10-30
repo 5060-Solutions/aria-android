@@ -2160,13 +2160,13 @@ public interface AriaMobileEngineInterface {
      * with reason `Transferred` exactly once for each.
      *
      * Checked before anything is sent: `InvalidState` unless the two are
-     * distinct connected calls (not ringing, not ended);
-     * `TransferUnsupported` unless one is incoming and the other outgoing
-     * (the PBX can only join a call this phone received with one it
-     * placed). From the gateway: `InvalidState` when it does not know
-     * either call or one is not established; `TransferUnsupported` as
-     * above; `GatewayError` when a transfer of either call is already in
-     * progress; `CallFailed` when the PBX refused the REFER or reported the
+     * distinct connected calls (not ringing, not ended). Each call may be
+     * incoming or outgoing, in any combination. From the gateway:
+     * `InvalidState` when it does not know either call or one is not
+     * established; `TransferUnsupported` when the gateway or PBX cannot
+     * join the two (older PBX releases join only a call this phone
+     * received with one it placed); `GatewayError` when a transfer of
+     * either call is already in progress; `CallFailed` when the PBX refused the REFER or reported the
      * transfer failed (the message carries the SIP status, such as 503);
      * `Timeout` as for `transfer_call`; `AuthenticationError` for a
      * rejected token. All of these leave both calls up, as they were.
@@ -2961,13 +2961,13 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
      * with reason `Transferred` exactly once for each.
      *
      * Checked before anything is sent: `InvalidState` unless the two are
-     * distinct connected calls (not ringing, not ended);
-     * `TransferUnsupported` unless one is incoming and the other outgoing
-     * (the PBX can only join a call this phone received with one it
-     * placed). From the gateway: `InvalidState` when it does not know
-     * either call or one is not established; `TransferUnsupported` as
-     * above; `GatewayError` when a transfer of either call is already in
-     * progress; `CallFailed` when the PBX refused the REFER or reported the
+     * distinct connected calls (not ringing, not ended). Each call may be
+     * incoming or outgoing, in any combination. From the gateway:
+     * `InvalidState` when it does not know either call or one is not
+     * established; `TransferUnsupported` when the gateway or PBX cannot
+     * join the two (older PBX releases join only a call this phone
+     * received with one it placed); `GatewayError` when a transfer of
+     * either call is already in progress; `CallFailed` when the PBX refused the REFER or reported the
      * transfer failed (the message carries the SIP status, such as 503);
      * `Timeout` as for `transfer_call`; `AuthenticationError` for a
      * rejected token. All of these leave both calls up, as they were.

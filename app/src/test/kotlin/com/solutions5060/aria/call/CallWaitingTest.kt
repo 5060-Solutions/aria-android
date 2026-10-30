@@ -166,20 +166,36 @@ class CallWaitingTest {
     fun answeredAndPlacedCallsCanBeJoined() {
         val inbound = call("a", CallPhase.HELD, CallDirection.INBOUND)
         val outbound = call("b", CallPhase.ACTIVE, CallDirection.OUTBOUND)
-        val pair = CallWaiting.attendedTransferPair(listOf(outbound, inbound))
+        val pair = CallWaiting.attendedTransferPair(listOf(inbound, outbound))
         assertEquals("a", pair?.transferred?.key)
         assertEquals("b", pair?.consult?.key)
     }
 
     @Test
-    fun sameDirectionCallsCannotBeJoined() {
-        val both = listOf(call("a", CallPhase.HELD), call("b", CallPhase.ACTIVE))
-        assertNull(CallWaiting.attendedTransferPair(both))
-        val bothOut = listOf(
+    fun anyTwoConnectedCallsCanBeJoinedWithTheActiveOneAsConsultation() {
+        val directions = listOf(CallDirection.INBOUND, CallDirection.OUTBOUND)
+        for (first in directions) for (second in directions) {
+            // The held call is transferred to the call off hold, whichever is older.
+            val heldFirst = listOf(call("a", CallPhase.HELD, first), call("b", CallPhase.ACTIVE, second))
+            val pair = CallWaiting.attendedTransferPair(heldFirst)
+            assertEquals("$first/$second", "a", pair?.transferred?.key)
+            assertEquals("$first/$second", "b", pair?.consult?.key)
+            val activeFirst = listOf(call("a", CallPhase.ACTIVE, first), call("b", CallPhase.HELD, second))
+            val swapped = CallWaiting.attendedTransferPair(activeFirst)
+            assertEquals("$first/$second", "b", swapped?.transferred?.key)
+            assertEquals("$first/$second", "a", swapped?.consult?.key)
+        }
+    }
+
+    @Test
+    fun twoHeldCallsJoinTheNewerAsConsultation() {
+        val calls = listOf(
             call("a", CallPhase.HELD, CallDirection.OUTBOUND),
-            call("b", CallPhase.ACTIVE, CallDirection.OUTBOUND),
+            call("b", CallPhase.HELD, CallDirection.OUTBOUND),
         )
-        assertNull(CallWaiting.attendedTransferPair(bothOut))
+        val pair = CallWaiting.attendedTransferPair(calls)
+        assertEquals("a", pair?.transferred?.key)
+        assertEquals("b", pair?.consult?.key)
     }
 
     @Test
@@ -190,11 +206,13 @@ class CallWaitingTest {
     }
 
     @Test
-    fun consultFirstOnlyFromALoneAnsweredIncomingCall() {
+    fun consultFirstFromAnyLoneConnectedCall() {
         val inbound = call("a", CallPhase.ACTIVE)
         assertTrue(CallWaiting.canConsult(inbound, listOf(inbound)))
         val outbound = call("b", CallPhase.ACTIVE, CallDirection.OUTBOUND)
-        assertFalse(CallWaiting.canConsult(outbound, listOf(outbound)))
+        assertTrue(CallWaiting.canConsult(outbound, listOf(outbound)))
+        val ringingOut = call("d", CallPhase.RINGING, CallDirection.OUTBOUND)
+        assertFalse(CallWaiting.canConsult(ringingOut, listOf(ringingOut)))
         assertFalse(CallWaiting.canConsult(inbound, listOf(inbound, call("c", CallPhase.HELD))))
     }
 
@@ -202,9 +220,9 @@ class CallWaitingTest {
 
     @Test
     fun unsupportedPairGetsAClearMessage() {
-        val msg = CallWaiting.attendedTransferErrorMessage(MobileException.TransferUnsupported("same direction"))
-        assertTrue(msg.contains("answered"))
-        assertTrue(msg.contains("placed"))
+        val msg = CallWaiting.attendedTransferErrorMessage(MobileException.TransferUnsupported("older PBX"))
+        assertTrue(msg.contains("can't join these two calls"))
+        assertTrue(msg.contains("Both calls are still up"))
     }
 
     @Test
@@ -223,8 +241,9 @@ class CallWaitingTest {
 
     @Test
     fun blindTransferOfAnUnsupportedCallIsExplained() {
-        val msg = CallStateMapping.transferErrorMessage(MobileException.TransferUnsupported("placed call"))
-        assertTrue(msg.contains("answered"))
+        val msg = CallStateMapping.transferErrorMessage(MobileException.TransferUnsupported("older PBX"))
+        assertTrue(msg.contains("can't transfer this call"))
+        assertTrue(msg.contains("still on the call"))
     }
 
     // ── Review fixes ─────────────────────────────────────────────────────
