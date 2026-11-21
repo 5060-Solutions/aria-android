@@ -62,7 +62,7 @@ dependencies {
 
     // Activity & Navigation
     implementation("androidx.activity:activity-compose:1.9.3")
-    implementation("androidx.navigation:navigation-compose:2.8.5")
+    implementation("androidx.navigation:navigation-compose:2.10.2")
 
     // Lifecycle
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
@@ -74,19 +74,19 @@ dependencies {
 
     // Telecom (ConnectionService)
     implementation("androidx.core:core-ktx:1.15.0")
-    implementation("androidx.core:core-telecom:1.0.0")
+    implementation("androidx.core:core-telecom:1.1.0")
 
     // Contacts
     implementation("androidx.core:core-ktx:1.15.0")
 
     // JNA for UniFFI Rust bindings
-    implementation("net.java.dev.jna:jna:5.17.0@aar")
+    implementation("net.java.dev.jna:jna:5.19.1@aar")
 
     // CameraX + ML Kit for QR scanning
     implementation("com.google.mlkit:barcode-scanning:17.3.0")
-    implementation("androidx.camera:camera-camera2:1.4.1")
-    implementation("androidx.camera:camera-lifecycle:1.4.1")
-    implementation("androidx.camera:camera-view:1.4.1")
+    implementation("androidx.camera:camera-camera2:1.7.0")
+    implementation("androidx.camera:camera-lifecycle:1.7.0")
+    implementation("androidx.camera:camera-view:1.7.0")
 
     // Encrypted storage for sensitive credentials (SIP password, JWT, gateway token)
     implementation("androidx.security:security-crypto:1.1.0-alpha06")
