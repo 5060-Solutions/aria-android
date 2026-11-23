@@ -123,7 +123,22 @@ object GatewayConnection {
 
     private val inFlight = AtomicBoolean(false)
 
-    fun dispatch(event: ConnectionEvent) = _state.update { ConnectionReducer.reduce(it, event) }
+    fun dispatch(event: ConnectionEvent) {
+        DiagLog.log("gateway", describe(event))
+        _state.update { ConnectionReducer.reduce(it, event) }
+    }
+
+    /** A log line for [event]: states, hosts and error text only (no tokens). */
+    private fun describe(event: ConnectionEvent): String = when (event) {
+        ConnectionEvent.Connecting -> "connecting"
+        is ConnectionEvent.Registered -> "registered" + (event.gatewayNode?.let { " via $it" } ?: "")
+        is ConnectionEvent.Failed -> "failed: ${event.message}"
+        ConnectionEvent.NotProvisioned -> "not signed in"
+        is ConnectionEvent.Online -> if (event.online) "online" else "offline"
+        is ConnectionEvent.CoreRegistration ->
+            "core ${event.status}" + (event.gatewayNode?.let { " via $it" } ?: "") + (event.error?.let { ": $it" } ?: "")
+        ConnectionEvent.SignedOut -> "signed out"
+    }
 
     /**
      * Builds the engine from the saved account if there is none (or, with

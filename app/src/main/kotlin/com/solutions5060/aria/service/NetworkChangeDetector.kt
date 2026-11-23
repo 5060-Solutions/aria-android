@@ -58,6 +58,8 @@ class NetworkChangeDetector(
     private val onChange: () -> Unit,
     private val onConnectivity: (online: Boolean) -> Unit = {},
     private val debounceMillis: Long = DEFAULT_DEBOUNCE_MS,
+    /** Every change of what is known about the default network, for diagnostics. */
+    private val onSnapshot: (NetworkSnapshot) -> Unit = {},
 ) : DefaultNetworkCallback {
 
     companion object {
@@ -108,7 +110,7 @@ class NetworkChangeDetector(
         this.validated = validated
         val transportChanged = before != null && before != transports
         val becameValidated = wasValidated == false && validated
-        if (transportChanged || becameValidated) changed()
+        if (transportChanged || becameValidated) changed() else publish()
     }
 
     @Synchronized
@@ -119,7 +121,12 @@ class NetworkChangeDetector(
         if (before != null && before != addresses) changed()
     }
 
+    private fun publish() = onSnapshot(
+        NetworkSnapshot(online = current != null, transports = transports.orEmpty(), validated = validated),
+    )
+
     private fun changed() {
+        publish()
         pending?.cancel()
         pending = scheduler.schedule(debounceMillis) {
             synchronized(this) { pending = null }

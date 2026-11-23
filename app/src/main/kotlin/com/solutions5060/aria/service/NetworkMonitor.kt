@@ -32,12 +32,19 @@ class NetworkMonitor(
         scheduler = scheduler,
         onChange = {
             Log.i(TAG, "Default network changed; notifying core")
+            val s = NetworkStatus.state.value
+            DiagLog.log(
+                "network",
+                "change -> " + (if (s.online) s.transports.joinToString("+") { it.name.lowercase() }.ifEmpty { "online" } else "offline"),
+            )
             GatewayConnection.onNetworkChanged(context.applicationContext)
         },
         onConnectivity = { online ->
             Log.i(TAG, if (online) "Network available" else "No default network")
+            DiagLog.log("network", if (online) "default network available" else "no default network")
             GatewayConnection.onConnectivity(context.applicationContext, online)
         },
+        onSnapshot = { NetworkStatus.update(it) },
     )
 
     fun start() = source.register(detector)

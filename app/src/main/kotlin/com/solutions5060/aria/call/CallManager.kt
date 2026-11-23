@@ -379,6 +379,7 @@ object CallManager {
     }
 
     private fun onConnected(rec: CallRecord) {
+        com.solutions5060.aria.service.DiagLog.log("call", "${rec.direction.name.lowercase()} call connected")
         // CallInfo.duration_secs is not maintained by the core, so the call is
         // timed from here.
         rec.connectedAtElapsed = SystemClock.elapsedRealtime()
@@ -1297,6 +1298,12 @@ object CallManager {
         }
 
         rec.phase = CallPhase.ENDED
+        // No numbers or names in the diagnostics log.
+        com.solutions5060.aria.service.DiagLog.log(
+            "call",
+            "${rec.direction.name.lowercase()} call ended: ${reason.name.lowercase()}" +
+                (connectedAt?.let { ", ${durationSeconds}s" } ?: "") + (rec.codec?.let { ", $it" } ?: ""),
+        )
         publishAll()
         mainHandler.postDelayed({
             if (records[rec.key] === rec) {
