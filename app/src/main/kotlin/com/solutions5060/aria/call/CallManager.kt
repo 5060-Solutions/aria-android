@@ -1319,6 +1319,17 @@ object CallManager {
         recording = recording,
     )
 
+    /**
+     * Debug fixture mode only ([com.solutions5060.aria.fixtures.Fixtures]):
+     * shows [calls] on screen without any engine or Telecom call behind them.
+     * Actions on them find no record and do nothing.
+     */
+    fun showFixtureCalls(calls: List<CallUiState>) {
+        if (!com.solutions5060.aria.BuildConfig.DEBUG) return
+        _calls.value = calls
+        _state.value = CallWaiting.foreground(calls)
+    }
+
     private fun publishAll() {
         val states = uiStates()
         _calls.value = states

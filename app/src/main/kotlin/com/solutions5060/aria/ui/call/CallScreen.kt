@@ -946,6 +946,7 @@ fun ManagedCallScreen(call: CallUiState) {
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
     ) { }
     LaunchedEffect(call.key) {
+        if (com.solutions5060.aria.fixtures.Fixtures.active) return@LaunchedEffect
         if (!com.solutions5060.aria.ui.permissions.Permissions.hasMicrophone(context)) {
             micLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
         }

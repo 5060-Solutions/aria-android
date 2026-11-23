@@ -7,6 +7,7 @@ import android.view.WindowManager
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.ui.platform.LocalContext
+import com.solutions5060.aria.fixtures.Fixtures
 
 /**
  * Marks the window FLAG_SECURE while this composable is on screen: no
@@ -21,6 +22,8 @@ import androidx.compose.ui.platform.LocalContext
 @Composable
 fun SecureWindow() {
     val activity = LocalContext.current.findActivity() ?: return
+    // Fixture mode shows only sample data and exists to be screenshotted.
+    if (Fixtures.active) return
     DisposableEffect(activity) {
         SecureFlag.acquire(activity)
         onDispose { SecureFlag.release(activity) }

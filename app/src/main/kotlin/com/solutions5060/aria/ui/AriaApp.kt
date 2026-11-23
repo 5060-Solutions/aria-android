@@ -33,6 +33,7 @@ import androidx.navigation.compose.rememberNavController
 import com.solutions5060.aria.call.CallAlertSetup
 import com.solutions5060.aria.call.CallManager
 import com.solutions5060.aria.call.EmergencyRouting
+import com.solutions5060.aria.fixtures.Fixtures
 import com.solutions5060.aria.history.CallHistoryStore
 import com.solutions5060.aria.security.SecurePrefs
 import com.solutions5060.aria.service.EngineManager
@@ -87,9 +88,14 @@ fun AriaApp() {
     // Permissions are requested where they are needed (microphone before the
     // first call, camera at QR scan, contacts on the Contacts tab,
     // notifications once signed in), never all at once on first launch.
+    val fixture = Fixtures.current
     var phase by remember {
         mutableStateOf(
-            if ((prefs.getString(KEY_SIP_USERNAME, "") ?: "").isEmpty()) AppPhase.SETUP else AppPhase.MAIN,
+            when {
+                fixture != null -> if (fixture.account == null) AppPhase.SETUP else AppPhase.MAIN
+                (prefs.getString(KEY_SIP_USERNAME, "") ?: "").isEmpty() -> AppPhase.SETUP
+                else -> AppPhase.MAIN
+            },
         )
     }
 
@@ -124,6 +130,10 @@ fun AriaApp() {
             MainApp(
                 prefs = prefs,
                 onSignOut = {
+                    if (fixture != null) {
+                        phase = AppPhase.SETUP
+                        return@MainApp
+                    }
                     prefs.edit().clear().apply()
                     SecurePrefs.clear(context)
                     CallHistoryStore.clear(context)
@@ -145,13 +155,18 @@ private fun MainApp(
     val currentRoute = navBackStackEntry?.destination?.route
 
     val context = LocalContext.current
+    val fixture = Fixtures.current
     var callError by remember { mutableStateOf<String?>(null) }
-    var engineReady by remember { mutableStateOf(SipEngineHolder.engine != null) }
+    var engineReady by remember {
+        mutableStateOf(fixture?.account?.registered ?: (SipEngineHolder.engine != null))
+    }
     val call by CallManager.state.collectAsState()
     val callSetupError by CallManager.error.collectAsState()
 
     // Re-initialize the engine on cold start if we have saved credentials
     LaunchedEffect(Unit) {
+        // Fixture mode never starts the engine.
+        if (fixture != null) return@LaunchedEffect
         if (SipEngineHolder.engine != null) {
             engineReady = true
             return@LaunchedEffect
@@ -173,7 +188,7 @@ private fun MainApp(
     DisposableEffect(lifecycleOwner) {
         // Re-checked on every resume, so returning from settings clears it.
         val observer = androidx.lifecycle.LifecycleEventObserver { _, event ->
-            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME) {
+            if (event == androidx.lifecycle.Lifecycle.Event.ON_RESUME && fixture == null) {
                 alertProblem = CallAlertSetup.problems(context).firstOrNull()
             }
         }
@@ -182,7 +197,9 @@ private fun MainApp(
     }
     // Notifications: asked once after sign-in, with the reason first, because
     // without them an incoming call cannot ring outside the app.
-    var showNotificationRationale by remember { mutableStateOf(Permissions.needsNotificationPrompt(context)) }
+    var showNotificationRationale by remember {
+        mutableStateOf(fixture == null && Permissions.needsNotificationPrompt(context))
+    }
     val notificationLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { _ ->
@@ -264,6 +281,7 @@ private fun MainApp(
         }
     }
     fun placeCall(number: String) {
+        if (fixture != null) return
         // Emergency numbers go to the native dialer, so no microphone prompt.
         if (Permissions.hasMicrophone(context) || EmergencyRouting.isEmergency(number)) {
             callError = CallManager.placeCall(context, number)
@@ -331,15 +349,15 @@ private fun MainApp(
         ) { innerPadding ->
             NavHost(
                 navController = navController,
-                startDestination = "dialer",
+                startDestination = fixture?.startTab ?: "dialer",
                 modifier = Modifier.padding(innerPadding)
             ) {
                 composable("dialer") {
                     DialerScreen(
                         onCall = { number -> placeCall(number) },
-                        displayName = prefs.getString(KEY_SIP_DISPLAY_NAME, "") ?: "",
-                        extensionNumber = prefs.getString(KEY_SIP_USERNAME, "") ?: "",
-                        domain = prefs.getString(KEY_SIP_DOMAIN, "") ?: "",
+                        displayName = fixture?.account?.displayName ?: prefs.getString(KEY_SIP_DISPLAY_NAME, "") ?: "",
+                        extensionNumber = fixture?.account?.extension ?: prefs.getString(KEY_SIP_USERNAME, "") ?: "",
+                        domain = fixture?.account?.domain ?: prefs.getString(KEY_SIP_DOMAIN, "") ?: "",
                         isConnected = engineReady,
                         callError = callError ?: callSetupError,
                         onDismissError = {

@@ -9,6 +9,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import com.solutions5060.aria.fixtures.Fixtures
 import com.solutions5060.aria.ui.AriaApp
 import com.solutions5060.aria.ui.theme.AriaTheme
 
@@ -20,6 +21,8 @@ class MainActivity : ComponentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+        // Debug builds only: `--es aria.fixture <scene>` shows sample data (see Fixtures).
+        Fixtures.installFrom(intent)
 
         setContent {
             AriaTheme {
@@ -31,5 +34,11 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onNewIntent(intent: android.content.Intent) {
+        super.onNewIntent(intent)
+        // A new fixture scene on a running (singleTask) activity starts over.
+        if (Fixtures.installFrom(intent)) recreate()
     }
 }
