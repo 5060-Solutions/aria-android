@@ -1,49 +1,78 @@
 package com.solutions5060.aria.ui.settings
 
 import android.content.Context
-import android.widget.Toast
+import android.os.Build
+import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.CheckCircle
-import androidx.compose.material.icons.filled.ContentCopy
-import androidx.compose.material.icons.filled.Error
-import androidx.compose.material.icons.automirrored.filled.Logout
-import androidx.compose.material.icons.filled.QrCodeScanner
-import androidx.compose.material.icons.filled.Refresh
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.painterResource
-import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.google.firebase.messaging.FirebaseMessaging
 import com.solutions5060.aria.BuildConfig
+import androidx.core.content.edit
 import com.solutions5060.aria.R
-import com.solutions5060.aria.security.SecurePrefs
-import com.solutions5060.aria.security.SensitiveClipboard
-import com.solutions5060.aria.ui.SecureWindow
 import com.solutions5060.aria.provisioning.DEFAULT_SIP_TRANSPORT
 import com.solutions5060.aria.provisioning.defaultSipPort
+import com.solutions5060.aria.security.SecurePrefs
+import com.solutions5060.aria.security.SensitiveClipboard
 import com.solutions5060.aria.service.EngineManager
 import com.solutions5060.aria.service.PbxApiClient
 import com.solutions5060.aria.service.SipEngineHolder
-import com.solutions5060.aria.ui.theme.LocalAriaColors
+import com.solutions5060.aria.ui.SecureWindow
+import com.solutions5060.aria.ui.components.AriaButton
+import com.solutions5060.aria.ui.components.AriaButtonStyle
+import com.solutions5060.aria.ui.components.AriaIcon
+import com.solutions5060.aria.ui.components.AriaListItem
+import com.solutions5060.aria.ui.components.AriaScreen
+import com.solutions5060.aria.ui.components.AriaSwitchRow
+import com.solutions5060.aria.ui.components.Avatar
+import com.solutions5060.aria.ui.components.ConnectedToggleGroup
+import com.solutions5060.aria.ui.components.LocalSnackbarHostState
+import com.solutions5060.aria.ui.components.RegistrationStatus
+import com.solutions5060.aria.ui.components.RowGroup
+import com.solutions5060.aria.ui.components.RowIcon
+import com.solutions5060.aria.ui.components.RowShape
+import com.solutions5060.aria.ui.components.SectionCard
+import com.solutions5060.aria.ui.components.StatusDot
+import com.solutions5060.aria.ui.components.ToggleOption
+import com.solutions5060.aria.ui.connection.toRegistrationStatus
+import com.solutions5060.aria.ui.theme.AriaIcons
+import com.solutions5060.aria.ui.theme.AriaShapes
+import com.solutions5060.aria.ui.theme.Sizes
+import com.solutions5060.aria.ui.theme.Spacing
+import com.solutions5060.aria.ui.theme.ThemeMode
+import com.solutions5060.aria.ui.theme.UiPreferences
+import kotlinx.coroutines.launch
 
 private const val PREFS_NAME = "aria_prefs"
 
-@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun SettingsScreen(
     onSignOut: () -> Unit = {},
@@ -57,6 +86,9 @@ fun SettingsScreen(
 
     // Renders the account and device identifiers.
     SecureWindow()
+
+    val missingFieldsText = stringResource(R.string.ui_settings_missing_fields)
+    val connectionErrorText = stringResource(R.string.ui_status_error)
 
     // Debug fixture mode: sample account, no network.
     val fixture = com.solutions5060.aria.fixtures.Fixtures.current?.account
@@ -95,9 +127,6 @@ fun SettingsScreen(
     var showQRScanner by remember { mutableStateOf(false) }
     var showSignOutDialog by remember { mutableStateOf(false) }
 
-    // Expandable ID fields
-    var showFullDeviceId by remember { mutableStateOf(false) }
-    var showFullExtensionId by remember { mutableStateOf(false) }
 
     // Fetch FCM token on first composition
     LaunchedEffect(Unit) {
@@ -112,7 +141,7 @@ fun SettingsScreen(
     fun performLogin() {
         if (fixture != null) return
         if (apiUrl.isEmpty() || sipUsername.isEmpty() || sipPassword.isEmpty() || sipDomain.isEmpty()) {
-            errorMessage = "Missing required fields. Scan a QR code to configure."
+            errorMessage = missingFieldsText
             return
         }
 
@@ -131,7 +160,7 @@ fun SettingsScreen(
                 isRegistered = true
                 isConnecting = false
             } catch (e: Exception) {
-                errorMessage = e.message ?: "Connection failed"
+                errorMessage = e.message ?: connectionErrorText
                 isConnecting = false
             }
         }.start()
@@ -151,17 +180,17 @@ fun SettingsScreen(
                 tenantDomain = creds.tenantDomain
                 showQRScanner = false
 
-                prefs.edit()
-                    .putString("sip_username", creds.username)
-                    .putString("sip_domain", creds.tenantDomain.ifEmpty { creds.server })
-                    .putString("sip_registrar", creds.server)
-                    .putString("sip_display_name", creds.displayName)
-                    .putString("sip_transport", creds.transport.lowercase())
-                    .putString("sip_port", creds.port.toString())
-                    .putString("api_url", creds.apiUrl)
-                    .putString("tenant_domain", creds.tenantDomain)
-                    .putString("voicemail_access", creds.voicemail)
-                    .apply()
+                prefs.edit {
+                    putString("sip_username", creds.username)
+                    putString("sip_domain", creds.tenantDomain.ifEmpty { creds.server })
+                    putString("sip_registrar", creds.server)
+                    putString("sip_display_name", creds.displayName)
+                    putString("sip_transport", creds.transport.lowercase())
+                    putString("sip_port", creds.port.toString())
+                    putString("api_url", creds.apiUrl)
+                    putString("tenant_domain", creds.tenantDomain)
+                    putString("voicemail_access", creds.voicemail)
+                }
                 // SIP password is sensitive — store encrypted.
                 SecurePrefs.putString(context, "sip_password", creds.password)
 
@@ -175,12 +204,11 @@ fun SettingsScreen(
     if (showSignOutDialog) {
         AlertDialog(
             onDismissRequest = { showSignOutDialog = false },
-            title = { Text("Sign Out", style = MaterialTheme.typography.titleLarge) },
+            icon = { AriaIcon(AriaIcons.Logout, null) },
+            title = { Text(stringResource(R.string.ui_settings_sign_out_title)) },
+            shape = AriaShapes.card,
             text = {
-                Text(
-                    "Are you sure you want to sign out? You will need to scan a QR code again to reconnect.",
-                    style = MaterialTheme.typography.bodyLarge,
-                )
+                Text(stringResource(R.string.ui_settings_sign_out_body))
             },
             confirmButton = {
                 TextButton(
@@ -204,464 +232,237 @@ fun SettingsScreen(
                         contentColor = MaterialTheme.colorScheme.error,
                     ),
                 ) {
-                    Text("Sign Out", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.ui_settings_sign_out))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showSignOutDialog = false }) {
-                    Text("Cancel", style = MaterialTheme.typography.labelLarge)
+                    Text(stringResource(R.string.action_cancel))
                 }
             },
         )
     }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = {
-                    Text(
-                        "Settings",
-                        style = MaterialTheme.typography.titleLarge,
-                    )
-                },
-                colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                ),
-            )
-        }
-    ) { padding ->
+    val connection = com.solutions5060.aria.service.GatewayConnection.state.collectAsState().value
+    val status = if (fixture != null) {
+        if (fixture.registered) RegistrationStatus.Registered else RegistrationStatus.Error
+    } else {
+        connection.toRegistrationStatus()
+    }
+    val appearance by UiPreferences.appearance(context).collectAsState()
+
+    AriaScreen(title = stringResource(R.string.ui_tab_settings)) { padding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding)
-                .padding(horizontal = 20.dp)
-                .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = Spacing.screen)
+                .padding(bottom = Spacing.xxl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sectionGap),
         ) {
-            Spacer(modifier = Modifier.height(2.dp))
-
-            // Compact profile card — horizontal layout
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    // Logo
-                    Image(
-                        painter = painterResource(id = R.drawable.ic_aria_logo),
-                        contentDescription = "Aria Logo",
-                        modifier = Modifier
-                            .size(48.dp)
-                            .clip(CircleShape),
-                    )
-
-                    Spacer(modifier = Modifier.width(14.dp))
-
-                    // Identity
-                    Column(modifier = Modifier.weight(1f)) {
-                        if (sipDisplayName.isNotEmpty()) {
-                            Text(
-                                text = sipDisplayName,
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.onSurface,
-                            )
-                        }
-                        if (sipUsername.isNotEmpty()) {
-                            Text(
-                                text = "Ext $sipUsername · $sipDomain",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            )
-                        }
-                    }
-
-                    // Status chip
-                    Surface(
-                        shape = RoundedCornerShape(12.dp),
-                        color = if (isRegistered) {
-                            LocalAriaColors.current.statusRegistered.copy(alpha = 0.14f)
-                        } else {
-                            MaterialTheme.colorScheme.error.copy(alpha = 0.14f)
-                        },
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                        ) {
-                            Icon(
-                                if (isRegistered) Icons.Default.CheckCircle else Icons.Default.Error,
-                                contentDescription = null,
-                                tint = if (isRegistered) LocalAriaColors.current.statusRegistered else MaterialTheme.colorScheme.error,
-                                modifier = Modifier.size(14.dp),
-                            )
-                            Spacer(modifier = Modifier.width(5.dp))
-                            Text(
-                                if (isRegistered) "Connected" else "Disconnected",
-                                color = if (isRegistered) LocalAriaColors.current.statusRegistered else MaterialTheme.colorScheme.error,
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                            )
-                        }
-                    }
-                }
-            }
-
-            // Error message
-            errorMessage?.let { error ->
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer,
-                    ),
-                ) {
+            // 1. Account
+            RowGroup(title = stringResource(R.string.ui_settings_account)) {
+                SectionCard {
                     Row(
-                        modifier = Modifier.padding(14.dp),
-                        verticalAlignment = Alignment.Top,
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
                     ) {
-                        Icon(
-                            Icons.Default.Error,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
-                            modifier = Modifier.size(20.dp),
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text(
-                            error,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            style = MaterialTheme.typography.bodyMedium,
-                        )
+                        Avatar(sipDisplayName.ifBlank { null }, key = sipUsername, size = 56.dp)
+                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+                            Text(
+                                sipDisplayName.ifBlank { stringResource(R.string.ui_settings_no_account) },
+                                style = MaterialTheme.typography.titleMedium,
+                            )
+                            if (sipUsername.isNotEmpty()) {
+                                Text(
+                                    stringResource(R.string.ui_settings_ext_domain, sipUsername, sipDomain),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                modifier = Modifier.padding(top = Spacing.xxs),
+                            ) {
+                                StatusDot(status)
+                                Text(
+                                    stringResource(status.label),
+                                    style = MaterialTheme.typography.labelLarge,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                )
+                            }
+                        }
                     }
                 }
-            }
-
-            // Connect / Reconnect button
-            if (!isRegistered || errorMessage != null) {
-                Button(
-                    onClick = { performLogin() },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .height(48.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    enabled = !isConnecting && sipUsername.isNotEmpty() && sipDomain.isNotEmpty(),
+                errorMessage?.let { error ->
+                    AriaListItem(
+                        headline = stringResource(R.string.ui_connection_last_error),
+                        supporting = error,
+                        leading = {
+                            RowIcon(
+                                AriaIcons.Error,
+                                tint = MaterialTheme.colorScheme.onErrorContainer,
+                                container = MaterialTheme.colorScheme.errorContainer,
+                            )
+                        },
+                    )
+                }
+                if (sipUsername.isNotEmpty()) {
+                    AriaListItem(
+                        headline = stringResource(R.string.ui_settings_server),
+                        supporting = sipRegistrar.ifEmpty { sipDomain },
+                        leading = { RowIcon(AriaIcons.Server) },
+                    )
+                    AriaListItem(
+                        headline = stringResource(R.string.ui_connection_transport),
+                        supporting = "${sipTransport.uppercase()} · $sipPort",
+                        leading = { RowIcon(AriaIcons.Secure) },
+                    )
+                }
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                    modifier = Modifier.padding(top = Spacing.xs),
                 ) {
-                    if (isConnecting) {
-                        CircularProgressIndicator(
-                            modifier = Modifier.size(20.dp),
-                            strokeWidth = 2.dp,
-                            color = MaterialTheme.colorScheme.onPrimary,
-                        )
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Text("Connecting...", fontSize = 15.sp, fontWeight = FontWeight.SemiBold)
-                    } else {
-                        Icon(Icons.Default.Refresh, contentDescription = null, modifier = Modifier.size(20.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            if (isRegistered) "Reconnect" else "Connect",
-                            fontSize = 15.sp,
-                            fontWeight = FontWeight.SemiBold,
+                    if (!isRegistered || errorMessage != null) {
+                        AriaButton(
+                            text = stringResource(if (isRegistered) R.string.ui_connection_reconnect else R.string.ui_settings_connect),
+                            onClick = { performLogin() },
+                            style = AriaButtonStyle.Standard,
+                            icon = AriaIcons.Sync,
+                            loading = isConnecting,
+                            enabled = sipUsername.isNotEmpty() && sipDomain.isNotEmpty(),
+                            modifier = Modifier.weight(1f),
                         )
                     }
+                    AriaButton(
+                        text = stringResource(if (sipUsername.isEmpty()) R.string.ui_settings_scan_qr else R.string.ui_settings_rescan_qr),
+                        onClick = { showQRScanner = true },
+                        style = AriaButtonStyle.Standard,
+                        icon = AriaIcons.QrScan,
+                        modifier = Modifier.weight(1f),
+                    )
                 }
             }
 
+            // 2. Calling (PBX: DND, forwarding, …)
             callingSection()
 
-            // On-device AI
-            SectionHeader("Transcription")
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenTranscription() }
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
+            // 4. Appearance
+            RowGroup(title = stringResource(R.string.ui_settings_appearance)) {
+                SectionCard {
                     Text(
-                        "On-device transcription",
+                        stringResource(R.string.ui_settings_theme),
                         style = MaterialTheme.typography.bodyLarge,
+                        modifier = Modifier.padding(bottom = Spacing.sm),
                     )
-                    Text(
-                        "Transcribe calls on this phone. Nothing is uploaded.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
-            ) {
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clickable { onOpenTranscripts() }
-                        .padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(4.dp),
-                ) {
-                    Text(
-                        "Call transcripts",
-                        style = MaterialTheme.typography.bodyLarge,
-                    )
-                    Text(
-                        "Read and delete transcripts of past calls.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    )
-                }
-            }
-
-            // Account details
-            SectionHeader("Account")
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    if (sipUsername.isNotEmpty()) {
-                        SettingsRow("Extension", sipUsername)
-                        SettingsDivider()
-                        SettingsRow("Domain", sipDomain)
-                        SettingsDivider()
-                        SettingsRow("Server", sipRegistrar.ifEmpty { sipDomain })
-                        SettingsDivider()
-                        SettingsRow("Transport", "${sipTransport.uppercase()} : $sipPort")
-                    } else {
-                        Text(
-                            "No account configured",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.4f),
-                        )
-                    }
-                }
-            }
-
-            // Provisioning – smaller, less dominant
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-            ) {
-                FilledTonalButton(
-                    onClick = { showQRScanner = true },
-                    modifier = Modifier
-                        .weight(1f)
-                        .height(44.dp),
-                    shape = RoundedCornerShape(12.dp),
-                    contentPadding = PaddingValues(horizontal = 12.dp),
-                ) {
-                    Icon(Icons.Default.QrCodeScanner, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text(
-                        if (sipUsername.isEmpty()) "Scan QR Code" else "Re-scan QR",
-                        fontSize = 14.sp,
-                        fontWeight = FontWeight.SemiBold,
-                    )
-                }
-
-                if (sipUsername.isNotEmpty()) {
-                    OutlinedButton(
-                        onClick = { showSignOutDialog = true },
-                        modifier = Modifier.height(44.dp),
-                        shape = RoundedCornerShape(12.dp),
-                        colors = ButtonDefaults.outlinedButtonColors(
-                            contentColor = MaterialTheme.colorScheme.error,
+                    ConnectedToggleGroup(
+                        options = listOf(
+                            ToggleOption(stringResource(R.string.ui_settings_theme_system)),
+                            ToggleOption(stringResource(R.string.ui_settings_theme_light)),
+                            ToggleOption(stringResource(R.string.ui_settings_theme_dark)),
                         ),
-                        contentPadding = PaddingValues(horizontal = 16.dp),
-                    ) {
-                        Icon(Icons.AutoMirrored.Filled.Logout, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(Modifier.width(6.dp))
-                        Text("Sign Out", fontSize = 14.sp, fontWeight = FontWeight.SemiBold)
-                    }
+                        selectedIndex = appearance.themeMode.ordinal,
+                        onSelect = { UiPreferences.setThemeMode(context, ThemeMode.entries[it]) },
+                        fill = true,
+                        modifier = Modifier.fillMaxWidth(),
+                    )
                 }
-            }
-
-            // Device info — tappable to expand
-            if (deviceId != null || extensionId != null) {
-                SectionHeader("Device")
-
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                    ),
-                ) {
-                    Column(
-                        modifier = Modifier.padding(16.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp),
-                    ) {
-                        deviceId?.let { id ->
-                            CopyableIdRow(
-                                label = "Device ID",
-                                value = id,
-                                expanded = showFullDeviceId,
-                                onToggle = { showFullDeviceId = !showFullDeviceId },
-                                context = context,
-                            )
-                        }
-                        if (deviceId != null && extensionId != null) {
-                            SettingsDivider()
-                        }
-                        extensionId?.let { id ->
-                            CopyableIdRow(
-                                label = "Extension ID",
-                                value = id,
-                                expanded = showFullExtensionId,
-                                onToggle = { showFullExtensionId = !showFullExtensionId },
-                                context = context,
-                            )
-                        }
-                    }
-                }
-            }
-
-            // About
-            SectionHeader("About")
-
-            Card(
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.surfaceVariant,
-                ),
-            ) {
-                Column(
-                    modifier = Modifier.padding(16.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp),
-                ) {
-                    SettingsRow("App", "Aria Softphone")
-                    SettingsDivider()
-                    SettingsRow("Version", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
-                    SettingsDivider()
-                    SettingsRow("Developer", "5060 Solutions")
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-        }
-    }
-}
-
-@Composable
-private fun SectionHeader(title: String) {
-    Text(
-        title,
-        style = MaterialTheme.typography.titleSmall,
-        color = MaterialTheme.colorScheme.primary,
-        modifier = Modifier.padding(start = 4.dp, top = 2.dp),
-    )
-}
-
-@Composable
-private fun SettingsDivider() {
-    HorizontalDivider(color = MaterialTheme.colorScheme.outline.copy(alpha = 0.15f))
-}
-
-@Composable
-private fun SettingsRow(label: String, value: String) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.SpaceBetween,
-        verticalAlignment = Alignment.CenterVertically,
-    ) {
-        Text(
-            label,
-            style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-        )
-        Text(
-            value,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.onSurface,
-        )
-    }
-}
-
-@Composable
-private fun CopyableIdRow(
-    label: String,
-    value: String,
-    expanded: Boolean,
-    onToggle: () -> Unit,
-    context: Context,
-) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onToggle() },
-    ) {
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Text(
-                label,
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-            )
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (expanded) value else value.take(8) + "…",
-                    style = MaterialTheme.typography.bodyMedium,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface,
-                    fontFamily = if (expanded) FontFamily.Monospace else FontFamily.Default,
-                    fontSize = if (expanded) 12.sp else 14.sp,
-                )
-                if (!expanded) {
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Icon(
-                        Icons.Default.ContentCopy,
-                        contentDescription = "Tap to expand",
-                        modifier = Modifier.size(14.dp),
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                    AriaSwitchRow(
+                        headline = stringResource(R.string.ui_settings_wallpaper_colors),
+                        supporting = stringResource(R.string.ui_settings_wallpaper_colors_desc),
+                        checked = appearance.dynamicColor,
+                        onCheckedChange = { UiPreferences.setDynamicColor(context, it) },
+                        leading = { RowIcon(AriaIcons.Palette) },
                     )
                 }
             }
-        }
-        if (expanded) {
-            Spacer(modifier = Modifier.height(8.dp))
-            FilledTonalButton(
-                onClick = {
-                    SensitiveClipboard.copy(context, value)
-                    Toast.makeText(context, "Copied; clears in a minute", Toast.LENGTH_SHORT).show()
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(8.dp),
-                contentPadding = PaddingValues(vertical = 6.dp),
-            ) {
-                Icon(Icons.Default.ContentCopy, contentDescription = null, modifier = Modifier.size(14.dp))
-                Spacer(Modifier.width(6.dp))
-                Text("Copy", style = MaterialTheme.typography.labelSmall)
+
+            // 5. Transcription
+            RowGroup(title = stringResource(R.string.ui_settings_transcription)) {
+                AriaListItem(
+                    headline = stringResource(R.string.ui_settings_on_device),
+                    supporting = stringResource(R.string.ui_settings_on_device_desc),
+                    leading = { RowIcon(AriaIcons.Transcribe) },
+                    trailing = { AriaIcon(AriaIcons.ChevronRight, null) },
+                    onClick = onOpenTranscription,
+                    shape = RowShape.Pill,
+                )
+                AriaListItem(
+                    headline = stringResource(R.string.ui_settings_transcripts),
+                    supporting = stringResource(R.string.ui_settings_transcripts_desc),
+                    leading = { RowIcon(AriaIcons.Transcript) },
+                    trailing = { AriaIcon(AriaIcons.ChevronRight, null) },
+                    onClick = onOpenTranscripts,
+                    shape = RowShape.Pill,
+                )
+            }
+
+            // 6. Diagnostics
+            if (deviceId != null || extensionId != null) {
+                RowGroup(title = stringResource(R.string.ui_settings_device)) {
+                    deviceId?.let { id ->
+                        CopyableIdRow(stringResource(R.string.ui_settings_device_id), id, AriaIcons.Diagnostics)
+                    }
+                    extensionId?.let { id ->
+                        CopyableIdRow(stringResource(R.string.ui_settings_extension_id), id, AriaIcons.Person)
+                    }
+                }
+            }
+
+            // 7. About
+            RowGroup(title = stringResource(R.string.ui_settings_about)) {
+                AriaListItem(
+                    headline = stringResource(R.string.ui_settings_version),
+                    supporting = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                    leading = { RowIcon(AriaIcons.Info) },
+                )
+                AriaListItem(
+                    headline = stringResource(R.string.ui_settings_developer),
+                    supporting = "5060 Solutions",
+                    leading = {
+                        Image(
+                            painterResource(R.drawable.ic_aria_logo),
+                            contentDescription = null,
+                            modifier = Modifier
+                                .size(Sizes.avatar)
+                                .clip(AriaShapes.chip),
+                        )
+                    },
+                )
+            }
+
+            if (sipUsername.isNotEmpty()) {
+                AriaButton(
+                    text = stringResource(R.string.ui_settings_sign_out),
+                    onClick = { showSignOutDialog = true },
+                    style = AriaButtonStyle.Destructive,
+                    icon = AriaIcons.Logout,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }
+}
+
+/** An identifier row: shortened, tap to copy (clears from the clipboard after a minute). */
+@Composable
+private fun CopyableIdRow(label: String, value: String, @DrawableRes icon: Int) {
+    val context = LocalContext.current
+    val snackbar = LocalSnackbarHostState.current
+    val scope = rememberCoroutineScope()
+    val copied = stringResource(R.string.ui_settings_copied)
+    AriaListItem(
+        headline = label,
+        supporting = value.take(8) + "…",
+        leading = { RowIcon(icon) },
+        trailing = { AriaIcon(AriaIcons.Copy, null, tint = MaterialTheme.colorScheme.onSurfaceVariant) },
+        onClick = {
+            SensitiveClipboard.copy(context, value)
+            scope.launch { snackbar.showSnackbar(copied) }
+        },
+        onClickLabel = stringResource(R.string.ui_settings_copy),
+    )
 }
