@@ -30,8 +30,15 @@ fun HistoryScreen(onCall: (String) -> Unit) {
     // and the recents thumbnail.
     SecureWindow()
     val context = LocalContext.current
-    val history = remember {
-        com.solutions5060.aria.fixtures.Fixtures.current?.history ?: CallHistoryStore.load(context)
+    val fixtureHistory = com.solutions5060.aria.fixtures.Fixtures.current?.history
+    val local = remember { fixtureHistory ?: CallHistoryStore.load(context) }
+    // The local list at once, then merged with the PBX's call records.
+    val history by produceState(local) {
+        if (fixtureHistory == null) {
+            value = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                com.solutions5060.aria.history.HistoryRepository(context).merged(local)
+            }
+        }
     }
 
     Scaffold(

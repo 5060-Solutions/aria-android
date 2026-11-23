@@ -54,4 +54,30 @@
     <!-- Dial links -->
     <string name="dial_link_title">Call %1$s?</string>
     <string name="dial_link_body">Another app asked Aria to call this number.</string>
+
+    <!-- Settings: Calling -->
+    <string name="settings_calling">Calling</string>
+    <string name="settings_dnd">Do Not Disturb</string>
+    <string name="settings_dnd_desc">Send callers to voicemail on all your devices</string>
+    <string name="settings_forwarding_on">On</string>
+    <string name="settings_forwarding_off">Off</string>
+
+    <!-- Call forwarding -->
+    <string name="forwarding_title">Call forwarding</string>
+    <string name="forwarding_always">Always</string>
+    <string name="forwarding_always_desc">Forward every call</string>
+    <string name="forwarding_busy">When busy</string>
+    <string name="forwarding_busy_desc">Forward calls while you\'re on another call</string>
+    <string name="forwarding_no_answer">When unanswered</string>
+    <string name="forwarding_no_answer_desc">Forward calls you don\'t answer</string>
+    <string name="forwarding_destination">Forward to</string>
+    <string name="forwarding_destination_hint">Extension or phone number</string>
+    <plurals name="forwarding_ring_for">
+        <item quantity="one">Ring for %d second first</item>
+        <item quantity="other">Ring for %d seconds first</item>
+    </plurals>
+    <string name="forwarding_save">Save</string>
+    <string name="forwarding_remove">Remove</string>
+    <string name="forwarding_load_error">Couldn\'t load your forwarding settings. Check your connection.</string>
+    <string name="forwarding_footer">Forwarding is set on the phone system, so it applies to all your devices.</string>
 </resources>
