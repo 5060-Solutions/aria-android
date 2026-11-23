@@ -9,17 +9,12 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Visibility
 import androidx.compose.material.icons.filled.VisibilityOff
-import androidx.compose.material3.Button
-import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -41,7 +36,6 @@ import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.unit.dp
 import com.solutions5060.aria.R
 import com.solutions5060.aria.provisioning.DEFAULT_API_URL
 import com.solutions5060.aria.provisioning.ManualSetupError
@@ -52,6 +46,11 @@ import com.solutions5060.aria.provisioning.ProvisioningCredentials
 import com.solutions5060.aria.provisioning.validateManualSetup
 import com.solutions5060.aria.service.PbxApiClient
 import com.solutions5060.aria.ui.SecureWindow
+import com.solutions5060.aria.ui.components.AriaButton
+import com.solutions5060.aria.ui.components.AriaIcon
+import com.solutions5060.aria.ui.theme.AriaIcons
+import com.solutions5060.aria.ui.theme.AriaShapes
+import com.solutions5060.aria.ui.theme.Spacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -143,7 +142,7 @@ fun ManualSetupScreen(
                 title = {},
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.action_back))
+                        AriaIcon(AriaIcons.Back, contentDescription = stringResource(R.string.action_back))
                     }
                 },
             )
@@ -155,8 +154,8 @@ fun ManualSetupScreen(
                 .padding(padding)
                 .imePadding()
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp),
+                .padding(horizontal = Spacing.screen),
+            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
             Text(stringResource(R.string.manual_setup_title), style = MaterialTheme.typography.headlineMedium)
             Text(
@@ -164,7 +163,7 @@ fun ManualSetupScreen(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
-            Spacer(Modifier.height(12.dp))
+            Spacer(Modifier.height(Spacing.sm))
 
             SetupField(
                 value = server,
@@ -223,25 +222,16 @@ fun ManualSetupScreen(
                 )
             }
 
-            Spacer(Modifier.height(12.dp))
-            Button(
+            Spacer(Modifier.height(Spacing.sm))
+            AriaButton(
+                text = stringResource(if (busy) R.string.manual_setup_signing_in else R.string.manual_setup_sign_in),
                 onClick = ::submit,
-                enabled = !busy,
-                shape = RoundedCornerShape(26.dp),
+                loading = busy,
                 modifier = Modifier
                     .fillMaxWidth()
-                    .height(52.dp)
                     .testTag(ManualSetupTags.SIGN_IN),
-            ) {
-                if (busy) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.padding(start = 8.dp))
-                    Text(stringResource(R.string.manual_setup_signing_in))
-                } else {
-                    Text(stringResource(R.string.manual_setup_sign_in))
-                }
-            }
-            Spacer(Modifier.height(24.dp))
+            )
+            Spacer(Modifier.height(Spacing.xl))
         }
     }
 }
@@ -272,7 +262,7 @@ private fun SetupField(
         trailingIcon = trailing,
         keyboardOptions = KeyboardOptions(keyboardType = keyboardType, imeAction = imeAction, autoCorrectEnabled = false),
         keyboardActions = androidx.compose.foundation.text.KeyboardActions(onDone = { onDone() }),
-        shape = RoundedCornerShape(14.dp),
+        shape = AriaShapes.textField,
         modifier = Modifier
             .fillMaxWidth()
             .testTag(tag),
