@@ -67,7 +67,7 @@ fun DialerScreen(
             verticalAlignment = Alignment.CenterVertically,
         ) {
             Image(
-                painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                painter = painterResource(id = R.drawable.ic_aria_logo),
                 contentDescription = "Aria",
                 modifier = Modifier.size(36.dp),
             )

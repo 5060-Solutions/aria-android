@@ -29,6 +29,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.google.firebase.messaging.FirebaseMessaging
+import com.solutions5060.aria.BuildConfig
 import com.solutions5060.aria.R
 import com.solutions5060.aria.security.SecurePrefs
 import com.solutions5060.aria.security.SensitiveClipboard
@@ -243,7 +244,7 @@ fun SettingsScreen(
                 ) {
                     // Logo
                     Image(
-                        painter = painterResource(id = R.mipmap.ic_launcher_foreground),
+                        painter = painterResource(id = R.drawable.ic_aria_logo),
                         contentDescription = "Aria Logo",
                         modifier = Modifier
                             .size(48.dp)
@@ -542,7 +543,7 @@ fun SettingsScreen(
                 ) {
                     SettingsRow("App", "Aria Softphone")
                     SettingsDivider()
-                    SettingsRow("Version", "v1.0.0")
+                    SettingsRow("Version", "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})")
                     SettingsDivider()
                     SettingsRow("Developer", "5060 Solutions")
                 }

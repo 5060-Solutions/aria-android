@@ -2,7 +2,6 @@ package com.solutions5060.aria.ui
 
 import android.Manifest
 import android.content.Context
-import android.content.pm.PackageManager
 import android.os.Build
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -27,7 +26,6 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import androidx.core.content.ContextCompat
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.currentBackStackEntryAsState
@@ -42,11 +40,11 @@ import com.solutions5060.aria.ui.call.ManagedCallScreen
 import com.solutions5060.aria.ui.contacts.ContactsScreen
 import com.solutions5060.aria.ui.dialer.DialerScreen
 import com.solutions5060.aria.ui.history.HistoryScreen
+import com.solutions5060.aria.ui.permissions.Permissions
 import com.solutions5060.aria.ui.settings.SettingsScreen
 import com.solutions5060.aria.ui.settings.TranscriptionScreen
 import com.solutions5060.aria.ui.setup.SetupScreen
 import com.solutions5060.aria.ui.transcripts.TranscriptsScreen
-import com.solutions5060.aria.ui.splash.SplashScreen
 import com.solutions5060.aria.ui.voicemail.VoicemailScreen
 
 private const val TAG = "AriaApp"
@@ -61,8 +59,6 @@ private const val KEY_SIP_PORT = "sip_port"
 private const val KEY_API_URL = "api_url"
 
 private enum class AppPhase {
-    SPLASH,
-    PERMISSIONS,
     SETUP,
     MAIN,
 }
@@ -87,52 +83,16 @@ fun AriaApp() {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
 
-    var phase by remember { mutableStateOf(AppPhase.SPLASH) }
-    var permissionsRequested by remember { mutableStateOf(false) }
-
-    val requiredPermissions = remember {
-        buildList {
-            add(Manifest.permission.READ_CONTACTS)
-            add(Manifest.permission.RECORD_AUDIO)
-            add(Manifest.permission.CAMERA)
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
-                add(Manifest.permission.POST_NOTIFICATIONS)
-            }
-        }.toTypedArray()
-    }
-
-    val permissionLauncher = rememberLauncherForActivityResult(
-        ActivityResultContracts.RequestMultiplePermissions()
-    ) { _ ->
-        permissionsRequested = true
-        val username = prefs.getString(KEY_SIP_USERNAME, "") ?: ""
-        phase = if (username.isEmpty()) AppPhase.SETUP else AppPhase.MAIN
-    }
-
-    LaunchedEffect(phase) {
-        if (phase == AppPhase.PERMISSIONS) {
-            val allGranted = requiredPermissions.all {
-                ContextCompat.checkSelfPermission(context, it) == PackageManager.PERMISSION_GRANTED
-            }
-            if (allGranted) {
-                permissionsRequested = true
-                val username = prefs.getString(KEY_SIP_USERNAME, "") ?: ""
-                phase = if (username.isEmpty()) AppPhase.SETUP else AppPhase.MAIN
-            } else {
-                permissionLauncher.launch(requiredPermissions)
-            }
-        }
+    // Permissions are requested where they are needed (microphone before the
+    // first call, camera at QR scan, contacts on the Contacts tab,
+    // notifications once signed in), never all at once on first launch.
+    var phase by remember {
+        mutableStateOf(
+            if ((prefs.getString(KEY_SIP_USERNAME, "") ?: "").isEmpty()) AppPhase.SETUP else AppPhase.MAIN,
+        )
     }
 
     when (phase) {
-        AppPhase.SPLASH -> {
-            SplashScreen(onFinished = { phase = AppPhase.PERMISSIONS })
-        }
-
-        AppPhase.PERMISSIONS -> {
-            SplashScreen(onFinished = {})
-        }
-
         AppPhase.SETUP -> {
             SetupScreen(
                 onCredentialsScanned = { creds ->
@@ -219,8 +179,43 @@ private fun MainApp(
         lifecycleOwner.lifecycle.addObserver(observer)
         onDispose { lifecycleOwner.lifecycle.removeObserver(observer) }
     }
+    // Notifications: asked once after sign-in, with the reason first, because
+    // without them an incoming call cannot ring outside the app.
+    var showNotificationRationale by remember { mutableStateOf(Permissions.needsNotificationPrompt(context)) }
+    val notificationLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { _ ->
+        alertProblem = CallAlertSetup.problems(context).firstOrNull()
+    }
+    if (showNotificationRationale && call == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+        AlertDialog(
+            onDismissRequest = {},
+            title = { Text("Allow notifications") },
+            text = {
+                Text(
+                    "Aria uses notifications to ring for incoming calls and to show the call you're on. " +
+                        "Without them you can only answer calls while the app is open.",
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    showNotificationRationale = false
+                    alertProblemDismissed = true
+                    Permissions.markNotificationPromptShown(context)
+                    notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+                }) { Text("Continue") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showNotificationRationale = false
+                    Permissions.markNotificationPromptShown(context)
+                }) { Text("Not now") }
+            },
+        )
+    }
+
     val problem = alertProblem
-    if (problem != null && !alertProblemDismissed && call == null) {
+    if (problem != null && !alertProblemDismissed && !showNotificationRationale && call == null) {
         AlertDialog(
             onDismissRequest = { alertProblemDismissed = true },
             title = { Text("Incoming calls need attention") },
@@ -252,9 +247,42 @@ private fun MainApp(
         )
     }
 
-    // Calls go through Telecom; CallManager reports any setup failure.
+    // Calls go through Telecom; CallManager reports any setup failure. The
+    // microphone is requested before the first call, with the reason first.
+    var micRationaleFor by remember { mutableStateOf<String?>(null) }
+    var pendingCall by remember { mutableStateOf<String?>(null) }
+    val micLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission(),
+    ) { granted ->
+        val number = pendingCall
+        pendingCall = null
+        callError = when {
+            !granted -> "Aria needs microphone access to make calls. You can allow it in Settings > Apps > Aria > Permissions."
+            number != null -> CallManager.placeCall(context, number)
+            else -> null
+        }
+    }
     fun placeCall(number: String) {
-        callError = CallManager.placeCall(context, number)
+        if (Permissions.hasMicrophone(context)) {
+            callError = CallManager.placeCall(context, number)
+        } else {
+            micRationaleFor = number
+        }
+    }
+    micRationaleFor?.let { number ->
+        AlertDialog(
+            onDismissRequest = { micRationaleFor = null },
+            title = { Text("Microphone access") },
+            text = { Text("Aria uses the microphone only during calls, so the other person can hear you.") },
+            confirmButton = {
+                TextButton(onClick = {
+                    micRationaleFor = null
+                    pendingCall = number
+                    micLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                }) { Text("Continue") }
+            },
+            dismissButton = { TextButton(onClick = { micRationaleFor = null }) { Text("Cancel") } },
+        )
     }
 
     val activeCall = call

@@ -20,3 +20,8 @@ app/src/main/jniLibs/
 
 # Kotlin compiler daemon cache
 .kotlin/
+
+# Release signing material (see README "Release signing") — never commit.
+keystore.properties
+*.jks
+*.keystore

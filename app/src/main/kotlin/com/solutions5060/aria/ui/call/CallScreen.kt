@@ -940,6 +940,16 @@ private fun AudioLevelBar(
 @Composable
 fun ManagedCallScreen(call: CallUiState) {
     val context = LocalContext.current
+    // An incoming call can be the first call ever: ask for the microphone
+    // while it rings, so the answered call does not send silence.
+    val micLauncher = androidx.activity.compose.rememberLauncherForActivityResult(
+        androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
+    ) { }
+    LaunchedEffect(call.key) {
+        if (!com.solutions5060.aria.ui.permissions.Permissions.hasMicrophone(context)) {
+            micLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
+        }
+    }
     val calls by CallManager.calls.collectAsState()
     val callError by CallManager.error.collectAsState()
     CallScreen(

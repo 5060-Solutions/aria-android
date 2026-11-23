@@ -1,0 +1,27 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Generated from the Aria brand mark (softphone public/icon.svg). -->
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:width="288dp" android:height="288dp" android:viewportWidth="288" android:viewportHeight="288">
+    <group android:translateX="66.286" android:translateY="66.286" android:scaleX="0.30357" android:scaleY="0.30357">
+        <path android:pathData="M128,32 H384 a96,96 0 0 1 96,96 V384 a96,96 0 0 1 -96,96 H128 a96,96 0 0 1 -96,-96 V128 a96,96 0 0 1 96,-96 Z">
+            <aapt:attr name="android:fillColor">
+            <gradient android:type="linear" android:startX="32" android:startY="32" android:endX="480" android:endY="480">
+                <item android:offset="0" android:color="#FF6366F1" />
+                <item android:offset="0.5" android:color="#FF8B5CF6" />
+                <item android:offset="1" android:color="#FFA855F7" />
+            </gradient>
+        </aapt:attr>
+        </path>
+        <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.1" android:pathData="M128,48 H384 a80,80 0 0 1 80,80 V176 a80,80 0 0 1 -80,80 H128 a80,80 0 0 1 -80,-80 V128 a80,80 0 0 1 80,-80 Z" />
+        <group android:translateX="256" android:translateY="256">
+            <path android:fillColor="#FFFFFFFF" android:fillAlpha="1.0" android:pathData="M-16,-104.0 a16.0,16.0 0 0 1 32,0 V104.0 a16.0,16.0 0 0 1 -32,0 Z" />
+            <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.9" android:pathData="M-72,-66.0 a14.0,14.0 0 0 1 28,0 V66.0 a14.0,14.0 0 0 1 -28,0 Z" />
+            <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.75" android:pathData="M-120,-36.0 a12.0,12.0 0 0 1 24,0 V36.0 a12.0,12.0 0 0 1 -24,0 Z" />
+            <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.55" android:pathData="M-160,-18.0 a10.0,10.0 0 0 1 20,0 V18.0 a10.0,10.0 0 0 1 -20,0 Z" />
+            <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.9" android:pathData="M44,-66.0 a14.0,14.0 0 0 1 28,0 V66.0 a14.0,14.0 0 0 1 -28,0 Z" />
+            <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.75" android:pathData="M96,-36.0 a12.0,12.0 0 0 1 24,0 V36.0 a12.0,12.0 0 0 1 -24,0 Z" />
+            <path android:fillColor="#FFFFFFFF" android:fillAlpha="0.55" android:pathData="M140,-18.0 a10.0,10.0 0 0 1 20,0 V18.0 a10.0,10.0 0 0 1 -20,0 Z" />
+        </group>
+    </group>
+</vector>

@@ -1,11 +1,19 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <style name="Theme.Aria" parent="android:Theme.Material.Light.NoActionBar" />
+    <!--
+        Window theme under the Compose UI. Compose (ui/theme/Theme.kt) draws
+        everything; this only sets the window background and accent so there
+        is no white flash before the first frame. values-night overrides it.
+    -->
+    <style name="Theme.Aria" parent="android:Theme.Material.Light.NoActionBar">
+        <item name="android:windowBackground">@color/aria_background</item>
+        <item name="android:colorAccent">@color/aria_primary</item>
+    </style>
 
-    <!-- Splash theme: indigo background, no system UI flash -->
-    <style name="Theme.Aria.Splash" parent="Theme.Aria">
-        <item name="android:windowBackground">@color/splash_background</item>
-        <item name="android:statusBarColor">@color/splash_background</item>
-        <item name="android:navigationBarColor">@color/splash_background</item>
+    <!-- Launch theme for the AndroidX Splash Screen API (core-splashscreen). -->
+    <style name="Theme.Aria.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/aria_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="postSplashScreenTheme">@style/Theme.Aria</item>
     </style>
 </resources>

@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Window colours before Compose draws (desktop theme tokens, dark). -->
+    <color name="aria_background">#0F1511</color>
+    <color name="aria_primary">#7DDCB0</color>
+</resources>
