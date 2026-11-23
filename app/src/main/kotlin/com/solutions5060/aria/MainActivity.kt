@@ -28,7 +28,10 @@ class MainActivity : ComponentActivity() {
         // A task reopened from Recents is relaunched with its original intent:
         // that link was handled then and must not prompt again.
         val fromHistory = (intent?.flags ?: 0) and android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
-        if (savedInstanceState == null && !fromHistory) DeepLinks.offer(DeepLinks.parse(intent?.action, intent?.dataString))
+        if (savedInstanceState == null && !fromHistory) {
+            DeepLinks.offer(DeepLinks.parse(intent?.action, intent?.dataString))
+            DeepLinks.offer(tabLink(intent))
+        }
 
         setContent {
             AriaTheme {
@@ -42,10 +45,17 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /** The tab one of our own notifications asks for (not exported to other apps' data). */
+    private fun tabLink(intent: android.content.Intent?): com.solutions5060.aria.provisioning.DeepLink? =
+        intent?.getStringExtra(com.solutions5060.aria.voicemail.VoicemailMonitor.EXTRA_OPEN_TAB)
+            ?.takeIf { it in com.solutions5060.aria.provisioning.DeepLink.OpenTab.ROUTES }
+            ?.let { com.solutions5060.aria.provisioning.DeepLink.OpenTab(it) }
+
     override fun onNewIntent(intent: android.content.Intent) {
         super.onNewIntent(intent)
         // A new fixture scene on a running (singleTask) activity starts over.
         if (Fixtures.installFrom(intent)) recreate()
         DeepLinks.offer(DeepLinks.parse(intent.action, intent.dataString))
+        DeepLinks.offer(tabLink(intent))
     }
 }

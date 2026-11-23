@@ -80,4 +80,16 @@
     <string name="forwarding_remove">Remove</string>
     <string name="forwarding_load_error">Couldn\'t load your forwarding settings. Check your connection.</string>
     <string name="forwarding_footer">Forwarding is set on the phone system, so it applies to all your devices.</string>
+
+    <!-- Voicemail (message waiting) -->
+    <string name="voicemail_channel_name">Voicemail</string>
+    <string name="voicemail_new_from">New voicemail from %1$s</string>
+    <plurals name="voicemail_new_count">
+        <item quantity="one">%d new voicemail</item>
+        <item quantity="other">%d new voicemails</item>
+    </plurals>
+    <plurals name="voicemail_unread_count">
+        <item quantity="one">%d unread message</item>
+        <item quantity="other">%d unread messages</item>
+    </plurals>
 </resources>

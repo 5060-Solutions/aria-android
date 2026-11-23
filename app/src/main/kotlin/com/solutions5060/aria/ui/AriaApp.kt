@@ -128,6 +128,7 @@ fun AriaApp() {
         CallHistoryStore.clear(context)
         EngineManager.reset()
         GatewayConnection.onSignedOut()
+        com.solutions5060.aria.voicemail.VoicemailMonitor.clear(context)
         SelfServiceState.clear()
     }
 
@@ -214,6 +215,15 @@ private fun MainApp(
     // DND moon and forwarding arrow on the status chip.
     val selfServiceViewModel = viewModel<SelfServiceViewModel>()
     val selfService by selfServiceViewModel.state.collectAsState()
+    val voicemailUnread by com.solutions5060.aria.voicemail.VoicemailMonitor.unread.collectAsState()
+    // A tab named by a notification (new voicemail).
+    val tabLink by DeepLinks.pending.collectAsState()
+    (tabLink as? DeepLink.OpenTab)?.let { link ->
+        LaunchedEffect(link) {
+            navController.navigate(link.route) { launchSingleTop = true }
+            DeepLinks.consume(link)
+        }
+    }
     LaunchedEffect(Unit) { selfServiceViewModel.refresh() }
     val call by CallManager.state.collectAsState()
     val callSetupError by CallManager.error.collectAsState()
@@ -391,7 +401,7 @@ private fun MainApp(
     } else {
         AriaShell(
             currentRoute = currentRoute,
-            voicemailUnread = fixture?.voicemail?.count { !it.read } ?: 0,
+            voicemailUnread = fixture?.voicemail?.count { !it.read } ?: voicemailUnread,
             onSelectTab = { tab ->
                 navController.navigate(tab.route) {
                     popUpTo(navController.graph.startDestinationId) { saveState = true }
