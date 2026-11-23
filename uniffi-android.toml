@@ -7,3 +7,8 @@
 # SDK_INT check and @RequiresApi, falling back to JNA's cleaner below it.
 [bindings.kotlin]
 android_cleaner = true
+#
+# The generated loader otherwise looks for "uniffi_aria_mobile", which forced
+# build-rust.sh to ship the cdylib twice under two names. Point it at the real
+# cdylib name so each ABI packages exactly one libaria_mobile_core.so.
+cdylib_name = "aria_mobile_core"

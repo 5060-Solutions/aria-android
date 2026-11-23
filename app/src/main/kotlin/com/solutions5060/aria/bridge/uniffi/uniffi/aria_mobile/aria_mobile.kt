@@ -377,7 +377,7 @@ private fun findLibraryName(componentName: String): String {
     if (libOverride != null) {
         return libOverride
     }
-    return "uniffi_aria_mobile"
+    return "aria_mobile_core"
 }
 
 private inline fun <reified Lib : Library> loadIndirect(

@@ -15,7 +15,7 @@ Native Android softphone built with Jetpack Compose, Android Telecom ConnectionS
 - **Voicemail** -- list, play, mark read and delete messages through the Aria PBX API
 - **Provisioning** -- scan an `aria://provision` QR code; the endpoints are shown for confirmation before sign-in, and signalling defaults to TLS
 - **On-device transcription** -- opt-in, with transcripts encrypted at rest (arm64 builds with `AI=1`)
-- **Dynamic color** -- Material You theming on Android 12+
+- **Splash and icon** -- AndroidX Splash Screen API; adaptive icon with monochrome (themed) layer
 
 ## Requirements
 
@@ -37,7 +37,7 @@ Native Android softphone built with Jetpack Compose, Android Telecom ConnectionS
 AI=1 ./build-rust.sh   # with on-device transcription on arm64
 ```
 
-This cross-compiles `aria-mobile-core` (expected at `../aria-mobile-core`) for all Android ABIs into `app/src/main/jniLibs/`, and regenerates the UniFFI Kotlin bindings with the settings in `uniffi-android.toml`. The native libraries are not committed, so run this before the first build; the generated bindings are committed and must match the libraries they were built with.
+This cross-compiles `aria-mobile-core` (at `../aria-mobile-core`, or wherever `RUST_DIR` points: `RUST_DIR=~/src/aria-mobile-core ./build-rust.sh release`) for all Android ABIs into `app/src/main/jniLibs/`, and regenerates the UniFFI Kotlin bindings with the settings in `uniffi-android.toml`. The native libraries are not committed, so run this before the first build; the generated bindings are committed and must match the libraries they were built with.
 
 ### 2. Build the APK
 
@@ -53,7 +53,41 @@ ANDROID_HOME="$HOME/Library/Android/sdk" ./gradlew :app:testDebugUnitTest :app:l
 
 Or open in Android Studio and run.
 
-### 3. Firebase Setup
+### 3. Release build
+
+```bash
+./build-rust.sh release
+./gradlew :app:bundleRelease      # app/build/outputs/bundle/release/app-release.aab
+./gradlew :app:assembleRelease    # app/build/outputs/apk/release/
+```
+
+Release builds are minified with R8 and resource shrinking (`app/proguard-rules.pro`
+explains every rule), ship one `libaria_mobile_core.so` per ABI (arm64-v8a,
+armeabi-v7a, x86_64), and put the core's native symbol tables in the bundle for
+Play's crash symbolication.
+
+**Version.** `ariaVersionName` / `ariaVersionCode` in `gradle.properties` are the
+single source of truth (Settings shows `BuildConfig.VERSION_NAME`). Bump
+`ariaVersionCode` for every Play upload, or override per build:
+`./gradlew :app:bundleRelease -PariaVersionCode=42`.
+
+**Release signing.** Without signing material the release outputs are unsigned.
+To sign with the Play upload key, either create a gitignored `keystore.properties`
+in the repo root:
+
+```properties
+storeFile=/absolute/or/repo-relative/path/upload.jks
+storePassword=...
+keyAlias=upload
+keyPassword=...
+```
+
+or set `ARIA_KEYSTORE_FILE`, `ARIA_KEYSTORE_PASSWORD`, `ARIA_KEY_ALIAS` and
+`ARIA_KEY_PASSWORD` (environment variables win over the file). All four must be
+present or the build stays unsigned. `keystore.properties`, `*.jks` and
+`*.keystore` are gitignored; never commit them.
+
+### 4. Firebase Setup
 
 1. Create a Firebase project at console.firebase.google.com
 2. Add an Android app with package `com.solutions5060.aria`
@@ -85,6 +119,7 @@ app/src/main/kotlin/com/solutions5060/aria/
   voicemail/                      -- Voicemail API model and repository
   security/                       -- Encrypted preferences, sensitive clipboard
   ui/
+    permissions/                  -- Contextual runtime-permission helpers
     AriaApp.kt                    -- Navigation + call screen overlay
     call/CallScreen.kt            -- Call UI (renders CallManager state)
     dialer/, contacts/, history/, voicemail/, settings/, transcripts/
@@ -96,12 +131,12 @@ app/src/main/kotlin/com/solutions5060/aria/
 | Permission | Purpose |
 |-----------|---------|
 | `INTERNET` | SIP/RTP network traffic |
-| `RECORD_AUDIO` | Microphone for calls |
-| `READ_CONTACTS` | Contacts screen |
-| `CAMERA` | Provisioning QR scanner |
+| `RECORD_AUDIO` | Microphone for calls (asked before the first call) |
+| `READ_CONTACTS` | Contacts screen (asked on the Contacts tab) |
+| `CAMERA` | Provisioning QR scanner (asked when scanning) |
 | `MANAGE_OWN_CALLS` | Self-managed ConnectionService |
 | `FOREGROUND_SERVICE_PHONE_CALL` / `FOREGROUND_SERVICE_MICROPHONE` | Active call service |
-| `POST_NOTIFICATIONS` | Incoming call notifications |
+| `POST_NOTIFICATIONS` | Incoming call notifications (asked after sign-in, with the reason) |
 | `USE_FULL_SCREEN_INTENT` | Lock screen call UI |
 
 ## Ecosystem

@@ -1,8 +1,34 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.plugin.compose")
     id("com.google.gms.google-services")
 }
+
+// ── Version: single source of truth ─────────────────────────────────────────
+// gradle.properties holds ariaVersionName / ariaVersionCode. A release build
+// can override either with -PariaVersionCode=… without editing a file.
+val ariaVersionName = providers.gradleProperty("ariaVersionName").get()
+val ariaVersionCode = providers.gradleProperty("ariaVersionCode").get().toInt()
+
+// ── Release signing (optional) ──────────────────────────────────────────────
+// Read from a gitignored keystore.properties at the repo root, or from the
+// ARIA_KEYSTORE_* environment variables (env wins). With neither present the
+// release build stays unsigned, which is what Play App Signing uploads expect
+// to be signed later with the upload key. See README "Release signing".
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.isFile) f.inputStream().use { load(it) }
+}
+fun signingValue(env: String, prop: String): String? =
+    System.getenv(env)?.takeIf { it.isNotBlank() } ?: keystoreProps.getProperty(prop)?.takeIf { it.isNotBlank() }
+val releaseStoreFile = signingValue("ARIA_KEYSTORE_FILE", "storeFile")
+val releaseStorePassword = signingValue("ARIA_KEYSTORE_PASSWORD", "storePassword")
+val releaseKeyAlias = signingValue("ARIA_KEY_ALIAS", "keyAlias")
+val releaseKeyPassword = signingValue("ARIA_KEY_PASSWORD", "keyPassword")
+val hasReleaseSigning = listOf(releaseStoreFile, releaseStorePassword, releaseKeyAlias, releaseKeyPassword)
+    .all { it != null }
 
 android {
     namespace = "com.solutions5060.aria"
@@ -12,13 +38,40 @@ android {
         applicationId = "com.solutions5060.aria"
         minSdk = 26
         targetSdk = 36
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = ariaVersionCode
+        versionName = ariaVersionName
+
+        // The Rust core is built for these three ABIs only (build-rust.sh).
+        // Without the filter, JNA and ML Kit pull in x86/armeabi/mips copies
+        // and an x86 device would install an app whose core cannot load.
+        ndk {
+            abiFilters += listOf("arm64-v8a", "armeabi-v7a", "x86_64")
+        }
+    }
+
+    signingConfigs {
+        if (hasReleaseSigning) {
+            create("release") {
+                storeFile = rootProject.file(releaseStoreFile!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
     }
 
     buildTypes {
         release {
             isMinifyEnabled = true
+            isShrinkResources = true
+            if (hasReleaseSigning) {
+                signingConfig = signingConfigs.getByName("release")
+            }
+            // Ship the Rust core's symbol tables in the bundle so Play can
+            // symbolicate native crashes (the .so in the APK stays stripped).
+            ndk {
+                debugSymbolLevel = "SYMBOL_TABLE"
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"
@@ -28,6 +81,7 @@ android {
 
     buildFeatures {
         compose = true
+        buildConfig = true
     }
 
     compileOptions {
@@ -78,8 +132,8 @@ dependencies {
     implementation("androidx.core:core-ktx:1.15.0")
     implementation("androidx.core:core-telecom:1.1.0")
 
-    // Contacts
-    implementation("androidx.core:core-ktx:1.15.0")
+    // Splash Screen API (single system splash on every API level)
+    implementation("androidx.core:core-splashscreen:1.2.0")
 
     // JNA for UniFFI Rust bindings
     implementation("net.java.dev.jna:jna:5.19.1@aar")

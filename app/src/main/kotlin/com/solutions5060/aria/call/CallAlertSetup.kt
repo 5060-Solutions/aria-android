@@ -10,8 +10,8 @@ import androidx.core.app.NotificationManagerCompat
 
 /**
  * What stops incoming calls from alerting properly, and where the user fixes
- * it. POST_NOTIFICATIONS itself is requested at first launch (AriaApp's
- * permissions step); this covers a denial after that, and Android 14's
+ * it. POST_NOTIFICATIONS itself is requested once after sign-in (AriaApp's
+ * rationale dialog); this covers a denial after that, and Android 14's
  * separate full-screen-intent permission.
  */
 object CallAlertSetup {

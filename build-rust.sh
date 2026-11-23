@@ -9,6 +9,9 @@
 #
 # Usage:
 #   ./build-rust.sh [debug|release]
+#
+# RUST_DIR selects the aria-mobile-core checkout (default ../aria-mobile-core),
+# e.g. RUST_DIR=~/src/aria-mobile-core-wt ./build-rust.sh release
 
 set -euo pipefail
 
@@ -21,7 +24,7 @@ if [[ "$(which cargo)" == "/opt/homebrew/bin/cargo" ]]; then
 fi
 
 MODE="${1:-release}"
-RUST_DIR="../aria-mobile-core"
+RUST_DIR="${RUST_DIR:-../aria-mobile-core}"
 OUT_DIR="app/src/main/kotlin/com/solutions5060/aria/bridge/uniffi"
 JNI_DIR="app/src/main/jniLibs"
 
@@ -134,9 +137,9 @@ cargo build $CARGO_FLAGS --manifest-path "$RUST_DIR/Cargo.toml" \
     --target x86_64-linux-android
 
 # Copy .so files to jniLibs
-# UniFFI Kotlin bindings load the library as "uniffi_aria_mobile", so we must
-# copy the cdylib (libaria_mobile_core.so) under BOTH names. Clean stale .so
-# files first to prevent loading an outdated library.
+# The Kotlin bindings load the cdylib by its real name ("aria_mobile_core";
+# see cdylib_name in uniffi-android.toml), so each ABI ships exactly one copy.
+# Clean stale .so files first to prevent loading an outdated library.
 echo "Copying shared libraries to jniLibs..."
 mkdir -p "$JNI_DIR/arm64-v8a" "$JNI_DIR/armeabi-v7a" "$JNI_DIR/x86_64"
 
@@ -151,8 +154,6 @@ for ABI_DIR in arm64-v8a armeabi-v7a x86_64; do
     esac
     SRC="$RUST_DIR/target/$TARGET/$TARGET_DIR/libaria_mobile_core.so"
     cp "$SRC" "$JNI_DIR/$ABI_DIR/libaria_mobile_core.so"
-    # UniFFI loads "uniffi_aria_mobile" — copy under that name too
-    cp "$SRC" "$JNI_DIR/$ABI_DIR/libuniffi_aria_mobile.so"
     echo "  $ABI_DIR: $(ls -lh "$JNI_DIR/$ABI_DIR/libaria_mobile_core.so" | awk '{print $5}')"
 done
 
