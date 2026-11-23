@@ -140,3 +140,16 @@ class NetworkChangeDetectorTest {
         assertEquals(1, notified)
     }
 }
+
+class NetworkSnapshotTest {
+    @org.junit.Test
+    fun snapshotsFollowTheDefaultNetwork() {
+        val seen = mutableListOf<NetworkSnapshot>()
+        val d = NetworkChangeDetector({ _, _ -> Cancellable { } }, {}, {}, 500, { seen += it })
+        d.onAvailable("1")
+        d.onCapabilitiesChanged("1", setOf(NetTransport.CELLULAR), validated = true)
+        org.junit.Assert.assertEquals(NetworkSnapshot(true, setOf(NetTransport.CELLULAR), true), seen.last())
+        d.onLost("1")
+        org.junit.Assert.assertEquals(NetworkSnapshot(false, emptySet(), null), seen.last())
+    }
+}

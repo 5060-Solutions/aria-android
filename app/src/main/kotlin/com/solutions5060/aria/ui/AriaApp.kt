@@ -459,12 +459,24 @@ private fun MainApp(
                         onOpenTranscription = { navController.navigate("transcription") },
                         onOpenTranscripts = { navController.navigate("transcripts") },
                         callingSection = {
-                            CallingSection(
-                                onOpenForwarding = { navController.navigate("forwarding") },
-                                onOpenCodecs = { navController.navigate("codecs") },
-                            )
+                            androidx.compose.foundation.layout.Column(
+                                verticalArrangement = androidx.compose.foundation.layout.Arrangement.spacedBy(
+                                    com.solutions5060.aria.ui.theme.Spacing.sectionGap,
+                                ),
+                            ) {
+                                CallingSection(
+                                    onOpenForwarding = { navController.navigate("forwarding") },
+                                    onOpenCodecs = { navController.navigate("codecs") },
+                                )
+                                com.solutions5060.aria.ui.connection.DiagnosticsSection(
+                                    onOpen = { navController.navigate("diagnostics") },
+                                )
+                            }
                         },
                     )
+                }
+                composable("diagnostics") {
+                    com.solutions5060.aria.ui.connection.DiagnosticsScreen(onBack = { navController.popBackStack() })
                 }
                 composable("codecs") {
                     com.solutions5060.aria.ui.settings.CodecsScreen(onBack = { navController.popBackStack() })

@@ -106,4 +106,45 @@
 
     <!-- Calls -->
     <string name="call_dropped_connection_lost">Call dropped — connection lost</string>
+
+    <!-- Diagnostics -->
+    <string name="diag_section">Diagnostics</string>
+    <string name="diag_title">Connection diagnostics</string>
+    <string name="diag_row_desc">Registration, gateway, network and call quality</string>
+    <string name="diag_registration">Registration</string>
+    <string name="diag_status">Status</string>
+    <string name="diag_status_registered">Registered</string>
+    <string name="diag_status_connecting">Connecting</string>
+    <string name="diag_status_recovering">Reconnecting…</string>
+    <string name="diag_status_error">Error</string>
+    <string name="diag_status_offline">Offline</string>
+    <string name="diag_status_signed_out">Signed out</string>
+    <string name="diag_last_error">Last error</string>
+    <string name="diag_account">Account</string>
+    <string name="diag_transport">Transport</string>
+    <string name="diag_gateway">Gateway</string>
+    <string name="diag_gateway_url">Gateway URL</string>
+    <string name="diag_gateway_node">Gateway node</string>
+    <string name="diag_device_id">Device ID</string>
+    <string name="diag_network">Network</string>
+    <string name="diag_network_path">Connection</string>
+    <string name="diag_online">Online</string>
+    <string name="diag_offline">Offline</string>
+    <string name="diag_call">Current call</string>
+    <string name="diag_call_none">No call in progress</string>
+    <string name="diag_codec">Codec</string>
+    <string name="diag_srtp">Encryption (SRTP)</string>
+    <string name="diag_srtp_on">Encrypted</string>
+    <string name="diag_srtp_off">Not encrypted</string>
+    <string name="diag_packets">Packets</string>
+    <string name="diag_packets_value">Sent: %1$d · Received: %2$d · Lost: %3$d</string>
+    <string name="diag_jitter_rtt">Jitter / round trip</string>
+    <string name="diag_jitter_rtt_value">%1$s ms / %2$s ms</string>
+    <string name="diag_codec_order">Codec order</string>
+    <string name="diag_log">Event log</string>
+    <string name="diag_log_empty">No events yet.</string>
+    <string name="diag_copy">Copy diagnostics</string>
+    <string name="diag_copied">Diagnostics copied</string>
+    <string name="diag_reconnect">Reconnect</string>
+    <string name="diag_none">—</string>
 </resources>
