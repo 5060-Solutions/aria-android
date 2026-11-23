@@ -17,10 +17,13 @@ import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -42,7 +45,6 @@ import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialShapes
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.SnackbarHostState
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -91,10 +93,12 @@ import com.solutions5060.aria.ui.SecureWindow
 import com.solutions5060.aria.ui.components.AriaButton
 import com.solutions5060.aria.ui.components.AriaIcon
 import com.solutions5060.aria.ui.components.AriaSnackbarHost
+import com.solutions5060.aria.ui.components.LocalSnackbarHostState
 import com.solutions5060.aria.ui.components.Avatar
 import com.solutions5060.aria.ui.components.CallActionButton
 import com.solutions5060.aria.ui.components.CallActionKind
 import com.solutions5060.aria.ui.components.CallControlButton
+import com.solutions5060.aria.ui.components.CappedFontScale
 import com.solutions5060.aria.ui.components.isAccessibilityFontScale
 import com.solutions5060.aria.ui.theme.AriaIcons
 import com.solutions5060.aria.ui.theme.AriaShapes
@@ -142,6 +146,8 @@ data class CallContext(
     val canSplit: Boolean = false,
     val canSwap: Boolean = true,
     val transferPair: CallWaiting.TransferPair? = null,
+    /** Graded from media stats; null until there is something to judge. */
+    val quality: CallQuality? = null,
     /** Errors to show once each (call setup, merge/record failures). */
     val errors: List<String> = emptyList(),
 )
@@ -172,7 +178,8 @@ fun CallScreen(
     var showAudio by rememberSaveable { mutableStateOf(false) }
     var showMore by remember { mutableStateOf(false) }
     var showRecordingNotice by remember { mutableStateOf(false) }
-    val snackbar = remember { SnackbarHostState() }
+    // The app's snackbar host, so notices posted elsewhere ("Call dropped") show here too.
+    val snackbar = LocalSnackbarHostState.current
     /** A result from a tap on this screen (merge refused, recording notice…), shown once. */
     var localMessage by remember { mutableStateOf<String?>(null) }
     LaunchedEffect(localMessage) {
@@ -282,15 +289,19 @@ fun CallScreen(
         }
     }
 
-    Box(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
             .background(MaterialTheme.colorScheme.background),
     ) {
+        // Short screens and accessibility font sizes: one scrolling column, so
+        // hang-up stays below the controls instead of being pushed over them.
+        val compact = maxHeight < CompactCallHeight || isAccessibilityFontScale()
         AmbientBlobs(ringing = incoming || phase == CallPhase.RINGING || phase == CallPhase.CONNECTING)
         Column(
             modifier = Modifier
                 .fillMaxSize()
+                .then(if (compact) Modifier.verticalScroll(rememberScrollState()) else Modifier)
                 .statusBarsPadding()
                 .navigationBarsPadding()
                 .padding(horizontal = Spacing.screen),
@@ -299,6 +310,7 @@ fun CallScreen(
             // Top: SRTP lock, overflow.
             TopRow(
                 call = call,
+                quality = context.quality,
                 showMenu = active,
                 menuOpen = showMore,
                 onMenu = { showMore = it },
@@ -343,9 +355,8 @@ fun CallScreen(
             // Middle: who and how long
             Column(
                 modifier = Modifier
-                    .weight(1f)
+                    .then(if (compact) Modifier else Modifier.weight(1f).verticalScroll(rememberScrollState()))
                     .fillMaxWidth()
-                    .verticalScroll(rememberScrollState())
                     .semantics { isTraversalGroup = true; traversalIndex = -1f },
                 horizontalAlignment = Alignment.CenterHorizontally,
                 verticalArrangement = Arrangement.Center,
@@ -445,6 +456,9 @@ fun CallScreen(
         )
     }
 }
+
+/** Below this height the call screen scrolls as one column (DESIGN.md §7: never clip primary actions). */
+private val CompactCallHeight = 720.dp
 
 private enum class BottomMode { Incoming, Waiting, HangUp, Ended }
 
@@ -600,6 +614,7 @@ private fun RecordingBadge(modifier: Modifier = Modifier) {
 @Composable
 private fun TopRow(
     call: CallUiState,
+    quality: CallQuality?,
     showMenu: Boolean,
     menuOpen: Boolean,
     onMenu: (Boolean) -> Unit,
@@ -611,27 +626,8 @@ private fun TopRow(
             .heightIn(min = Sizes.iconButton),
     ) {
         val encrypted = call.encrypted
-        if (encrypted != null && call.phase != CallPhase.INCOMING) {
-            val label = stringResource(if (encrypted) R.string.ui_call_encrypted else R.string.ui_call_not_encrypted)
-            Surface(
-                modifier = Modifier.align(Alignment.Center),
-                shape = AriaShapes.chip,
-                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.8f),
-            ) {
-                Row(
-                    Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    verticalAlignment = Alignment.CenterVertically,
-                ) {
-                    AriaIcon(
-                        if (encrypted) AriaIcons.Secure else AriaIcons.NotSecure,
-                        contentDescription = null,
-                        size = Sizes.iconSmall,
-                        tint = if (encrypted) LocalAriaColors.current.success else LocalAriaColors.current.statusConnecting,
-                    )
-                    Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
+        if (call.phase != CallPhase.INCOMING && (encrypted != null || quality != null)) {
+            CallCapsule(encrypted = encrypted, quality = quality, modifier = Modifier.align(Alignment.Center))
         }
         if (showMenu) {
             Box(Modifier.align(Alignment.CenterEnd)) {
@@ -648,6 +644,103 @@ private fun TopRow(
     }
 }
 
+/** "🔒 Encrypted | ▂▄▆ Good": security and call quality in one capsule (DESIGN.md §5, parity with iOS). */
+@Composable
+private fun CallCapsule(encrypted: Boolean?, quality: CallQuality?, modifier: Modifier = Modifier) {
+    val aria = LocalAriaColors.current
+    val secureLabel = encrypted?.let { stringResource(if (it) R.string.ui_call_encrypted else R.string.ui_call_not_encrypted) }
+    val qualityLabel = quality?.let { stringResource(qualityLabelRes(it)) }
+    val description = listOfNotNull(secureLabel, qualityLabel?.let { stringResource(R.string.ui_call_quality, it) }).joinToString(", ")
+    // A one-line capsule: grows with the font scale only up to 1.3x.
+    CappedFontScale(max = 1.3f) { CapsuleBody(encrypted, quality, secureLabel, qualityLabel, description, modifier) }
+}
+
+@Composable
+private fun CapsuleBody(
+    encrypted: Boolean?,
+    quality: CallQuality?,
+    secureLabel: String?,
+    qualityLabel: String?,
+    description: String,
+    modifier: Modifier,
+) {
+    val aria = LocalAriaColors.current
+    Surface(
+        modifier = modifier.semantics(mergeDescendants = true) { contentDescription = description },
+        shape = AriaShapes.chip,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f),
+    ) {
+        Row(
+            Modifier
+                .height(androidx.compose.foundation.layout.IntrinsicSize.Min)
+                .padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            if (encrypted != null && secureLabel != null) {
+                AriaIcon(
+                    if (encrypted) AriaIcons.Secure else AriaIcons.NotSecure,
+                    contentDescription = null,
+                    size = Sizes.iconSmall,
+                    tint = if (encrypted) aria.success else aria.statusConnecting,
+                )
+                Text(secureLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+            if (encrypted != null && quality != null) {
+                Box(
+                    Modifier
+                        .padding(horizontal = Spacing.xxs)
+                        .width(1.dp)
+                        .fillMaxHeight()
+                        .background(MaterialTheme.colorScheme.outlineVariant),
+                )
+            }
+            if (quality != null && qualityLabel != null) {
+                QualityBars(quality)
+                Text(qualityLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            }
+        }
+    }
+}
+
+private fun qualityLabelRes(q: CallQuality): Int = when (q) {
+    CallQuality.Good -> R.string.ui_call_quality_good
+    CallQuality.Fair -> R.string.ui_call_quality_fair
+    CallQuality.Poor -> R.string.ui_call_quality_poor
+}
+
+/** Three rising bars, [CallQuality.bars] of them lit (success, amber or error). */
+@Composable
+private fun QualityBars(quality: CallQuality) {
+    val aria = LocalAriaColors.current
+    val lit = when (quality) {
+        CallQuality.Good -> aria.success
+        CallQuality.Fair -> aria.statusConnecting
+        CallQuality.Poor -> MaterialTheme.colorScheme.error
+    }
+    val off = MaterialTheme.colorScheme.outlineVariant
+    Row(horizontalArrangement = Arrangement.spacedBy(2.dp), verticalAlignment = Alignment.Bottom) {
+        listOf(6.dp, 10.dp, 14.dp).forEachIndexed { i, h ->
+            Box(
+                Modifier
+                    .width(4.dp)
+                    .height(h)
+                    .background(if (i < quality.bars) lit else off, androidx.compose.foundation.shape.RoundedCornerShape(1.dp)),
+            )
+        }
+    }
+}
+
+/** "Opus", "G.711 µ-law" … for an SDP codec name. */
+internal fun codecDisplayName(sdp: String): String = when (sdp.lowercase()) {
+    "opus" -> "Opus"
+    "pcmu" -> "G.711 µ-law"
+    "pcma" -> "G.711 A-law"
+    "g729" -> "G.729"
+    "g722" -> "G.722"
+    else -> sdp
+}
+
 @Composable
 private fun MoreMenuItems(
     call: CallUiState,
@@ -657,6 +750,14 @@ private fun MoreMenuItems(
     onSplit: () -> Unit,
     onAudio: () -> Unit,
 ) {
+    call.codec?.let { codec ->
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.ui_call_codec, codecDisplayName(codec))) },
+            leadingIcon = { AriaIcon(AriaIcons.Codecs, null) },
+            enabled = false,
+            onClick = {},
+        )
+    }
     DropdownMenuItem(
         text = { Text(stringResource(if (call.recording) R.string.ui_call_stop_recording else R.string.ui_call_record)) },
         leadingIcon = {
@@ -830,16 +931,13 @@ private fun OtherCallCard(
         call.phase == CallPhase.ACTIVE -> stringResource(R.string.ui_call_active)
         else -> CallStateMapping.statusText(call.phase, 0)
     }
+    val stacked = isAccessibilityFontScale()
     Surface(
         modifier = Modifier.fillMaxWidth(),
         shape = AriaShapes.card,
         color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
     ) {
-        Row(
-            Modifier.padding(start = Spacing.md, end = Spacing.xs, top = Spacing.sm, bottom = Spacing.sm),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
-        ) {
+        val who: @Composable RowScope.() -> Unit = {
             Avatar(name = call.displayName, key = call.remoteUri)
             Column(
                 Modifier
@@ -849,7 +947,7 @@ private fun OtherCallCard(
                 Text(
                     call.displayName.ifEmpty { stringResource(R.string.ui_call_unknown) },
                     style = MaterialTheme.typography.bodyLarge,
-                    maxLines = 1,
+                    maxLines = if (stacked) 2 else 1,
                     overflow = TextOverflow.Ellipsis,
                 )
                 Text(
@@ -858,12 +956,10 @@ private fun OtherCallCard(
                     color = if (call.phase == CallPhase.HELD) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            if (canResume) {
-                SmallAction(AriaIcons.Swap, stringResource(R.string.ui_call_swap), onSwap)
-            }
-            if (canMerge) {
-                SmallAction(AriaIcons.Merge, stringResource(R.string.ui_call_merge), onMerge)
-            }
+        }
+        val actions: @Composable RowScope.() -> Unit = {
+            if (canResume) SmallAction(AriaIcons.Swap, stringResource(R.string.ui_call_swap), onSwap)
+            if (canMerge) SmallAction(AriaIcons.Merge, stringResource(R.string.ui_call_merge), onMerge)
             val endLabel = stringResource(R.string.ui_call_end_other, call.displayName)
             FilledTonalIconButton(
                 onClick = onHangup,
@@ -874,6 +970,26 @@ private fun OtherCallCard(
                 modifier = Modifier.size(Sizes.iconButton),
             ) {
                 AriaIcon(AriaIcons.HangUp, endLabel)
+            }
+        }
+        if (stacked) {
+            // Accessibility font sizes: the name gets the full width, actions go underneath.
+            Column(Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(Spacing.sm), content = who)
+                Row(
+                    Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs, Alignment.End),
+                    content = actions,
+                )
+            }
+        } else {
+            Row(
+                Modifier.padding(start = Spacing.md, end = Spacing.xs, top = Spacing.sm, bottom = Spacing.sm),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
+            ) {
+                who()
+                actions()
             }
         }
     }
@@ -943,6 +1059,7 @@ fun ManagedCallScreen(call: CallUiState) {
     val calls by CallManager.calls.collectAsState()
     val callError by CallManager.error.collectAsState()
     val actionError by CallManager.actionError.collectAsState()
+    val quality = rememberCallQuality(call)
     val key = call.key
     CallScreen(
         call = call,
@@ -955,6 +1072,7 @@ fun ManagedCallScreen(call: CallUiState) {
             canSwap = Conference.canSwap(calls),
             transferPair = CallWaiting.attendedTransferPair(calls),
             errors = listOfNotNull(callError, actionError),
+            quality = quality,
         ),
         onDismissError = { message ->
             if (message == callError) CallManager.clearError()
@@ -983,4 +1101,29 @@ fun ManagedCallScreen(call: CallUiState) {
             recordingConsentNeeded = { CallManager.recordingConsentNeeded() },
         ),
     )
+}
+
+/**
+ * Polls `get_media_stats` every 2 s while the call is connected and grades
+ * the last interval. The core does not push media stats (on_media_stats is
+ * not emitted), so the screen asks while it is visible.
+ */
+@Composable
+private fun rememberCallQuality(call: CallUiState): CallQuality? {
+    if (Fixtures.active) return if (call.phase == CallPhase.ACTIVE) CallQuality.Good else null
+    var quality by remember(call.key) { mutableStateOf<CallQuality?>(null) }
+    LaunchedEffect(call.callId, call.phase) {
+        val id = call.callId
+        if (id == null || call.phase != CallPhase.ACTIVE) return@LaunchedEffect
+        var previous: MediaSample? = null
+        while (true) {
+            val sample = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                runCatching { com.solutions5060.aria.service.SipEngineHolder.engine?.getMediaStats(id) }.getOrNull()
+            }?.let { MediaSample(it.packetsReceived.toLong(), it.packetLoss.toLong(), it.jitterMs, it.rttMs) }
+            CallQualityGrader.grade(previous, sample)?.let { quality = it }
+            if (sample != null) previous = sample
+            delay(2_000)
+        }
+    }
+    return quality
 }

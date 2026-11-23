@@ -177,8 +177,8 @@ fun CallActionButton(
 ) {
     val aria = LocalAriaColors.current
     val (container, content) = when (kind) {
-        CallActionKind.Call, CallActionKind.Answer -> aria.success to aria.onSuccess
-        CallActionKind.Decline, CallActionKind.HangUp -> aria.hangup to aria.onHangup
+        CallActionKind.Call, CallActionKind.Answer -> aria.answerFill to aria.onCallFill
+        CallActionKind.Decline, CallActionKind.HangUp -> aria.hangupFill to aria.onCallFill
     }
     val glyph = icon ?: when (kind) {
         CallActionKind.Call, CallActionKind.Answer -> AriaIcons.Call

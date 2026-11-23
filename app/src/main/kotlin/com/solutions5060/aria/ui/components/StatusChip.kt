@@ -42,13 +42,15 @@ import com.solutions5060.aria.ui.theme.Spacing
 enum class RegistrationStatus(@StringRes val label: Int) {
     Registered(R.string.ui_status_registered),
     Connecting(R.string.ui_status_connecting),
+    /** Connecting again after a network change while calls carry on (amber, like connecting). */
+    Reconnecting(R.string.ui_status_reconnecting),
     Error(R.string.ui_status_error),
     Offline(R.string.ui_status_offline),
     SignedOut(R.string.ui_status_signed_out);
 
     fun color(colors: AriaExtendedColors): Color = when (this) {
         Registered -> colors.statusRegistered
-        Connecting -> colors.statusConnecting
+        Connecting, Reconnecting -> colors.statusConnecting
         Error -> colors.statusError
         Offline, SignedOut -> colors.statusOffline
     }
@@ -58,7 +60,8 @@ enum class RegistrationStatus(@StringRes val label: Int) {
 @Composable
 fun StatusDot(status: RegistrationStatus, modifier: Modifier = Modifier) {
     val color = status.color(LocalAriaColors.current)
-    val pulse = status == RegistrationStatus.Connecting && !LocalReducedMotion.current
+    val pulse = (status == RegistrationStatus.Connecting || status == RegistrationStatus.Reconnecting) &&
+        !LocalReducedMotion.current
     val alpha = if (pulse) {
         val transition = rememberInfiniteTransition(label = "statusPulse")
         val a by transition.animateFloat(
