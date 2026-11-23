@@ -1099,6 +1099,7 @@ object CallManager {
      * merge; an engine failure is reported through [actionError].
      */
     fun mergeCalls(): String? {
+        if (com.solutions5060.aria.fixtures.Fixtures.active) return fixtureMerge()
         val pair = Conference.mergePair(uiStates()) ?: return "Merge needs two connected calls."
         val a = pair.first.callId ?: return null
         val b = pair.second.callId ?: return null
@@ -1122,6 +1123,7 @@ object CallManager {
      * is no conference.
      */
     fun splitConference(): String? {
+        if (com.solutions5060.aria.fixtures.Fixtures.active) return fixtureSplit()
         if (!Conference.canSplit(uiStates())) return "There is no conference to split."
         _actionError.value = null
         engineExecutor.execute {
@@ -1371,6 +1373,36 @@ object CallManager {
         if (!com.solutions5060.aria.BuildConfig.DEBUG) return
         _calls.value = calls
         _state.value = CallWaiting.foreground(calls)
+    }
+
+    /** Fixture mode: what the core reports after `conference_merge` (both connected, conferenced). */
+    private fun fixtureMerge(): String? {
+        val calls = _calls.value
+        val pair = Conference.mergePair(calls) ?: return "Merge needs two connected calls."
+        val keys = setOf(pair.first.key, pair.second.key)
+        showFixtureCalls(
+            calls.map {
+                if (it.key in keys) it.copy(inConference = true, phase = CallPhase.ACTIVE, onHold = false) else it
+            },
+        )
+        return null
+    }
+
+    /** Fixture mode: what the core reports after `conference_split` (older held, newer connected). */
+    private fun fixtureSplit(): String? {
+        val calls = _calls.value
+        if (!Conference.canSplit(calls)) return "There is no conference to split."
+        val newest = calls.lastOrNull { it.inConference }?.key
+        showFixtureCalls(
+            calls.map {
+                when {
+                    !it.inConference -> it
+                    it.key == newest -> it.copy(inConference = false, phase = CallPhase.ACTIVE, onHold = false)
+                    else -> it.copy(inConference = false, phase = CallPhase.HELD, onHold = true)
+                }
+            },
+        )
+        return null
     }
 
     private fun publishAll() {
