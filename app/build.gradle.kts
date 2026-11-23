@@ -125,7 +125,7 @@ dependencies {
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
     // Foreground/background of the whole process (reconnect on return)
-    implementation("androidx.lifecycle:lifecycle-process:2.8.7")
+    implementation(libs.lifecycle.process)
 
     // Firebase Cloud Messaging
     implementation(platform("com.google.firebase:firebase-bom:35.2.0"))
@@ -163,4 +163,6 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     // The android.jar stubs throw for org.json; tests need the real thing.
     testImplementation("org.json:json:20240303")
+    // PBX repositories against a local HTTP server
+    testImplementation(libs.okhttp.mockwebserver)
 }

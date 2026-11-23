@@ -49,6 +49,8 @@ fun SettingsScreen(
     onSignOut: () -> Unit = {},
     onOpenTranscription: () -> Unit = {},
     onOpenTranscripts: () -> Unit = {},
+    /** The PBX-side Calling group (DND, forwarding, …); see CallingSection. */
+    callingSection: @Composable () -> Unit = {},
 ) {
     val context = LocalContext.current
     val prefs = remember { context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE) }
@@ -371,6 +373,8 @@ fun SettingsScreen(
                     }
                 }
             }
+
+            callingSection()
 
             // On-device AI
             SectionHeader("Transcription")

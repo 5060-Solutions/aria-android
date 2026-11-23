@@ -48,6 +48,9 @@ import com.solutions5060.aria.service.EngineManager
 import com.solutions5060.aria.service.ConnectionStatus
 import com.solutions5060.aria.service.GatewayConnection
 import com.solutions5060.aria.ui.connection.ConnectionViewModel
+import com.solutions5060.aria.pbx.SelfServiceState
+import com.solutions5060.aria.ui.forwarding.ForwardingScreen
+import com.solutions5060.aria.ui.settings.CallingSection
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.solutions5060.aria.ui.call.ManagedCallScreen
 import com.solutions5060.aria.ui.shell.AriaShell
@@ -124,6 +127,7 @@ fun AriaApp() {
         CallHistoryStore.clear(context)
         EngineManager.reset()
         GatewayConnection.onSignedOut()
+        SelfServiceState.clear()
     }
 
     var manualSetup by rememberSaveable { mutableStateOf(false) }
@@ -424,7 +428,13 @@ private fun MainApp(
                         onSignOut = onSignOut,
                         onOpenTranscription = { navController.navigate("transcription") },
                         onOpenTranscripts = { navController.navigate("transcripts") },
+                        callingSection = {
+                            CallingSection(onOpenForwarding = { navController.navigate("forwarding") })
+                        },
                     )
+                }
+                composable("forwarding") {
+                    ForwardingScreen(onBack = { navController.popBackStack() })
                 }
                 composable("transcription") {
                     TranscriptionScreen(onBack = { navController.popBackStack() })

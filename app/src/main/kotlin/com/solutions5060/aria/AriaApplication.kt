@@ -11,6 +11,8 @@ import com.solutions5060.aria.security.SecurePrefs
 import com.solutions5060.aria.call.CallManager
 import com.solutions5060.aria.call.TelecomAccount
 import com.solutions5060.aria.service.GatewayConnection
+import com.solutions5060.aria.service.EngineManager
+import com.solutions5060.aria.pbx.SelfServiceState
 import com.solutions5060.aria.service.NetworkMonitor
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -64,7 +66,12 @@ class AriaApplication : Application() {
         // offline, or a push-only process), or confirm the registration.
         ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
             override fun onStart(owner: LifecycleOwner) {
-                if (!com.solutions5060.aria.fixtures.Fixtures.active) GatewayConnection.onForeground(this@AriaApplication)
+                if (com.solutions5060.aria.fixtures.Fixtures.active) return
+                GatewayConnection.onForeground(this@AriaApplication)
+                // DND / forwarding may have been changed from another device or the portal.
+                if (EngineManager.savedCredentials(this@AriaApplication) != null) {
+                    SelfServiceState.refresh(this@AriaApplication)
+                }
             }
         })
     }

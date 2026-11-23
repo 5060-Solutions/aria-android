@@ -31,7 +31,13 @@ class PbxApiClient(private val baseUrl: String) {
      * [deviceId] is set when a failed registration still stored the device, so
      * a gateway token can be renewed for it.
      */
-    class HttpException(val code: Int, message: String, val deviceId: String? = null) : Exception(message)
+    class HttpException(
+        val code: Int,
+        message: String,
+        val deviceId: String? = null,
+        /** The request field the PBX refused (`"field"` in its error body), if it named one. */
+        val field: String? = null,
+    ) : Exception(message)
 
     data class LoginResult(
         val jwt: String,
@@ -218,6 +224,63 @@ class PbxApiClient(private val baseUrl: String) {
     fun voicemailAudioUrl(messageId: String, grantToken: String): String =
         "$baseUrl/api/v1/voicemail/messages/${encode(messageId)}/audio?token=${encode(grantToken)}"
 
+    // ── Self-service (features, forwards, call history) ─────────────────
+
+    /** GET /api/v1/extensions/{ext_id}/features — DND and limits (created with defaults on first read). */
+    fun features(jwt: String, extensionId: String): String =
+        send(jwt, "GET", "/api/v1/extensions/${encode(extensionId)}/features")
+
+    /** PUT /api/v1/extensions/{ext_id}/features `{"do_not_disturb": on}` — 204. Only DND is the user's to change. */
+    fun setDoNotDisturb(jwt: String, extensionId: String, on: Boolean) {
+        val body = JSONObject().put("do_not_disturb", on)
+        send(jwt, "PUT", "/api/v1/extensions/${encode(extensionId)}/features", body.toString().toRequestBody(JSON_MEDIA))
+    }
+
+    /** GET /api/v1/extensions/{ext_id}/forwards — at most one per forward type. */
+    fun forwards(jwt: String, extensionId: String): String =
+        send(jwt, "GET", "/api/v1/extensions/${encode(extensionId)}/forwards")
+
+    /**
+     * POST /api/v1/extensions/{ext_id}/forwards — 201 with the forward. 409
+     * when one of [forwardType] exists; 422 names a bad field.
+     */
+    fun createForward(
+        jwt: String,
+        extensionId: String,
+        tenantId: String?,
+        forwardType: String,
+        destination: String,
+        ringTimeoutSecs: Int,
+        enabled: Boolean,
+    ): String {
+        val body = JSONObject()
+            .put("forward_type", forwardType)
+            .put("destination", destination)
+            .put("ring_timeout_secs", ringTimeoutSecs)
+            .put("enabled", enabled)
+        // Ignored by current PBX releases (the tenant is the extension's), required by older ones.
+        if (!tenantId.isNullOrEmpty()) body.put("tenant_id", tenantId)
+        return send(jwt, "POST", "/api/v1/extensions/${encode(extensionId)}/forwards", body.toString().toRequestBody(JSON_MEDIA))
+    }
+
+    /** PUT /api/v1/forwards/{id} — partial update; returns the forward. */
+    fun updateForward(jwt: String, forwardId: String, destination: String, ringTimeoutSecs: Int, enabled: Boolean): String {
+        val body = JSONObject()
+            .put("destination", destination)
+            .put("ring_timeout_secs", ringTimeoutSecs)
+            .put("enabled", enabled)
+        return send(jwt, "PUT", "/api/v1/forwards/${encode(forwardId)}", body.toString().toRequestBody(JSON_MEDIA))
+    }
+
+    /** DELETE /api/v1/forwards/{id} */
+    fun deleteForward(jwt: String, forwardId: String) {
+        send(jwt, "DELETE", "/api/v1/forwards/${encode(forwardId)}")
+    }
+
+    /** GET /api/v1/extensions/{ext_id}/cdrs?limit= — this extension's calls, newest first (max 200). */
+    fun extensionCalls(jwt: String, extensionId: String, limit: Int = 100): String =
+        send(jwt, "GET", "/api/v1/extensions/${encode(extensionId)}/cdrs?limit=${limit.coerceIn(1, 200)}")
+
     private fun encode(value: String): String = java.net.URLEncoder.encode(value, "UTF-8")
 
     private fun send(jwt: String, method: String, path: String, body: okhttp3.RequestBody? = null): String {
@@ -229,12 +292,13 @@ class PbxApiClient(private val baseUrl: String) {
         client.newCall(request).execute().use { response ->
             val responseBody = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                val errorMsg = try {
-                    JSONObject(responseBody).optString("error", "")
+                val error = try {
+                    JSONObject(responseBody)
                 } catch (_: Exception) {
-                    ""
-                }.ifEmpty { "HTTP ${response.code}" }
-                throw HttpException(response.code, errorMsg)
+                    null
+                }
+                val errorMsg = error?.optString("error", "")?.ifEmpty { null } ?: "HTTP ${response.code}"
+                throw HttpException(response.code, errorMsg, field = error?.optString("field", "")?.ifEmpty { null })
             }
             return responseBody
         }

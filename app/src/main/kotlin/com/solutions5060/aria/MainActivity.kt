@@ -25,7 +25,10 @@ class MainActivity : ComponentActivity() {
         // Debug builds only: `--es aria.fixture <scene>` shows sample data (see Fixtures).
         Fixtures.installFrom(intent)
         // aria://provision, tel: and sip: links; not again after a configuration change.
-        if (savedInstanceState == null) DeepLinks.offer(DeepLinks.parse(intent?.action, intent?.dataString))
+        // A task reopened from Recents is relaunched with its original intent:
+        // that link was handled then and must not prompt again.
+        val fromHistory = (intent?.flags ?: 0) and android.content.Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+        if (savedInstanceState == null && !fromHistory) DeepLinks.offer(DeepLinks.parse(intent?.action, intent?.dataString))
 
         setContent {
             AriaTheme {
