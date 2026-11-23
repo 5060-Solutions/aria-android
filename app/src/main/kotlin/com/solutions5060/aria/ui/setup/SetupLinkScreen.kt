@@ -7,20 +7,15 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.Button
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.LoadingIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -33,13 +28,17 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.unit.dp
 import com.solutions5060.aria.R
 import com.solutions5060.aria.provisioning.PreparedSetupLink
 import com.solutions5060.aria.provisioning.ProvisioningCredentials
 import com.solutions5060.aria.provisioning.SetupLinkError
 import com.solutions5060.aria.provisioning.SetupLinkException
 import com.solutions5060.aria.provisioning.SetupLinkFlow
+import com.solutions5060.aria.ui.components.AriaButton
+import com.solutions5060.aria.ui.components.AriaButtonStyle
+import com.solutions5060.aria.ui.components.SectionCard
+import com.solutions5060.aria.ui.theme.Sizes
+import com.solutions5060.aria.ui.theme.Spacing
 import kotlinx.coroutines.launch
 
 object SetupLinkTags {
@@ -64,6 +63,7 @@ private fun SetupLinkError.message(): Int = when (this) {
  * extension and setup server, and only redeems it when the user confirms.
  * [replacingAccount] adds a warning that the current account is signed out.
  */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun SetupLinkScreen(
     link: String,
@@ -96,8 +96,8 @@ fun SetupLinkScreen(
                 .fillMaxSize()
                 .padding(padding)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 20.dp, vertical = 24.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp),
+                .padding(horizontal = Spacing.screen, vertical = Spacing.xl),
+            verticalArrangement = Arrangement.spacedBy(Spacing.md),
         ) {
             Text(stringResource(R.string.setup_link_title), style = MaterialTheme.typography.headlineMedium)
             val current = prepared
@@ -110,26 +110,23 @@ fun SetupLinkScreen(
                         modifier = Modifier.testTag(SetupLinkTags.ERROR),
                     )
                     val retryable = failed == SetupLinkError.NETWORK || failed == SetupLinkError.SERVER
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) }
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                        AriaButton(stringResource(R.string.action_cancel), onClick = onDismiss, style = AriaButtonStyle.Plain)
                         if (retryable && current == null) {
-                            TextButton(onClick = { attempt++ }) { Text(stringResource(R.string.action_retry)) }
+                            AriaButton(stringResource(R.string.action_retry), onClick = { attempt++ }, style = AriaButtonStyle.Standard)
                         }
                     }
                 }
                 current == null -> Row(verticalAlignment = Alignment.CenterVertically) {
-                    CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    Spacer(Modifier.padding(start = 12.dp))
+                    LoadingIndicator(modifier = Modifier.size(Sizes.icon))
+                    Spacer(Modifier.padding(start = Spacing.sm))
                     Text(stringResource(R.string.setup_link_loading))
                 }
             }
             if (current != null) {
                 Text(stringResource(R.string.setup_link_body), style = MaterialTheme.typography.bodyMedium)
-                Card(
-                    shape = RoundedCornerShape(20.dp),
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh),
-                ) {
-                    Column(Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                SectionCard {
+                    Column(verticalArrangement = Arrangement.spacedBy(Spacing.sm)) {
                         val s = current.summary
                         SummaryRow(R.string.setup_link_tenant, s.tenantName)
                         SummaryRow(R.string.setup_link_extension, s.extension)
@@ -147,7 +144,8 @@ fun SetupLinkScreen(
                         style = MaterialTheme.typography.bodyMedium,
                     )
                 }
-                Button(
+                AriaButton(
+                    text = stringResource(if (redeeming) R.string.setup_link_redeeming else R.string.setup_link_confirm),
                     onClick = {
                         redeeming = true
                         error = null
@@ -162,18 +160,18 @@ fun SetupLinkScreen(
                             redeeming = false
                         }
                     },
-                    enabled = !redeeming,
-                    shape = RoundedCornerShape(26.dp),
+                    loading = redeeming,
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(52.dp)
                         .testTag(SetupLinkTags.CONFIRM),
-                ) {
-                    Text(stringResource(if (redeeming) R.string.setup_link_redeeming else R.string.setup_link_confirm))
-                }
-                TextButton(onClick = onDismiss, enabled = !redeeming, modifier = Modifier.fillMaxWidth()) {
-                    Text(stringResource(R.string.action_cancel))
-                }
+                )
+                AriaButton(
+                    text = stringResource(R.string.action_cancel),
+                    onClick = onDismiss,
+                    style = AriaButtonStyle.Plain,
+                    enabled = !redeeming,
+                    modifier = Modifier.fillMaxWidth(),
+                )
             }
         }
     }
