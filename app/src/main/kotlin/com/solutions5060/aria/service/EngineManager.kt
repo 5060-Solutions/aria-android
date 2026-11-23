@@ -279,6 +279,26 @@ object EngineManager {
         SecurePrefs.putString(context, "jwt", login.jwt)
     }
 
+    /**
+     * Re-registers the running engine with the gateway from the saved
+     * account, confirming the registration (the core does not report how a
+     * network-change heartbeat went). Builds an engine if there is none.
+     */
+    fun refreshRegistration(context: Context): AriaMobileEngine? {
+        val appContext = context.applicationContext
+        val engine = SipEngineHolder.engine ?: return ensureEngine(appContext)
+        val credentials = savedCredentials(appContext) ?: return null
+        val token = currentPushToken(appContext)
+        withAuthRetry(appContext) { engine.registerDevice(registration(credentials, token)) }
+        return engine
+    }
+
+    /** The gateway the engine talks to, for the connection sheet. */
+    fun gatewayUrl(context: Context): String =
+        prefs(context).getString("gateway_url", null)?.ifEmpty { null } ?: DEFAULT_GATEWAY_URL
+
+    fun deviceId(context: Context): String? = prefs(context).getString("device_id", null)?.ifEmpty { null }
+
     /** Drops the running engine (sign-out). */
     @Synchronized
     fun reset() {
@@ -394,6 +414,15 @@ object EngineManager {
         SipEngineHolder.engine = engine
         SipEngineHolder.audioBridge = bridge
         Log.d(TAG, "Engine initialized")
+        // Every path that starts an engine (launch, Settings > Connect, a push
+        // in a cold process) shows up on the status chip.
+        GatewayConnection.dispatch(
+            ConnectionEvent.Registered(
+                gatewayUrl = gatewayUrl.ifEmpty { DEFAULT_GATEWAY_URL },
+                deviceId = deviceId(context),
+                atElapsed = android.os.SystemClock.elapsedRealtime(),
+            ),
+        )
         return engine
     }
 

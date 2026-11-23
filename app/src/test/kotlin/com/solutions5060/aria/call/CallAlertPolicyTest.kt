@@ -39,4 +39,16 @@ class CallAlertPolicyTest {
         )
         assertEquals(emptyList<CallAlertSetup.Problem>(), CallAlertSetup.problems(true, true))
     }
+
+    @Test
+    fun restrictedBatteryIsReportedBecauseItBlocksCallPushes() {
+        assertEquals(
+            listOf(CallAlertSetup.Problem.BACKGROUND_RESTRICTED),
+            CallAlertSetup.problems(notificationsEnabled = true, canUseFullScreenIntent = false, backgroundRestricted = true),
+        )
+        assertEquals(
+            listOf(CallAlertSetup.Problem.NOTIFICATIONS_OFF),
+            CallAlertSetup.problems(notificationsEnabled = false, canUseFullScreenIntent = true, backgroundRestricted = true),
+        )
+    }
 }
