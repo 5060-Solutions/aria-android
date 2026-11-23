@@ -6,6 +6,14 @@
 # (tink-android ships META-INF/proguard/protobuf.pro). Components declared in
 # the manifest (activities, services, receivers, FirebaseMessagingService) are
 # kept by AAPT2-generated rules. Only what those do not cover lives here.
+#
+# Verified 2026-11-23 on the minified release build (aria_pixel_b, API 37):
+# EncryptedSharedPreferences (security-crypto 1.1.0-alpha06 / Tink 1.8.0)
+# writes, reads back and survives a cold restart with only the rules below;
+# Tink's shaded protobuf ships its own consumer rules, so the broad
+# com.google.crypto.tink.** / protobuf keep rules removed in #11 are not
+# needed. Logcat showed no GeneralSecurityException, "No KeyManager",
+# ClassNotFound or NoSuchField errors. Re-check after bumping security-crypto.
 # =============================================================================
 
 # -----------------------------------------------------------------------------
