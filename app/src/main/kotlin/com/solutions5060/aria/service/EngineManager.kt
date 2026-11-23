@@ -398,6 +398,11 @@ object EngineManager {
         engine.setAudioBridge(bridge)
         // Call state reaches Telecom and the UI only through these events.
         engine.setEventHandler(CallManager.eventHandler)
+        // The user's codec order (Settings > Codecs), before any call.
+        com.solutions5060.aria.call.CodecPreferences.applyTo(
+            engine,
+            com.solutions5060.aria.call.CodecPreferences.load(context),
+        )
         val renewal = tokenRenewal(context)
         val seen = renewal.generation
         try {
