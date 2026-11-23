@@ -125,7 +125,7 @@ fun AriaListItem(
                                 supporting,
                                 style = MaterialTheme.typography.bodyMedium,
                                 color = supportingColor,
-                                maxLines = if (large) 3 else 1,
+                                maxLines = if (large) 4 else 2,
                                 overflow = TextOverflow.Ellipsis,
                             )
                         }

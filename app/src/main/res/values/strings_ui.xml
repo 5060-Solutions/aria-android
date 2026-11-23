@@ -180,4 +180,79 @@
         <item quantity="one">%d more</item>
         <item quantity="other">%d more</item>
     </plurals>
+
+    <!-- Settings -->
+    <string name="ui_settings_account">Account</string>
+    <string name="ui_settings_no_account">No account</string>
+    <string name="ui_settings_ext_domain">Ext %1$s · %2$s</string>
+    <string name="ui_settings_server">Server</string>
+    <string name="ui_settings_connect">Connect</string>
+    <string name="ui_settings_scan_qr">Scan QR code</string>
+    <string name="ui_settings_rescan_qr">Re-scan QR</string>
+    <string name="ui_settings_appearance">Appearance</string>
+    <string name="ui_settings_theme">Theme</string>
+    <string name="ui_settings_theme_system">System</string>
+    <string name="ui_settings_theme_light">Light</string>
+    <string name="ui_settings_theme_dark">Dark</string>
+    <string name="ui_settings_wallpaper_colors">Use wallpaper colors</string>
+    <string name="ui_settings_wallpaper_colors_desc">Match your phone\'s colors instead of Aria green. Answer and hang-up keep their colors.</string>
+    <string name="ui_settings_transcription">Transcription</string>
+    <string name="ui_settings_on_device">On-device transcription</string>
+    <string name="ui_settings_on_device_desc">Transcribe calls on this phone. Nothing is uploaded.</string>
+    <string name="ui_settings_transcripts">Call transcripts</string>
+    <string name="ui_settings_transcripts_desc">Read and delete transcripts of past calls.</string>
+    <string name="ui_settings_device_id">Device ID</string>
+    <string name="ui_settings_extension_id">Extension ID</string>
+    <string name="ui_settings_copy">Copy</string>
+    <string name="ui_settings_copied">Copied. It clears from the clipboard in a minute.</string>
+    <string name="ui_settings_about">About</string>
+    <string name="ui_settings_version">Version</string>
+    <string name="ui_settings_developer">Developer</string>
+    <string name="ui_settings_sign_out">Sign out</string>
+    <string name="ui_settings_sign_out_title">Sign out?</string>
+    <string name="ui_settings_sign_out_body">You\'ll need to scan a QR code or open a setup link again to reconnect. Call history on this phone is cleared.</string>
+    <string name="ui_settings_device">Device</string>
+    <string name="ui_settings_missing_fields">Missing account details. Scan a QR code to set up.</string>
+
+    <!-- Onboarding -->
+    <string name="ui_onboarding_welcome">Welcome to Aria</string>
+    <string name="ui_onboarding_tagline">Your business phone, on your phone. Calls, voicemail and transfers from your Aria extension.</string>
+    <string name="ui_onboarding_get_started">Get started</string>
+    <string name="ui_onboarding_method_title">Set up your extension</string>
+    <string name="ui_onboarding_method_body">Your administrator sends a QR code or a setup link. You can also enter your details by hand.</string>
+    <string name="ui_onboarding_open_link">Open setup link</string>
+    <string name="ui_onboarding_manual">Enter manually</string>
+    <string name="ui_onboarding_choose_method">Choose a setup method</string>
+    <string name="ui_onboarding_continue">Continue</string>
+    <string name="ui_onboarding_page">Page %1$d of %2$d</string>
+    <string name="ui_onboarding_link_body">Paste the aria:// link your administrator sent you.</string>
+    <string name="ui_onboarding_link_field">Setup link</string>
+    <string name="ui_primer_title">Before your first call</string>
+    <string name="ui_primer_body">Android will ask for these next. Here is why Aria needs each one.</string>
+    <string name="ui_primer_mic">Microphone</string>
+    <string name="ui_primer_mic_body">So the other person can hear you. Used only during calls.</string>
+    <string name="ui_primer_notifications">Notifications</string>
+    <string name="ui_primer_notifications_body">To ring for incoming calls and show the call you\'re on.</string>
+    <string name="ui_primer_camera">Camera</string>
+    <string name="ui_primer_camera_body">To scan the setup QR code. Nothing is recorded.</string>
+    <string name="ui_primer_contacts">Contacts (later)</string>
+    <string name="ui_primer_contacts_body">Asked when you first open Contacts, to show names for numbers.</string>
+
+    <!-- QR scanner -->
+    <string name="ui_qr_instruction">Point your camera at the Aria setup QR code</string>
+    <string name="ui_qr_invalid">This isn\'t an Aria setup code.</string>
+    <string name="ui_qr_close">Close scanner</string>
+    <string name="ui_qr_flashlight">Flashlight</string>
+    <string name="ui_qr_camera_title">Camera access needed</string>
+    <string name="ui_qr_camera_body">Aria uses the camera only to read the setup QR code. Allow it in Settings, or set up with a link or by hand.</string>
+    <string name="ui_qr_open_settings">Open settings</string>
+    <string name="ui_qr_confirm_title">Sign in with this code?</string>
+    <string name="ui_qr_confirm_body">Only continue if you trust where this QR code came from.</string>
+    <string name="ui_qr_api_host">API host</string>
+    <string name="ui_qr_domain">Domain</string>
+    <string name="ui_qr_sip_server">SIP server</string>
+    <string name="ui_qr_user">User</string>
+    <string name="ui_qr_unencrypted">This code uses unencrypted %1$s signalling.</string>
+    <string name="ui_qr_sign_in">Sign in</string>
+    <string name="ui_connection_last_error">Last error</string>
 </resources>

@@ -106,7 +106,10 @@ class AriaUiTest {
     @Test
     fun manualLoginValidatesEveryField() {
         launch("onboarding")
-        compose.onNodeWithText("Or configure manually").performClick()
+        // Onboarding: hero, then the setup method, then the permission primer.
+        compose.onNodeWithText(str(R.string.ui_onboarding_get_started)).performClick()
+        compose.onNodeWithText(str(R.string.ui_onboarding_manual)).performClick()
+        compose.onNodeWithText(str(R.string.ui_onboarding_continue)).performClick()
 
         compose.onNodeWithTag(ManualSetupTags.SIGN_IN).performClick()
         compose.onNodeWithText(str(R.string.manual_setup_error_server_required)).assertExists()
