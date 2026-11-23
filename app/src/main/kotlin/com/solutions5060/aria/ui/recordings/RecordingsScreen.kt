@@ -12,10 +12,8 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -34,6 +32,7 @@ import com.solutions5060.aria.recording.Recording
 import com.solutions5060.aria.recording.RecordingsRepository
 import com.solutions5060.aria.ui.SecureWindow
 import com.solutions5060.aria.ui.components.AriaIcon
+import com.solutions5060.aria.ui.components.AriaScreen
 import com.solutions5060.aria.ui.components.AriaListItem
 import com.solutions5060.aria.ui.components.EmptyState
 import com.solutions5060.aria.ui.theme.AriaIcons
@@ -63,17 +62,9 @@ fun RecordingsScreen(onBack: () -> Unit) {
     var pendingDelete by remember { mutableStateOf<Recording?>(null) }
     LaunchedEffect(version) { list = withContext(Dispatchers.IO) { repo.list() } }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.recordings_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        AriaIcon(AriaIcons.Back, contentDescription = stringResource(R.string.action_back))
-                    }
-                },
-            )
-        },
+    AriaScreen(
+        title = stringResource(R.string.recordings_title),
+        onBack = onBack,
     ) { padding ->
         if (list.isEmpty()) {
             EmptyState(

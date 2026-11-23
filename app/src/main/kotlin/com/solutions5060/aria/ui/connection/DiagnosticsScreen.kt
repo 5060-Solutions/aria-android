@@ -14,11 +14,8 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.selection.SelectionContainer
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
@@ -37,6 +34,7 @@ import com.solutions5060.aria.service.DiagLog
 import com.solutions5060.aria.ui.components.AriaButton
 import com.solutions5060.aria.ui.components.AriaButtonStyle
 import com.solutions5060.aria.ui.components.AriaIcon
+import com.solutions5060.aria.ui.components.AriaScreen
 import com.solutions5060.aria.ui.components.AriaListItem
 import com.solutions5060.aria.ui.components.LocalSnackbarHostState
 import com.solutions5060.aria.ui.components.RowGroup
@@ -81,17 +79,9 @@ fun DiagnosticsScreen(onBack: () -> Unit, vm: ConnectionDetailsViewModel = viewM
     val copied = stringResource(R.string.diag_copied)
     val dash = stringResource(R.string.diag_none)
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.diag_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        AriaIcon(AriaIcons.Back, contentDescription = stringResource(R.string.action_back))
-                    }
-                },
-            )
-        },
+    AriaScreen(
+        title = stringResource(R.string.diag_title),
+        onBack = onBack,
     ) { padding ->
         Column(
             Modifier
