@@ -11,15 +11,12 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Slider
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -43,6 +40,7 @@ import com.solutions5060.aria.pbx.ForwardType
 import com.solutions5060.aria.ui.components.AriaButton
 import com.solutions5060.aria.ui.components.AriaButtonStyle
 import com.solutions5060.aria.ui.components.AriaIcon
+import com.solutions5060.aria.ui.components.AriaScreen
 import com.solutions5060.aria.ui.components.SectionCard
 import com.solutions5060.aria.ui.theme.AriaIcons
 import com.solutions5060.aria.ui.theme.AriaShapes
@@ -82,17 +80,9 @@ fun ForwardingScreen(onBack: () -> Unit, vm: SelfServiceViewModel = viewModel())
     val state by vm.state.collectAsState()
     LaunchedEffect(Unit) { vm.refresh() }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.forwarding_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        AriaIcon(AriaIcons.Back, contentDescription = stringResource(R.string.action_back))
-                    }
-                },
-            )
-        },
+    AriaScreen(
+        title = stringResource(R.string.forwarding_title),
+        onBack = onBack,
     ) { padding ->
         Column(
             Modifier

@@ -9,10 +9,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -27,6 +25,7 @@ import com.solutions5060.aria.R
 import com.solutions5060.aria.call.CodecOrder
 import com.solutions5060.aria.call.CodecPreferences
 import com.solutions5060.aria.ui.components.AriaIcon
+import com.solutions5060.aria.ui.components.AriaScreen
 import com.solutions5060.aria.ui.components.AriaListItem
 import com.solutions5060.aria.ui.theme.AriaIcons
 import com.solutions5060.aria.ui.theme.Spacing
@@ -56,17 +55,9 @@ fun CodecsScreen(onBack: () -> Unit) {
     val list by CodecPreferences.state.collectAsState()
     LaunchedEffect(Unit) { CodecPreferences.load(context) }
 
-    Scaffold(
-        topBar = {
-            TopAppBar(
-                title = { Text(stringResource(R.string.codecs_title)) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        AriaIcon(AriaIcons.Back, contentDescription = stringResource(R.string.action_back))
-                    }
-                },
-            )
-        },
+    AriaScreen(
+        title = stringResource(R.string.codecs_title),
+        onBack = onBack,
     ) { padding ->
         Column(
             Modifier
