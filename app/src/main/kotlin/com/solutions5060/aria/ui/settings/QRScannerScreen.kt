@@ -44,6 +44,8 @@ private const val TAG = "QRScanner"
 fun QRScannerScreen(
     onCredentialsScanned: (ProvisioningCredentials) -> Unit,
     onDismiss: () -> Unit,
+    /** A v=1 setup link: previewed and redeemed through the core, not parsed here. */
+    onSetupLinkScanned: ((String) -> Unit)? = null,
 ) {
     // The camera frames hold the provisioning code, password included.
     SecureWindow()
@@ -97,6 +99,9 @@ fun QRScannerScreen(
                     onBarcodeDetected = { rawValue ->
                         val creds = parseProvisioningUri(rawValue)
                         when {
+                            onSetupLinkScanned != null &&
+                                com.solutions5060.aria.provisioning.DeepLinks.isV1ProvisionLink(rawValue) ->
+                                onSetupLinkScanned(rawValue.trim())
                             creds == null ->
                                 errorMessage = "Invalid QR code. Expected an Aria provisioning code."
                             else -> {

@@ -23,6 +23,9 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.res.stringResource
+import com.solutions5060.aria.R
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -35,6 +38,11 @@ import com.solutions5060.aria.call.CallManager
 import com.solutions5060.aria.call.EmergencyRouting
 import com.solutions5060.aria.fixtures.Fixtures
 import com.solutions5060.aria.history.CallHistoryStore
+import com.solutions5060.aria.provisioning.DeepLink
+import com.solutions5060.aria.provisioning.DeepLinks
+import com.solutions5060.aria.provisioning.ProvisioningCredentials
+import com.solutions5060.aria.ui.setup.ManualSetupScreen
+import com.solutions5060.aria.ui.setup.SetupLinkScreen
 import com.solutions5060.aria.security.SecurePrefs
 import com.solutions5060.aria.service.EngineManager
 import com.solutions5060.aria.service.SipEngineHolder
@@ -50,6 +58,9 @@ import com.solutions5060.aria.ui.transcripts.TranscriptsScreen
 import com.solutions5060.aria.ui.voicemail.VoicemailScreen
 
 private const val TAG = "AriaApp"
+
+/** Test tag on the "Call" button of the tel:/sip: confirmation. */
+const val DIAL_LINK_CONFIRM_TAG = "dial_link_confirm"
 private const val PREFS_NAME = "aria_prefs"
 private const val KEY_SIP_USERNAME = "sip_username"
 private const val KEY_SIP_PASSWORD = "sip_password"
@@ -99,34 +110,82 @@ fun AriaApp() {
         )
     }
 
+    // Saves an account from any setup path (QR, setup link, manual) the same way.
+    fun saveCredentials(creds: ProvisioningCredentials) {
+        // SIP domain = tenant domain (used in From/To headers for auth)
+        // SIP registrar = server address (where to send REGISTER)
+        prefs.edit()
+            .putString(KEY_SIP_USERNAME, creds.username)
+            .putString(KEY_SIP_DOMAIN, creds.tenantDomain.ifEmpty { creds.server })
+            .putString(KEY_SIP_REGISTRAR, creds.server)
+            .putString(KEY_SIP_DISPLAY_NAME, creds.displayName)
+            .putString(KEY_SIP_TRANSPORT, creds.transport)
+            .putString(KEY_SIP_PORT, creds.port.toString())
+            .putString(KEY_API_URL, creds.apiUrl)
+            .putString("tenant_domain", creds.tenantDomain)
+            .putString("voicemail_access", creds.voicemail)
+            .apply()
+        // SIP password is sensitive — store it encrypted.
+        SecurePrefs.putString(context, KEY_SIP_PASSWORD, creds.password)
+    }
+
+    fun clearAccount() {
+        prefs.edit().clear().apply()
+        SecurePrefs.clear(context)
+        CallHistoryStore.clear(context)
+        EngineManager.reset()
+    }
+
+    var manualSetup by rememberSaveable { mutableStateOf(false) }
+    // A new value starts MainApp afresh, so a replaced account gets a new engine.
+    var session by remember { mutableIntStateOf(0) }
+    val pendingLink by DeepLinks.pending.collectAsState()
+
+    // A setup link (opened from another app, a web page or a QR code) is
+    // confirmed before anything else, signed in or not.
+    (pendingLink as? DeepLink.Provision)?.let { link ->
+        SetupLinkScreen(
+            link = link.link,
+            replacingAccount = phase == AppPhase.MAIN,
+            onAccount = { creds ->
+                if (fixture == null) {
+                    if (phase == AppPhase.MAIN) clearAccount()
+                    saveCredentials(creds)
+                }
+                manualSetup = false
+                session++
+                phase = AppPhase.MAIN
+                DeepLinks.consume(link)
+            },
+            onDismiss = { DeepLinks.consume(link) },
+        )
+        return
+    }
+
     when (phase) {
         AppPhase.SETUP -> {
-            SetupScreen(
-                onCredentialsScanned = { creds ->
-                    // SIP domain = tenant domain (used in From/To headers for auth)
-                    // SIP registrar = server address (where to send REGISTER)
-                    prefs.edit()
-                        .putString(KEY_SIP_USERNAME, creds.username)
-                        .putString(KEY_SIP_DOMAIN, creds.tenantDomain.ifEmpty { creds.server })
-                        .putString(KEY_SIP_REGISTRAR, creds.server)
-                        .putString(KEY_SIP_DISPLAY_NAME, creds.displayName)
-                        .putString(KEY_SIP_TRANSPORT, creds.transport)
-                        .putString(KEY_SIP_PORT, creds.port.toString())
-                        .putString(KEY_API_URL, creds.apiUrl)
-                        .putString("tenant_domain", creds.tenantDomain)
-                        .putString("voicemail_access", creds.voicemail)
-                        .apply()
-                    // SIP password is sensitive — store it encrypted.
-                    SecurePrefs.putString(context, KEY_SIP_PASSWORD, creds.password)
-                    phase = AppPhase.MAIN
-                },
-                onManualSetup = {
-                    phase = AppPhase.MAIN
-                },
-            )
+            if (manualSetup) {
+                ManualSetupScreen(
+                    onBack = { manualSetup = false },
+                    onSignedIn = { creds ->
+                        saveCredentials(creds)
+                        manualSetup = false
+                        phase = AppPhase.MAIN
+                    },
+                )
+            } else {
+                SetupScreen(
+                    onCredentialsScanned = { creds ->
+                        saveCredentials(creds)
+                        phase = AppPhase.MAIN
+                    },
+                    onManualSetup = { manualSetup = true },
+                    onSetupLinkScanned = { link -> DeepLinks.offer(DeepLink.Provision(link)) },
+                )
+            }
         }
 
-        AppPhase.MAIN -> {
+        AppPhase.MAIN -> key(session) {
             MainApp(
                 prefs = prefs,
                 onSignOut = {
@@ -134,10 +193,7 @@ fun AriaApp() {
                         phase = AppPhase.SETUP
                         return@MainApp
                     }
-                    prefs.edit().clear().apply()
-                    SecurePrefs.clear(context)
-                    CallHistoryStore.clear(context)
-                    EngineManager.reset()
+                    clearAccount()
                     phase = AppPhase.SETUP
                 },
             )
@@ -281,7 +337,9 @@ private fun MainApp(
         }
     }
     fun placeCall(number: String) {
-        if (fixture != null) return
+        // Fixture mode never places a call; the emergency hand-off to the
+        // native dialer is not a call and still runs, so it can be tested.
+        if (fixture != null && !EmergencyRouting.isEmergency(number)) return
         // Emergency numbers go to the native dialer, so no microphone prompt.
         if (Permissions.hasMicrophone(context) || EmergencyRouting.isEmergency(number)) {
             callError = CallManager.placeCall(context, number)
@@ -303,6 +361,35 @@ private fun MainApp(
             },
             dismissButton = { TextButton(onClick = { micRationaleFor = null }) { Text("Cancel") } },
         )
+    }
+
+    // tel:/sip: from another app: prefill the dialer and ask before calling.
+    val pendingLink by DeepLinks.pending.collectAsState()
+    var prefill by remember { mutableStateOf<String?>(null) }
+    (pendingLink as? DeepLink.Dial)?.let { link ->
+        LaunchedEffect(link) {
+            prefill = link.target
+            navController.navigate("dialer") { launchSingleTop = true }
+        }
+        if (call == null) {
+            AlertDialog(
+                onDismissRequest = { DeepLinks.consume(link) },
+                title = { Text(stringResource(R.string.dial_link_title, link.target.removePrefix("sip:"))) },
+                text = { Text(stringResource(R.string.dial_link_body)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            DeepLinks.consume(link)
+                            placeCall(link.target)
+                        },
+                        modifier = Modifier.testTag(DIAL_LINK_CONFIRM_TAG),
+                    ) { Text(stringResource(R.string.action_call)) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { DeepLinks.consume(link) }) { Text(stringResource(R.string.action_cancel)) }
+                },
+            )
+        }
     }
 
     val activeCall = call
@@ -359,6 +446,7 @@ private fun MainApp(
                         extensionNumber = fixture?.account?.extension ?: prefs.getString(KEY_SIP_USERNAME, "") ?: "",
                         domain = fixture?.account?.domain ?: prefs.getString(KEY_SIP_DOMAIN, "") ?: "",
                         isConnected = engineReady,
+                        prefill = prefill,
                         callError = callError ?: callSetupError,
                         onDismissError = {
                             callError = null

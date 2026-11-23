@@ -10,6 +10,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.ui.Modifier
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.solutions5060.aria.fixtures.Fixtures
+import com.solutions5060.aria.provisioning.DeepLinks
 import com.solutions5060.aria.ui.AriaApp
 import com.solutions5060.aria.ui.theme.AriaTheme
 
@@ -23,6 +24,8 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         // Debug builds only: `--es aria.fixture <scene>` shows sample data (see Fixtures).
         Fixtures.installFrom(intent)
+        // aria://provision, tel: and sip: links; not again after a configuration change.
+        if (savedInstanceState == null) DeepLinks.offer(DeepLinks.parse(intent?.action, intent?.dataString))
 
         setContent {
             AriaTheme {
@@ -40,5 +43,6 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         // A new fixture scene on a running (singleTask) activity starts over.
         if (Fixtures.installFrom(intent)) recreate()
+        DeepLinks.offer(DeepLinks.parse(intent.action, intent.dataString))
     }
 }

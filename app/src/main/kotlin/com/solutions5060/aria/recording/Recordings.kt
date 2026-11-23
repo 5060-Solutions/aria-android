@@ -3,6 +3,7 @@ package com.solutions5060.aria.recording
 import android.content.Context
 import android.content.Intent
 import androidx.core.content.FileProvider
+import androidx.core.content.edit
 import java.io.File
 import java.io.RandomAccessFile
 import java.text.SimpleDateFormat
@@ -135,6 +136,6 @@ object RecordingConsent {
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean(KEY, false)
 
     fun acknowledge(context: Context) {
-        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean(KEY, true).apply()
+        context.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit { putBoolean(KEY, true) }
     }
 }

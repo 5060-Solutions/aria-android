@@ -43,12 +43,31 @@
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
-            <!-- Handle tel: and sip: URIs -->
+            <!--
+                tel: and sip: from other apps and web pages: the number is
+                prefilled and the user confirms before anything is dialled
+                (see provisioning/DeepLinks.kt). Emergency numbers go back to
+                the system dialer.
+            -->
             <intent-filter>
                 <action android:name="android.intent.action.DIAL" />
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="tel" />
                 <data android:scheme="sip" />
+                <data android:scheme="sips" />
+            </intent-filter>
+            <!--
+                Setup links: aria://provision?v=1&url=… and legacy QR payloads.
+                Always shown on a confirm screen before use. A custom scheme,
+                not a verified App Link (no assetlinks.json is published yet).
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="aria" android:host="provision" />
             </intent-filter>
         </activity>
 
