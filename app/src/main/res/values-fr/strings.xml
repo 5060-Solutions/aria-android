@@ -217,4 +217,20 @@
         <item quantity="many">%d messages non lus</item>
         <item quantity="other">%d messages non lus</item>
     </plurals>
+    <!-- Permission, alert and connection messages -->
+    <string name="perm_notifications_title">Autoriser les notifications</string>
+    <string name="perm_notifications_body">Aria utilise les notifications pour sonner lors des appels entrants et afficher l\'appel en cours. Sans elles, vous ne pouvez répondre qu\'avec l\'application ouverte.</string>
+    <string name="perm_continue">Continuer</string>
+    <string name="perm_not_now">Pas maintenant</string>
+    <string name="alert_title">Les appels entrants nécessitent votre attention</string>
+    <string name="alert_notifications_off">Les notifications d\'Aria sont désactivées : impossible de répondre depuis l\'écran de verrouillage ou une autre application. Activez-les pour voir et prendre les appels.</string>
+    <string name="alert_background_restricted">L\'utilisation de la batterie d\'Aria est restreinte : Android bloque les notifications des appels entrants. Dans Infos sur l\'appli > Batterie, choisissez Non restreinte ou Optimisée.</string>
+    <string name="alert_full_screen_denied">Aria n\'est pas autorisé à afficher les appels en plein écran : téléphone verrouillé, ils n\'apparaissent qu\'en notification. Autorisez les notifications plein écran pour voir l\'écran d\'appel.</string>
+    <string name="alert_open_settings">Ouvrir les réglages</string>
+    <string name="mic_title">Accès au micro</string>
+    <string name="mic_body">Aria n\'utilise le micro que pendant les appels, pour que votre interlocuteur vous entende.</string>
+    <string name="mic_denied">Aria a besoin du micro pour passer des appels. Vous pouvez l\'autoriser dans Paramètres > Applis > Aria > Autorisations.</string>
+    <string name="voicemail_play_error">Impossible de lire ce message.</string>
+    <string name="conn_err_registration_failed">Échec de l\'enregistrement</string>
+    <string name="conn_err_no_gateway_credentials">Aucun identifiant de passerelle</string>
 </resources>

@@ -214,4 +214,20 @@
         <item quantity="one">%d ungelesene Nachricht</item>
         <item quantity="other">%d ungelesene Nachrichten</item>
     </plurals>
+    <!-- Permission, alert and connection messages -->
+    <string name="perm_notifications_title">Benachrichtigungen erlauben</string>
+    <string name="perm_notifications_body">Aria nutzt Benachrichtigungen, um bei eingehenden Anrufen zu klingeln und den laufenden Anruf anzuzeigen. Ohne sie können Sie Anrufe nur bei geöffneter App annehmen.</string>
+    <string name="perm_continue">Weiter</string>
+    <string name="perm_not_now">Nicht jetzt</string>
+    <string name="alert_title">Eingehende Anrufe benötigen Aufmerksamkeit</string>
+    <string name="alert_notifications_off">Benachrichtigungen für Aria sind aus, daher können Anrufe nicht auf dem Sperrbildschirm oder in einer anderen App angenommen werden. Schalten Sie sie ein, um Anrufe zu sehen und anzunehmen.</string>
+    <string name="alert_background_restricted">Der Akkuverbrauch von Aria ist auf „Eingeschränkt“ gesetzt, daher blockiert Android die Benachrichtigungen für eingehende Anrufe. Wählen Sie unter App-Info > Akku „Nicht eingeschränkt“ oder „Optimiert“.</string>
+    <string name="alert_full_screen_denied">Aria darf Anrufe nicht im Vollbild anzeigen, daher erscheinen sie bei gesperrtem Telefon nur als Benachrichtigung. Erlauben Sie Vollbildbenachrichtigungen, um den Anrufbildschirm zu sehen.</string>
+    <string name="alert_open_settings">Einstellungen öffnen</string>
+    <string name="mic_title">Mikrofonzugriff</string>
+    <string name="mic_body">Aria nutzt das Mikrofon nur während Anrufen, damit Ihr Gegenüber Sie hört.</string>
+    <string name="mic_denied">Aria benötigt Mikrofonzugriff für Anrufe. Sie können ihn unter Einstellungen > Apps > Aria > Berechtigungen erlauben.</string>
+    <string name="voicemail_play_error">Diese Nachricht konnte nicht abgespielt werden.</string>
+    <string name="conn_err_registration_failed">Registrierung fehlgeschlagen</string>
+    <string name="conn_err_no_gateway_credentials">Keine Gateway-Zugangsdaten</string>
 </resources>

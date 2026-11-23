@@ -1,5 +1,7 @@
 package com.solutions5060.aria.service
 
+import com.solutions5060.aria.R
+import com.solutions5060.aria.Txt
 import android.content.Context
 import android.os.SystemClock
 import android.util.Log
@@ -90,7 +92,7 @@ object ConnectionReducer {
             // Incoming calls may not arrive until the next network change.
             "failed" -> s.copy(
                 status = if (s.online) ConnectionStatus.ERROR else ConnectionStatus.OFFLINE,
-                error = e.error ?: "Registration failed",
+                error = e.error ?: Txt.get(R.string.conn_err_registration_failed, "Registration failed"),
                 recovering = false,
             )
             "unregistered" -> s.copy(status = ConnectionStatus.OFFLINE, error = e.error, recovering = false)
@@ -161,7 +163,7 @@ object GatewayConnection {
                     else -> EngineManager.ensureEngine(appContext)
                 }
                 if (engine == null) {
-                    dispatch(ConnectionEvent.Failed("No gateway credentials"))
+                    dispatch(ConnectionEvent.Failed(Txt.get(R.string.conn_err_no_gateway_credentials, "No gateway credentials")))
                 } else {
                     dispatch(
                         ConnectionEvent.Registered(

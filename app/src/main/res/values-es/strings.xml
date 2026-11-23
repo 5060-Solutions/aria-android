@@ -216,4 +216,20 @@
         <item quantity="many">%d mensajes sin leer</item>
         <item quantity="other">%d mensajes sin leer</item>
     </plurals>
+    <!-- Permission, alert and connection messages -->
+    <string name="perm_notifications_title">Permitir notificaciones</string>
+    <string name="perm_notifications_body">Aria usa las notificaciones para avisarte de las llamadas entrantes y mostrar la llamada en curso. Sin ellas solo puedes contestar con la app abierta.</string>
+    <string name="perm_continue">Continuar</string>
+    <string name="perm_not_now">Ahora no</string>
+    <string name="alert_title">Las llamadas entrantes necesitan atención</string>
+    <string name="alert_notifications_off">Las notificaciones de Aria están desactivadas, así que no puedes contestar desde la pantalla de bloqueo ni desde otra app. Actívalas para ver y contestar llamadas.</string>
+    <string name="alert_background_restricted">El uso de batería de Aria está restringido, así que Android bloquea las notificaciones de las llamadas entrantes. En Información de la app > Batería, elige Sin restricciones u Optimizado.</string>
+    <string name="alert_full_screen_denied">Aria no puede mostrar las llamadas a pantalla completa, así que con el teléfono bloqueado solo aparecen como notificación. Permite las notificaciones a pantalla completa para ver la pantalla de llamada.</string>
+    <string name="alert_open_settings">Abrir ajustes</string>
+    <string name="mic_title">Acceso al micrófono</string>
+    <string name="mic_body">Aria usa el micrófono solo durante las llamadas, para que la otra persona te oiga.</string>
+    <string name="mic_denied">Aria necesita acceso al micrófono para llamar. Puedes permitirlo en Ajustes > Aplicaciones > Aria > Permisos.</string>
+    <string name="voicemail_play_error">No se pudo reproducir este mensaje.</string>
+    <string name="conn_err_registration_failed">Error de registro</string>
+    <string name="conn_err_no_gateway_credentials">Faltan las credenciales del gateway</string>
 </resources>
