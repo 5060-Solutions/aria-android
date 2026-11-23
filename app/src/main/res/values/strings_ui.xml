@@ -29,4 +29,25 @@
     <string name="ui_status_offline">Offline</string>
     <string name="ui_dnd_on">Do not disturb on</string>
     <string name="ui_forwarding_on">Forwarding on</string>
+    <string name="ui_status_signed_out">Not signed in</string>
+
+    <!-- Connection sheet -->
+    <string name="ui_connection_title">Connection</string>
+    <string name="ui_connection_gateway">Gateway</string>
+    <string name="ui_connection_transport">Transport</string>
+    <string name="ui_connection_unknown">Not connected yet</string>
+    <string name="ui_connection_no_network">No network</string>
+    <string name="ui_connection_no_network_body">Aria reconnects as soon as this phone is back online.</string>
+    <string name="ui_connection_last_error">Last error</string>
+    <string name="ui_connection_reconnect">Reconnect</string>
+
+    <!-- Dialer -->
+    <string name="ui_dialer_number">Number</string>
+    <string name="ui_dialer_call">Call</string>
+    <string name="ui_dialer_redial">Redial last number</string>
+    <string name="ui_dialer_delete">Delete</string>
+    <string name="ui_dialer_clear">Clear number</string>
+    <string name="ui_dialer_add_plus">Type plus</string>
+    <string name="ui_dialer_paste">Paste</string>
+    <string name="ui_dialer_status">Connection status</string>
 </resources>

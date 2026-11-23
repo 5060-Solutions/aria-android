@@ -33,6 +33,8 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.foundation.text.TextAutoSize
 import com.solutions5060.aria.R
 import com.solutions5060.aria.ui.components.AriaIcon
 import com.solutions5060.aria.ui.components.AriaSnackbarHost
@@ -95,7 +97,7 @@ fun AriaShell(
                             selected = tab == selected,
                             onClick = { onSelectTab(tab) },
                             icon = { TabIcon(tab, tab == selected, voicemailUnread) },
-                            label = { Text(stringResource(tab.label)) },
+                            label = { TabLabel(tab) },
                             railExpanded = false,
                             colors = WideNavigationRailItemDefaults.colors(),
                         )
@@ -121,7 +123,7 @@ fun AriaShell(
                                 selected = tab == selected,
                                 onClick = { onSelectTab(tab) },
                                 icon = { TabIcon(tab, tab == selected, voicemailUnread) },
-                                label = { Text(stringResource(tab.label), maxLines = 1) },
+                                label = { TabLabel(tab) },
                                 colors = ShortNavigationBarItemDefaults.colors(
                                     selectedIndicatorColor = MaterialTheme.colorScheme.secondaryContainer,
                                     selectedIconColor = MaterialTheme.colorScheme.onSecondaryContainer,
@@ -163,4 +165,17 @@ private fun TabIcon(tab: AriaTab, selected: Boolean, voicemailUnread: Int) {
     } else {
         icon()
     }
+}
+
+/** Tab labels shrink to fit at large font scales instead of clipping. */
+@Composable
+private fun TabLabel(tab: AriaTab) {
+    val style = MaterialTheme.typography.labelMedium
+    Text(
+        stringResource(tab.label),
+        style = style,
+        maxLines = 1,
+        softWrap = false,
+        autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = style.fontSize),
+    )
 }
