@@ -103,4 +103,7 @@
     <string name="codec_pcmu_desc">Standard telephone quality (North America)</string>
     <string name="codec_pcma_desc">Standard telephone quality (international)</string>
     <string name="codec_g729_desc">Low bandwidth, lower quality</string>
+
+    <!-- Calls -->
+    <string name="call_dropped_connection_lost">Call dropped — connection lost</string>
 </resources>

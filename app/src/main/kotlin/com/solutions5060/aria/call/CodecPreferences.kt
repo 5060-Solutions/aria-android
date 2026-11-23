@@ -96,6 +96,16 @@ object CodecPreferences {
         }
     }
 
+    /** The display name for a negotiated codec's SDP name (`CallInfo.codec`), or the name as sent. */
+    fun labelForSdp(sdpName: String?): String? = when (sdpName?.lowercase()) {
+        null, "" -> null
+        "pcmu" -> label(AudioCodec.PCMU)
+        "pcma" -> label(AudioCodec.PCMA)
+        "opus" -> label(AudioCodec.OPUS)
+        "g729" -> label(AudioCodec.G729)
+        else -> sdpName
+    }
+
     /** Human names, for Settings and diagnostics. */
     fun label(codec: AudioCodec): String = when (codec) {
         AudioCodec.OPUS -> "Opus"

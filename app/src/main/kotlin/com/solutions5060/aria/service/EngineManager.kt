@@ -161,16 +161,20 @@ object EngineManager {
             return
         }
 
-        val deviceId = prefs(appContext).getString("device_id", null) ?: ""
+        // The gateway's id for this device (it can change on failover), not the PBX's.
+        val ids = GatewayDeviceIds.of(appContext)
         try {
-            withAuthRetry(appContext) { running.updatePushToken(deviceId, token) }
+            if (!withAuthRetry(appContext) { ids.updatePushToken(running, token) }) {
+                throw IllegalStateException("No gateway device id yet")
+            }
             Log.i(TAG, "Push token updated with gateway")
         } catch (e: Exception) {
             // The engine re-registers from its last registration; if it never
             // completed one, register from the saved account instead.
-            Log.w(TAG, "updatePushToken failed (${e.message}); re-registering")
+            Log.w(TAG, "updatePushToken failed (${e.javaClass.simpleName}); re-registering")
             val credentials = savedCredentials(appContext) ?: return
-            withAuthRetry(appContext) { running.registerDevice(registration(credentials, token)) }
+            val response = withAuthRetry(appContext) { running.registerDevice(registration(credentials, token)) }
+            ids.onRegistered(response.deviceId)
         }
     }
 
@@ -279,25 +283,19 @@ object EngineManager {
         SecurePrefs.putString(context, "jwt", login.jwt)
     }
 
-    /**
-     * Re-registers the running engine with the gateway from the saved
-     * account, confirming the registration (the core does not report how a
-     * network-change heartbeat went). Builds an engine if there is none.
-     */
-    fun refreshRegistration(context: Context): AriaMobileEngine? {
-        val appContext = context.applicationContext
-        val engine = SipEngineHolder.engine ?: return ensureEngine(appContext)
-        val credentials = savedCredentials(appContext) ?: return null
-        val token = currentPushToken(appContext)
-        withAuthRetry(appContext) { engine.registerDevice(registration(credentials, token)) }
-        return engine
-    }
-
     /** The gateway the engine talks to, for the connection sheet. */
     fun gatewayUrl(context: Context): String =
         prefs(context).getString("gateway_url", null)?.ifEmpty { null } ?: DEFAULT_GATEWAY_URL
 
-    fun deviceId(context: Context): String? = prefs(context).getString("device_id", null)?.ifEmpty { null }
+    /** The gateway's id for this device (see [GatewayDeviceIds]), for the connection sheet. */
+    fun deviceId(context: Context): String? = GatewayDeviceIds.of(context).gateway()
+
+    /** Unregisters from the gateway (sign-out), off the calling thread. */
+    fun unregisterFromGateway(context: Context) {
+        val engine = SipEngineHolder.engine ?: return
+        val ids = GatewayDeviceIds.of(context)
+        AppScope.scope.launch { ids.unregister(engine) }
+    }
 
     /** Drops the running engine (sign-out). */
     @Synchronized
@@ -405,7 +403,7 @@ object EngineManager {
         )
         val renewal = tokenRenewal(context)
         val seen = renewal.generation
-        try {
+        val response = try {
             engine.registerDevice(registration(credentials, pushToken))
         } catch (e: MobileException.AuthenticationException) {
             // The saved token has expired. This engine is not installed yet,
@@ -414,6 +412,7 @@ object EngineManager {
             engine.setGatewayToken(fresh)
             engine.registerDevice(registration(credentials, pushToken))
         }
+        GatewayDeviceIds.of(context).onRegistered(response.deviceId)
 
         SipEngineHolder.audioBridge?.stop()
         SipEngineHolder.engine = engine
@@ -426,6 +425,7 @@ object EngineManager {
                 gatewayUrl = gatewayUrl.ifEmpty { DEFAULT_GATEWAY_URL },
                 deviceId = deviceId(context),
                 atElapsed = android.os.SystemClock.elapsedRealtime(),
+                gatewayNode = try { engine.currentGateway() } catch (_: Exception) { null },
             ),
         )
         return engine

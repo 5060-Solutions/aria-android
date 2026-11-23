@@ -196,9 +196,8 @@ fun SettingsScreen(
                                 } catch (_: Exception) { }
                             }.start()
                         }
-                        try {
-                            savedDeviceId?.let { SipEngineHolder.engine?.unregisterDevice(it) }
-                        } catch (_: Exception) { }
+                        // By the gateway's own id for this device, off the main thread.
+                        com.solutions5060.aria.service.EngineManager.unregisterFromGateway(context)
                         onSignOut()
                     },
                     colors = ButtonDefaults.textButtonColors(

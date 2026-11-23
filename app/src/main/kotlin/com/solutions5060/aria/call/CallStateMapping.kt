@@ -144,6 +144,14 @@ object CallStateMapping {
     }
 
     /**
+     * A connected call the core ended as `Failed` without this side hanging
+     * up: the gateway instance carrying it died and the call could not be
+     * moved. Reported once by the core; shown as "Call dropped".
+     */
+    fun isConnectionLoss(coreReason: CoreEndReason?, wasAnswered: Boolean, localHangupRequested: Boolean): Boolean =
+        coreReason == CoreEndReason.FAILED && wasAnswered && !localHangupRequested
+
+    /**
      * Why an engine-reported end happened: the core's [coreReason] when it
      * gave one, else inferred from whether this side asked to hang up.
      */
