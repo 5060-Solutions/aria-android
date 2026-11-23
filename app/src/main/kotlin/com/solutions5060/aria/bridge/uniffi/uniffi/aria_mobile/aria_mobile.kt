@@ -908,6 +908,8 @@ internal open class UniffiVTableCallbackInterfacePlatformAudioBridge(
 
 
 
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -975,6 +977,8 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_conference_split(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_current_gateway(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_get_active_call(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_get_calls(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
@@ -1209,6 +1213,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_conference_split(
     ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_current_gateway(
+    ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_active_call(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_calls(
@@ -1374,6 +1380,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_conference_split() != 4102.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_current_gateway() != 15205.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_active_call() != 15775.toShort()) {
@@ -2089,6 +2098,14 @@ public interface AriaMobileEngineInterface {
     fun `conferenceSplit`()
     
     /**
+     * The gateway instance holding this device's registration, as
+     * `host:port` (the SRV target, e.g. `gw2.ariaroute.com:443`), or null
+     * before `register_device`. For diagnostics: it changes on failover and
+     * failback.
+     */
+    fun `currentGateway`(): kotlin.String?
+    
+    /**
      * The connected call that is off hold, if any; otherwise the most
      * recently created live call (held, or outgoing and ringing).
      */
@@ -2174,11 +2191,16 @@ public interface AriaMobileEngineInterface {
     fun `makeCallWithId`(`callId`: kotlin.String, `uri`: kotlin.String, `credentials`: SipCredentials, `preferredCodecs`: List<AudioCodec>): CallInfo
     
     /**
-     * Notify the core of a network connectivity change.
-     * Call this from the platform when WiFi/cellular changes, or after reconnect.
-     * Returns at once. The gateway heartbeat it triggers runs in the
-     * background, and a burst of changes is coalesced: at most one heartbeat
-     * is in flight, followed by one more if changes arrived meanwhile.
+     * Notify the core of a network path change: Wi-Fi/cellular switch, a
+     * new IP, back online, and on returning to the foreground. Returns at
+     * once; recovery runs in the background (README "Network changes"):
+     * live calls move their media to the new network at once (new RTP
+     * socket, STUN, re-INVITE through the gateway) and are never ended by
+     * it; the gateway SRV name is looked up again; the registration is
+     * heartbeated, re-registered or moved to another gateway instance.
+     * Progress is reported through `on_registration_changed`
+     * (`recovering`, then `registered`, `failed` or `auth_required`).
+     * A burst of changes is coalesced.
      */
     fun `notifyNetworkChange`()
     
@@ -2219,7 +2241,9 @@ public interface AriaMobileEngineInterface {
     /**
      * Replace the bearer token used for all gateway requests, including the
      * background call-status polls. Pass a token fetched from the PBX
-     * (`POST /api/v1/devices/{id}/gateway-token`). Does not re-register.
+     * (`POST /api/v1/devices/{id}/gateway-token`). Does not re-register,
+     * except that a network-change recovery that stopped at a 401
+     * (`auth_required`) resumes with the new token.
      */
     fun `setGatewayToken`(`token`: kotlin.String)
     
@@ -2760,6 +2784,24 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
+     * The gateway instance holding this device's registration, as
+     * `host:port` (the SRV target, e.g. `gw2.ariaroute.com:443`), or null
+     * before `register_device`. For diagnostics: it changes on failover and
+     * failback.
+     */override fun `currentGateway`(): kotlin.String? {
+            return FfiConverterOptionalString.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_current_gateway(
+        it, _status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
      * The connected call that is off hold, if any; otherwise the most
      * recently created live call (held, or outgoing and ringing).
      */override fun `getActiveCall`(): CallInfo? {
@@ -2948,11 +2990,16 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
-     * Notify the core of a network connectivity change.
-     * Call this from the platform when WiFi/cellular changes, or after reconnect.
-     * Returns at once. The gateway heartbeat it triggers runs in the
-     * background, and a burst of changes is coalesced: at most one heartbeat
-     * is in flight, followed by one more if changes arrived meanwhile.
+     * Notify the core of a network path change: Wi-Fi/cellular switch, a
+     * new IP, back online, and on returning to the foreground. Returns at
+     * once; recovery runs in the background (README "Network changes"):
+     * live calls move their media to the new network at once (new RTP
+     * socket, STUN, re-INVITE through the gateway) and are never ended by
+     * it; the gateway SRV name is looked up again; the registration is
+     * heartbeated, re-registered or moved to another gateway instance.
+     * Progress is reported through `on_registration_changed`
+     * (`recovering`, then `registered`, `failed` or `auth_required`).
+     * A burst of changes is coalesced.
      */override fun `notifyNetworkChange`()
         = 
     callWithPointer {
@@ -3060,7 +3107,9 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
     /**
      * Replace the bearer token used for all gateway requests, including the
      * background call-status polls. Pass a token fetched from the PBX
-     * (`POST /api/v1/devices/{id}/gateway-token`). Does not re-register.
+     * (`POST /api/v1/devices/{id}/gateway-token`). Does not re-register,
+     * except that a network-change recovery that stopped at a 401
+     * (`auth_required`) resumes with the new token.
      */override fun `setGatewayToken`(`token`: kotlin.String)
         = 
     callWithPointer {
@@ -3608,7 +3657,12 @@ data class CallInfo (
      * This call is being recorded to a WAV file (`start_recording`).
      * False on the `Ended` event: recording stops when the call ends.
      */
-    var `recording`: kotlin.Boolean = false
+    var `recording`: kotlin.Boolean = false, 
+    /**
+     * The negotiated audio codec by its SDP name (`PCMU`, `PCMA`, `opus`,
+     * `G729`), once the call has media; null before then.
+     */
+    var `codec`: kotlin.String? = null
 ) {
     
     companion object
@@ -3631,6 +3685,7 @@ public object FfiConverterTypeCallInfo: FfiConverterRustBuffer<CallInfo> {
             FfiConverterOptionalTypeEndReason.read(buf),
             FfiConverterBoolean.read(buf),
             FfiConverterBoolean.read(buf),
+            FfiConverterOptionalString.read(buf),
         )
     }
 
@@ -3645,7 +3700,8 @@ public object FfiConverterTypeCallInfo: FfiConverterRustBuffer<CallInfo> {
             FfiConverterULong.allocationSize(value.`durationSecs`) +
             FfiConverterOptionalTypeEndReason.allocationSize(value.`endReason`) +
             FfiConverterBoolean.allocationSize(value.`inConference`) +
-            FfiConverterBoolean.allocationSize(value.`recording`)
+            FfiConverterBoolean.allocationSize(value.`recording`) +
+            FfiConverterOptionalString.allocationSize(value.`codec`)
     )
 
     override fun write(value: CallInfo, buf: ByteBuffer) {
@@ -3660,6 +3716,7 @@ public object FfiConverterTypeCallInfo: FfiConverterRustBuffer<CallInfo> {
             FfiConverterOptionalTypeEndReason.write(value.`endReason`, buf)
             FfiConverterBoolean.write(value.`inConference`, buf)
             FfiConverterBoolean.write(value.`recording`, buf)
+            FfiConverterOptionalString.write(value.`codec`, buf)
     }
 }
 
@@ -4551,7 +4608,15 @@ public object FfiConverterTypeProvisionError : FfiConverterRustBuffer<ProvisionE
 public interface MobileEventHandler {
     
     /**
-     * Called when registration state changes.
+     * Called when registration state changes. `status` is one of:
+     * `registered` (after `register_device`, `update_push_token`, a
+     * network-change recovery, or a move to another gateway instance; the
+     * `device_id` may then be new: use the latest one), `unregistered`,
+     * `recovering` (a network change is being recovered from), `failed`
+     * (`error` says why; incoming calls may not arrive until the next
+     * network change or `register_device` succeeds), and `auth_required`
+     * (the token was refused: `on_auth_required` has fired; recovery
+     * resumes by itself after `set_gateway_token`).
      */
     fun `onRegistrationChanged`(`deviceId`: kotlin.String, `status`: kotlin.String, `error`: kotlin.String?)
     

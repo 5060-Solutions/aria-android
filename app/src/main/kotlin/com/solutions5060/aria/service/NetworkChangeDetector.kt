@@ -45,13 +45,13 @@ fun interface Cancellable {
  * - a change of address on the same network (DHCP renew, IPv6 renumbering,
  *   a roam between access points that changes the IP);
  * - a change of transport on the same network object, or the network
- *   becoming validated (a captive portal signed in to).
+ *   becoming validated (a captive portal signed in to);
+ * - losing the default network.
  *
  * Changes are debounced: a burst (Android often reports available,
  * capabilities and link properties within a few hundred ms) produces one
  * notification [debounceMillis] after the last event. Losing the default
- * network notifies nothing (there is nothing to reach), but reports
- * [onConnectivity] false at once; the next default network notifies.
+ * network also reports [onConnectivity] false at once.
  */
 class NetworkChangeDetector(
     private val scheduler: Scheduler,
@@ -61,7 +61,7 @@ class NetworkChangeDetector(
 ) : DefaultNetworkCallback {
 
     companion object {
-        const val DEFAULT_DEBOUNCE_MS = 1_500L
+        const val DEFAULT_DEBOUNCE_MS = 500L
     }
 
     private var current: String? = null
@@ -93,9 +93,10 @@ class NetworkChangeDetector(
         transports = null
         validated = null
         addresses = null
-        pending?.cancel()
-        pending = null
         onConnectivity(false)
+        // The core is told about losses too (it marks the path down and
+        // coalesces the burst); the next default network is another change.
+        changed()
     }
 
     @Synchronized

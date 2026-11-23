@@ -216,6 +216,16 @@ private fun MainApp(
     val selfServiceViewModel = viewModel<SelfServiceViewModel>()
     val selfService by selfServiceViewModel.state.collectAsState()
     val voicemailUnread by com.solutions5060.aria.voicemail.VoicemailMonitor.unread.collectAsState()
+    // "Call dropped — connection lost" after the core ends a call it could not keep.
+    val callNotice by CallManager.notice.collectAsState()
+    val snackbar = com.solutions5060.aria.ui.components.LocalSnackbarHostState.current
+    val droppedText = stringResource(R.string.call_dropped_connection_lost)
+    LaunchedEffect(callNotice) {
+        if (callNotice == com.solutions5060.aria.call.CallNotice.DROPPED) {
+            CallManager.clearNotice()
+            snackbar.showSnackbar(droppedText)
+        }
+    }
     // A tab named by a notification (new voicemail).
     val tabLink by DeepLinks.pending.collectAsState()
     (tabLink as? DeepLink.OpenTab)?.let { link ->

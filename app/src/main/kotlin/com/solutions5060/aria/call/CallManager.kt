@@ -39,6 +39,12 @@ import java.util.UUID
 import java.util.concurrent.Executors
 import java.util.concurrent.FutureTask
 
+/** A one-off message about a call, shown as a snackbar. */
+enum class CallNotice {
+    /** The connection to the gateway was lost and the call could not be kept. */
+    DROPPED,
+}
+
 /** What the call screen renders. Immutable; a new value is published on every change. */
 data class CallUiState(
     val key: String,
@@ -65,6 +71,8 @@ data class CallUiState(
     val recording: Boolean = false,
     /** The name of the matching phone contact, if contacts access was granted. */
     val contactName: String? = null,
+    /** The negotiated codec by its SDP name ("PCMU", "PCMA", "opus", "G729"); null before media. */
+    val codec: String? = null,
 ) {
     /** The contact's name, else the name the network sent, else the user part of the URI. */
     val displayName: String
@@ -137,6 +145,15 @@ object CallManager {
     /** The last call-setup failure, for the dialer to show. */
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val _notice = MutableStateFlow<CallNotice?>(null)
+
+    /** Something to tell the user after a call, as a snackbar; cleared with [clearNotice]. */
+    val notice: StateFlow<CallNotice?> = _notice.asStateFlow()
+
+    fun clearNotice() {
+        _notice.value = null
+    }
+
     private val _actionError = MutableStateFlow<String?>(null)
 
     /**
@@ -187,6 +204,7 @@ object CallManager {
         var inConference = false
         var recording = false
         var contactName: String? = null
+        var codec: String? = null
     }
 
     /** Every call by record key, oldest first. Main-thread only. */
@@ -252,7 +270,7 @@ object CallManager {
     val eventHandler: MobileEventHandler = object : MobileEventHandler {
         override fun onRegistrationChanged(deviceId: String, status: String, error: String?) {
             Log.i(TAG, "Registration $status${error?.let { " ($it)" } ?: ""}")
-            com.solutions5060.aria.service.GatewayConnection.onCoreRegistration(status, error)
+            com.solutions5060.aria.service.GatewayConnection.onCoreRegistration(appContext, deviceId, status, error)
         }
 
         override fun onIncomingCall(offer: CallOffer) {
@@ -309,9 +327,15 @@ object CallManager {
         rec.onHold = info.onHold
         rec.inConference = info.inConference
         rec.recording = info.recording
+        info.codec?.let { rec.codec = it }
 
         if (info.state == CallState.ENDED) {
             info.endReason?.let { rec.deferredEndReason = CallStateMapping.endReasonFor(it) }
+            if (CallStateMapping.isConnectionLoss(info.endReason, rec.connectedAtElapsed != null, rec.localHangupRequested)) {
+                // A gateway instance died and no other took the call over
+                // (the core waits 15 s, or 60 s with no instance answering).
+                _notice.value = CallNotice.DROPPED
+            }
             // Events arrive asynchronously, before or after the engine method
             // that caused them returns. While one is running its result says
             // why the call ended, so an Ended now waits for that result.
@@ -1328,6 +1352,7 @@ object CallManager {
         inConference = inConference,
         recording = recording,
         contactName = contactName,
+        codec = codec,
     )
 
     /**

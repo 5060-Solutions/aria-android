@@ -100,13 +100,23 @@ class NetworkChangeDetectorTest {
     }
 
     @Test
-    fun goingOfflineCancelsAPendingNotification() {
+    fun losingTheNetworkIsAChangeToo() {
+        connect("100", wifi, setOf("192.168.1.20"))
+        scheduler.advance(1_000)
+        detector.onLost("100")
+        assertEquals(listOf(true, false), connectivity)
+        scheduler.advance(1_000)
+        assertEquals(2, notified)
+        assertNull(detector.currentNetwork)
+    }
+
+    @Test
+    fun aFlapIsOneNotification() {
         connect("100", wifi, setOf("192.168.1.20"))
         detector.onLost("100")
-        scheduler.advance(5_000)
-        assertEquals(0, notified)
-        assertNull(detector.currentNetwork)
-        assertEquals(listOf(true, false), connectivity)
+        connect("101", wifi, setOf("192.168.1.20"))
+        scheduler.advance(1_000)
+        assertEquals(1, notified)
     }
 
     @Test

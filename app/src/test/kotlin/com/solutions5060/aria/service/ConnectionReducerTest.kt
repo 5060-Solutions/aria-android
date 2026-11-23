@@ -1,7 +1,9 @@
 package com.solutions5060.aria.service
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
 import org.junit.Test
 
 class ConnectionReducerTest {
@@ -44,12 +46,37 @@ class ConnectionReducerTest {
     }
 
     @Test
-    fun coreEvents() {
-        val s = ConnectionState(status = ConnectionStatus.CONNECTING)
-        assertEquals(ConnectionStatus.REGISTERED, s.then(ConnectionEvent.CoreRegistration("registered", null)).status)
-        assertEquals(ConnectionStatus.OFFLINE, s.then(ConnectionEvent.CoreRegistration("unregistered", null)).status)
-        assertEquals(ConnectionStatus.ERROR, s.then(ConnectionEvent.CoreRegistration("failed", "503")).status)
-        assertEquals(s, s.then(ConnectionEvent.CoreRegistration("something-new", null)))
+    fun coreStatusesMapToTheChip() {
+        val up = ConnectionState(status = ConnectionStatus.REGISTERED, deviceId = "gw-a", gatewayNode = "gw1.ariaroute.com:443")
+
+        val recovering = up.then(ConnectionEvent.CoreRegistration("recovering", null, "gw-a"))
+        assertEquals(ConnectionStatus.CONNECTING, recovering.status)
+        assertTrue(recovering.recovering)
+
+        val moved = recovering.then(ConnectionEvent.CoreRegistration("registered", null, "gw-b", "gw2.ariaroute.com:443"))
+        assertEquals(ConnectionStatus.REGISTERED, moved.status)
+        assertFalse(moved.recovering)
+        assertEquals("gw-b", moved.deviceId)
+        assertEquals("gw2.ariaroute.com:443", moved.gatewayNode)
+
+        val failed = up.then(ConnectionEvent.CoreRegistration("failed", "gateway unreachable", "gw-a"))
+        assertEquals(ConnectionStatus.ERROR, failed.status)
+        assertEquals("gateway unreachable", failed.error)
+        assertEquals("Registration failed", up.then(ConnectionEvent.CoreRegistration("failed", null)).error)
+
+        val auth = up.then(ConnectionEvent.CoreRegistration("auth_required", null, "gw-a"))
+        assertEquals(ConnectionStatus.CONNECTING, auth.status)
+        assertTrue(auth.recovering)
+
+        assertEquals(ConnectionStatus.OFFLINE, up.then(ConnectionEvent.CoreRegistration("unregistered", null)).status)
+        assertEquals(up, up.then(ConnectionEvent.CoreRegistration("something-new", null)))
+    }
+
+    @Test
+    fun aFailureWhileOfflineShowsOffline() {
+        val s = ConnectionState(status = ConnectionStatus.REGISTERED)
+            .then(ConnectionEvent.Online(false), ConnectionEvent.CoreRegistration("failed", "no route"))
+        assertEquals(ConnectionStatus.OFFLINE, s.status)
     }
 
     @Test
