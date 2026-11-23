@@ -248,6 +248,7 @@ object CallManager {
     val eventHandler: MobileEventHandler = object : MobileEventHandler {
         override fun onRegistrationChanged(deviceId: String, status: String, error: String?) {
             Log.i(TAG, "Registration $status${error?.let { " ($it)" } ?: ""}")
+            com.solutions5060.aria.service.GatewayConnection.onCoreRegistration(status, error)
         }
 
         override fun onIncomingCall(offer: CallOffer) {

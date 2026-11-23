@@ -10,7 +10,11 @@ import android.content.Context
 import com.solutions5060.aria.security.SecurePrefs
 import com.solutions5060.aria.call.CallManager
 import com.solutions5060.aria.call.TelecomAccount
+import com.solutions5060.aria.service.GatewayConnection
 import com.solutions5060.aria.service.NetworkMonitor
+import androidx.lifecycle.DefaultLifecycleObserver
+import androidx.lifecycle.LifecycleOwner
+import androidx.lifecycle.ProcessLifecycleOwner
 import uniffi.aria_mobile.initRuntime
 import uniffi.aria_mobile.shutdownRuntime
 
@@ -55,6 +59,14 @@ class AriaApplication : Application() {
         networkMonitor = NetworkMonitor(this)
         networkMonitor?.start()
         Log.i(TAG, "Network monitor started")
+
+        // Back in the foreground: build the engine if there is none (started
+        // offline, or a push-only process), or confirm the registration.
+        ProcessLifecycleOwner.get().lifecycle.addObserver(object : DefaultLifecycleObserver {
+            override fun onStart(owner: LifecycleOwner) {
+                if (!com.solutions5060.aria.fixtures.Fixtures.active) GatewayConnection.onForeground(this@AriaApplication)
+            }
+        })
     }
 
     override fun onTerminate() {

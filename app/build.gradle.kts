@@ -123,6 +123,8 @@ dependencies {
     // Lifecycle
     implementation("androidx.lifecycle:lifecycle-runtime-compose:2.8.7")
     implementation("androidx.lifecycle:lifecycle-viewmodel-compose:2.8.7")
+    // Foreground/background of the whole process (reconnect on return)
+    implementation("androidx.lifecycle:lifecycle-process:2.8.7")
 
     // Firebase Cloud Messaging
     implementation(platform("com.google.firebase:firebase-bom:35.2.0"))

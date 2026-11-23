@@ -45,7 +45,10 @@ import com.solutions5060.aria.ui.setup.ManualSetupScreen
 import com.solutions5060.aria.ui.setup.SetupLinkScreen
 import com.solutions5060.aria.security.SecurePrefs
 import com.solutions5060.aria.service.EngineManager
-import com.solutions5060.aria.service.SipEngineHolder
+import com.solutions5060.aria.service.ConnectionStatus
+import com.solutions5060.aria.service.GatewayConnection
+import com.solutions5060.aria.ui.connection.ConnectionViewModel
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.solutions5060.aria.ui.call.ManagedCallScreen
 import com.solutions5060.aria.ui.contacts.ContactsScreen
 import com.solutions5060.aria.ui.dialer.DialerScreen
@@ -134,6 +137,7 @@ fun AriaApp() {
         SecurePrefs.clear(context)
         CallHistoryStore.clear(context)
         EngineManager.reset()
+        GatewayConnection.onSignedOut()
     }
 
     var manualSetup by rememberSaveable { mutableStateOf(false) }
@@ -213,9 +217,8 @@ private fun MainApp(
     val context = LocalContext.current
     val fixture = Fixtures.current
     var callError by remember { mutableStateOf<String?>(null) }
-    var engineReady by remember {
-        mutableStateOf(fixture?.account?.registered ?: (SipEngineHolder.engine != null))
-    }
+    val connection by viewModel<ConnectionViewModel>().state.collectAsState()
+    val engineReady = fixture?.account?.registered ?: (connection.status == ConnectionStatus.REGISTERED)
     val call by CallManager.state.collectAsState()
     val callSetupError by CallManager.error.collectAsState()
 
@@ -223,18 +226,9 @@ private fun MainApp(
     LaunchedEffect(Unit) {
         // Fixture mode never starts the engine.
         if (fixture != null) return@LaunchedEffect
-        if (SipEngineHolder.engine != null) {
-            engineReady = true
-            return@LaunchedEffect
-        }
-        kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
-            try {
-                engineReady = EngineManager.ensureEngine(context) != null
-            } catch (e: Exception) {
-                Log.e(TAG, "Failed to init engine on startup: ${e.message}", e)
-                callError = "Connection failed: ${e.message}"
-            }
-        }
+        // Builds the engine if needed; later returns to the foreground are
+        // handled process-wide (AriaApplication).
+        GatewayConnection.onForeground(context)
     }
 
     // Ask once per launch for whatever stops incoming calls from alerting.
@@ -299,6 +293,9 @@ private fun MainApp(
                         CallAlertSetup.Problem.NOTIFICATIONS_OFF ->
                             "Notifications are off for Aria, so incoming calls can't be answered from the lock screen or " +
                                 "another app. Turn on notifications to see and answer calls."
+                        CallAlertSetup.Problem.BACKGROUND_RESTRICTED ->
+                            "Battery use for Aria is set to Restricted, so Android blocks the notifications that " +
+                                "deliver incoming calls. In App info > Battery, choose Unrestricted or Optimized."
                         CallAlertSetup.Problem.FULL_SCREEN_DENIED ->
                             "Aria isn't allowed to show calls full screen, so on a locked phone calls appear only as a " +
                                 "notification. Allow full-screen notifications to see the call screen."
