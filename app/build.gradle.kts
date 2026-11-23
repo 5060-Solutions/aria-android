@@ -105,19 +105,20 @@ kotlin {
 }
 
 dependencies {
-    // Compose BOM
-    val composeBom = platform("androidx.compose:compose-bom:2024.12.01")
+    // Compose BOM (versions pinned in gradle/libs.versions.toml)
+    val composeBom = platform(libs.compose.bom)
     implementation(composeBom)
 
-    // Compose UI
-    implementation("androidx.compose.ui:ui")
-    implementation("androidx.compose.ui:ui-graphics")
-    implementation("androidx.compose.ui:ui-tooling-preview")
-    implementation("androidx.compose.material3:material3")
-    implementation("androidx.compose.material:material-icons-extended")
+    // Compose UI + Material 3 Expressive
+    implementation(libs.compose.ui)
+    implementation(libs.compose.ui.graphics)
+    implementation(libs.compose.ui.tooling.preview)
+    implementation(libs.compose.material3)
+    implementation(libs.compose.material.icons.extended)
+    implementation(libs.graphics.shapes)
 
     // Activity & Navigation
-    implementation("androidx.activity:activity-compose:1.9.3")
+    implementation(libs.activity.compose)
     implementation("androidx.navigation:navigation-compose:2.10.2")
 
     // Lifecycle
@@ -156,7 +157,7 @@ dependencies {
     implementation("org.json:json:20240303")
 
     // Debug
-    debugImplementation("androidx.compose.ui:ui-tooling")
+    debugImplementation(libs.compose.ui.tooling)
 
     // Unit tests (JVM, src/test)
     testImplementation("junit:junit:4.13.2")

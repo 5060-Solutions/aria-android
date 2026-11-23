@@ -50,6 +50,7 @@ import com.solutions5060.aria.service.GatewayConnection
 import com.solutions5060.aria.ui.connection.ConnectionViewModel
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.solutions5060.aria.ui.call.ManagedCallScreen
+import com.solutions5060.aria.ui.shell.AriaShell
 import com.solutions5060.aria.ui.contacts.ContactsScreen
 import com.solutions5060.aria.ui.dialer.DialerScreen
 import com.solutions5060.aria.ui.history.HistoryScreen
@@ -78,21 +79,6 @@ private enum class AppPhase {
     SETUP,
     MAIN,
 }
-
-private data class NavTab(
-    val route: String,
-    val label: String,
-    val selectedIcon: ImageVector,
-    val unselectedIcon: ImageVector,
-)
-
-private val navTabs = listOf(
-    NavTab("dialer", "Dialer", Icons.Filled.Dialpad, Icons.Filled.Dialpad),
-    NavTab("contacts", "Contacts", Icons.Filled.Contacts, Icons.Outlined.Contacts),
-    NavTab("history", "History", Icons.Filled.History, Icons.Outlined.History),
-    NavTab("voicemail", "Voicemail", Icons.Filled.Voicemail, Icons.Outlined.Voicemail),
-    NavTab("settings", "Settings", Icons.Filled.Settings, Icons.Outlined.Settings),
-)
 
 @Composable
 fun AriaApp() {
@@ -393,43 +379,16 @@ private fun MainApp(
     if (activeCall != null) {
         ManagedCallScreen(activeCall)
     } else {
-        Scaffold(
-            bottomBar = {
-                NavigationBar(
-                    containerColor = MaterialTheme.colorScheme.surface,
-                    tonalElevation = 0.dp,
-                ) {
-                    navTabs.forEach { tab ->
-                        val selected = currentRoute == tab.route
-                        NavigationBarItem(
-                            icon = {
-                                Icon(
-                                    if (selected) tab.selectedIcon else tab.unselectedIcon,
-                                    contentDescription = tab.label,
-                                )
-                            },
-                            label = {
-                                Text(
-                                    tab.label,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (selected) FontWeight.SemiBold else FontWeight.Normal,
-                                )
-                            },
-                            selected = selected,
-                            onClick = {
-                                navController.navigate(tab.route) { launchSingleTop = true }
-                            },
-                            colors = NavigationBarItemDefaults.colors(
-                                selectedIconColor = MaterialTheme.colorScheme.primary,
-                                selectedTextColor = MaterialTheme.colorScheme.primary,
-                                unselectedIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                unselectedTextColor = MaterialTheme.colorScheme.onSurfaceVariant,
-                                indicatorColor = MaterialTheme.colorScheme.primaryContainer,
-                            ),
-                        )
-                    }
+        AriaShell(
+            currentRoute = currentRoute,
+            voicemailUnread = fixture?.voicemail?.count { !it.read } ?: 0,
+            onSelectTab = { tab ->
+                navController.navigate(tab.route) {
+                    popUpTo(navController.graph.startDestinationId) { saveState = true }
+                    launchSingleTop = true
+                    restoreState = true
                 }
-            }
+            },
         ) { innerPadding ->
             NavHost(
                 navController = navController,

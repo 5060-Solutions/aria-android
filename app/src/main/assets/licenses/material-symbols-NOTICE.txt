@@ -1,0 +1,5 @@
+Material Symbols (Rounded), https://github.com/google/material-design-icons
+Copyright Google LLC. Licensed under the Apache License, Version 2.0:
+https://www.apache.org/licenses/LICENSE-2.0
+Used as the vector drawables res/drawable/ic_*.xml (except ic_aria_logo,
+ic_launcher_*, ic_splash_logo and ic_phone).
