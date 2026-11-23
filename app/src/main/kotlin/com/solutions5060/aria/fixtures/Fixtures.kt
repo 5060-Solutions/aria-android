@@ -299,6 +299,8 @@ object FixtureData {
             connectedAtElapsed = nowElapsed - 754_000L,
             audio = audio,
             encrypted = true,
+            // As the core reports it: the SDP name.
+            codec = "opus",
         )
         val ben = CallUiState(
             key = "fixture-b",
@@ -315,7 +317,7 @@ object FixtureData {
             FixtureScene.IN_CALL -> listOf(amelia)
             FixtureScene.TWO_CALLS -> listOf(
                 amelia.copy(phase = CallPhase.HELD, onHold = true),
-                ben.copy(phase = CallPhase.ACTIVE, connectedAtElapsed = nowElapsed - 83_000L, encrypted = true),
+                ben.copy(phase = CallPhase.ACTIVE, connectedAtElapsed = nowElapsed - 83_000L, encrypted = true, codec = "PCMU"),
             )
             FixtureScene.CALL_WAITING -> listOf(amelia, ben)
         }

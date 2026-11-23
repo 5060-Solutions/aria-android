@@ -41,6 +41,9 @@ android {
         versionCode = ariaVersionCode
         versionName = ariaVersionName
 
+        // Instrumented Compose UI tests (src/androidTest), run against fixture mode.
+        testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
+
         // The Rust core is built for these three ABIs only (build-rust.sh).
         // Without the filter, JNA and ML Kit pull in x86/armeabi/mips copies
         // and an x86 device would install an app whose core cannot load.
@@ -165,4 +168,17 @@ dependencies {
     testImplementation("org.json:json:20240303")
     // PBX repositories against a local HTTP server
     testImplementation(libs.okhttp.mockwebserver)
+
+    // Instrumented UI tests (src/androidTest): Compose test rule, runner,
+    // intents (emergency hand-off) and UiAutomator (system permission dialogs).
+    androidTestImplementation(composeBom)
+    androidTestImplementation(libs.compose.ui.test.junit4)
+    androidTestImplementation(libs.androidx.test.runner)
+    androidTestImplementation(libs.androidx.test.rules)
+    androidTestImplementation(libs.androidx.test.ext.junit)
+    androidTestImplementation(libs.espresso.intents)
+    // Compose's test rule idles through Espresso; 3.7 works on API 36+ (InputManager change).
+    androidTestImplementation(libs.espresso.core)
+    androidTestImplementation(libs.uiautomator)
+    debugImplementation(libs.compose.ui.test.manifest)
 }
