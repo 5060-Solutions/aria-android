@@ -128,6 +128,8 @@ fun AriaApp() {
         CallHistoryStore.clear(context)
         EngineManager.reset()
         GatewayConnection.onSignedOut()
+        // Recordings are this account's calls; they go with it.
+        com.solutions5060.aria.recording.RecordingsRepository(context).deleteAll()
         com.solutions5060.aria.voicemail.VoicemailMonitor.clear(context)
         SelfServiceState.clear()
     }
@@ -468,12 +470,18 @@ private fun MainApp(
                                     onOpenForwarding = { navController.navigate("forwarding") },
                                     onOpenCodecs = { navController.navigate("codecs") },
                                 )
+                                com.solutions5060.aria.ui.recordings.RecordingsSection(
+                                    onOpen = { navController.navigate("recordings") },
+                                )
                                 com.solutions5060.aria.ui.connection.DiagnosticsSection(
                                     onOpen = { navController.navigate("diagnostics") },
                                 )
                             }
                         },
                     )
+                }
+                composable("recordings") {
+                    com.solutions5060.aria.ui.recordings.RecordingsScreen(onBack = { navController.popBackStack() })
                 }
                 composable("diagnostics") {
                     com.solutions5060.aria.ui.connection.DiagnosticsScreen(onBack = { navController.popBackStack() })
