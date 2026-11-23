@@ -449,9 +449,15 @@ private fun MainApp(
                         onOpenTranscription = { navController.navigate("transcription") },
                         onOpenTranscripts = { navController.navigate("transcripts") },
                         callingSection = {
-                            CallingSection(onOpenForwarding = { navController.navigate("forwarding") })
+                            CallingSection(
+                                onOpenForwarding = { navController.navigate("forwarding") },
+                                onOpenCodecs = { navController.navigate("codecs") },
+                            )
                         },
                     )
+                }
+                composable("codecs") {
+                    com.solutions5060.aria.ui.settings.CodecsScreen(onBack = { navController.popBackStack() })
                 }
                 composable("forwarding") {
                     ForwardingScreen(onBack = { navController.popBackStack() })

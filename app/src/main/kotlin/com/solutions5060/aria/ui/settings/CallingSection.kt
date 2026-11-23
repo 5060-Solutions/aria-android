@@ -21,6 +21,17 @@ import com.solutions5060.aria.ui.theme.AriaIcons
 object CallingSectionTags {
     const val DND = "settings_dnd"
     const val FORWARDING = "settings_forwarding"
+    const val CODECS = "settings_codecs"
+}
+
+/** "Opus, G.711 µ-law, G.711 A-law": the enabled codecs in order. */
+@Composable
+private fun codecSummary(): String {
+    val context = androidx.compose.ui.platform.LocalContext.current
+    val list by com.solutions5060.aria.call.CodecPreferences.state.collectAsState()
+    LaunchedEffect(Unit) { com.solutions5060.aria.call.CodecPreferences.load(context) }
+    return com.solutions5060.aria.call.CodecOrder.offered(list)
+        .joinToString(", ") { com.solutions5060.aria.call.CodecPreferences.label(it) }
 }
 
 /**
@@ -31,6 +42,7 @@ object CallingSectionTags {
 @Composable
 fun CallingSection(
     onOpenForwarding: () -> Unit,
+    onOpenCodecs: (() -> Unit)? = null,
     vm: SelfServiceViewModel = viewModel(),
     more: @Composable () -> Unit = {},
 ) {
@@ -55,6 +67,17 @@ fun CallingSection(
             shape = RowShape.Pill,
             modifier = Modifier.testTag(CallingSectionTags.FORWARDING),
         )
+        if (onOpenCodecs != null) {
+            AriaListItem(
+                headline = stringResource(R.string.codecs_title),
+                supporting = codecSummary(),
+                leading = { RowIcon(AriaIcons.Codecs) },
+                trailing = { AriaIcon(AriaIcons.ChevronRight, contentDescription = null) },
+                onClick = onOpenCodecs,
+                shape = RowShape.Pill,
+                modifier = Modifier.testTag(CallingSectionTags.CODECS),
+            )
+        }
         more()
     }
 }

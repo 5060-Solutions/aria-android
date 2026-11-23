@@ -92,4 +92,15 @@
         <item quantity="one">%d unread message</item>
         <item quantity="other">%d unread messages</item>
     </plurals>
+
+    <!-- Codecs -->
+    <string name="codecs_title">Codecs</string>
+    <string name="codecs_body">Aria offers these codecs in this order. The first one both sides support is used.</string>
+    <string name="codecs_footer">Changes apply from your next call.</string>
+    <string name="codecs_move_up">Move %1$s up</string>
+    <string name="codecs_move_down">Move %1$s down</string>
+    <string name="codec_opus_desc">Wideband, best quality, adapts to the network</string>
+    <string name="codec_pcmu_desc">Standard telephone quality (North America)</string>
+    <string name="codec_pcma_desc">Standard telephone quality (international)</string>
+    <string name="codec_g729_desc">Low bandwidth, lower quality</string>
 </resources>
