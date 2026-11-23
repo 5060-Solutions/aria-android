@@ -1,173 +1,250 @@
 package com.solutions5060.aria.ui.call
 
-import androidx.compose.animation.core.*
+import android.os.SystemClock
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.LinearEasing
+import androidx.compose.animation.core.RepeatMode
+import androidx.compose.animation.core.animateFloat
+import androidx.compose.animation.core.infiniteRepeatable
+import androidx.compose.animation.core.rememberInfiniteTransition
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.FlowRow
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.filled.VolumeDown
-import androidx.compose.material.icons.automirrored.filled.VolumeUp
-import androidx.compose.material.icons.filled.*
-import androidx.compose.material3.*
-import androidx.compose.runtime.*
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.material3.ExperimentalMaterial3ExpressiveApi
+import androidx.compose.material3.FilledTonalIconButton
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.IconButtonDefaults
+import androidx.compose.material3.MaterialShapes
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.SnackbarHostState
+import androidx.compose.material3.Surface
+import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.toShape
+import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
-import android.content.Intent
-import android.os.SystemClock
-import android.provider.ContactsContract
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.text.KeyboardOptions
-import androidx.compose.material.icons.automirrored.filled.PhoneCallback
-import androidx.compose.material.icons.automirrored.filled.PhoneForwarded
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.semantics.LiveRegionMode
+import androidx.compose.ui.semantics.clearAndSetSemantics
+import androidx.compose.ui.semantics.contentDescription
+import androidx.compose.ui.semantics.heading
+import androidx.compose.ui.semantics.isTraversalGroup
+import androidx.compose.ui.semantics.liveRegion
+import androidx.compose.ui.semantics.semantics
+import androidx.compose.ui.semantics.traversalIndex
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.dp
+import com.solutions5060.aria.R
 import com.solutions5060.aria.call.AudioRouteOption
 import com.solutions5060.aria.call.AudioRouteType
+import com.solutions5060.aria.call.CallManager
 import com.solutions5060.aria.call.CallPhase
 import com.solutions5060.aria.call.CallStateMapping
-import com.solutions5060.aria.call.CallManager
 import com.solutions5060.aria.call.CallUiState
 import com.solutions5060.aria.call.CallWaiting
+import com.solutions5060.aria.call.Conference
+import com.solutions5060.aria.fixtures.Fixtures
 import com.solutions5060.aria.ui.SecureWindow
-import com.solutions5060.aria.service.SipEngineHolder
+import com.solutions5060.aria.ui.components.AriaButton
+import com.solutions5060.aria.ui.components.AriaIcon
+import com.solutions5060.aria.ui.components.AriaSnackbarHost
+import com.solutions5060.aria.ui.components.Avatar
+import com.solutions5060.aria.ui.components.CallActionButton
+import com.solutions5060.aria.ui.components.CallActionKind
+import com.solutions5060.aria.ui.components.CallControlButton
+import com.solutions5060.aria.ui.components.isAccessibilityFontScale
+import com.solutions5060.aria.ui.theme.AriaIcons
+import com.solutions5060.aria.ui.theme.AriaShapes
+import com.solutions5060.aria.ui.theme.AriaType
+import com.solutions5060.aria.ui.theme.LocalAriaColors
+import com.solutions5060.aria.ui.theme.LocalReducedMotion
+import com.solutions5060.aria.ui.theme.Sizes
+import com.solutions5060.aria.ui.theme.Spacing
 import kotlinx.coroutines.delay
 
+/** Everything the call screen can ask for. Every action names the call shown when it was tapped. */
+data class CallActions(
+    val onAnswer: () -> Unit = {},
+    val onDecline: () -> Unit = {},
+    val onEndAndAnswer: () -> Unit = {},
+    val onHangup: () -> Unit = {},
+    val onToggleMute: () -> Unit = {},
+    val onToggleHold: () -> Unit = {},
+    val onDtmf: (String) -> Unit = {},
+    val onSelectAudioRoute: (AudioRouteOption) -> Unit = {},
+    val onTransfer: (String) -> Unit = {},
+    val onConsult: (String) -> Unit = {},
+    val onCompleteTransfer: () -> Unit = {},
+    val onDismissTransferError: () -> Unit = {},
+    /** Returns why the call could not be placed, or null. */
+    val onAddCall: (String) -> String? = { null },
+    val onSwapTo: (String) -> Unit = {},
+    val onHangupOther: (String) -> Unit = {},
+    /** Returns why not, or null. */
+    val onMerge: () -> String? = { null },
+    /** Returns why not, or null. */
+    val onSplit: () -> String? = { null },
+    /** Starts recording; [consentGiven] when the notice was just confirmed. Returns why not, or null. */
+    val onStartRecording: (consentGiven: Boolean) -> String? = { null },
+    val onStopRecording: () -> Unit = {},
+    val recordingConsentNeeded: () -> Boolean = { false },
+)
+
+/** What else is going on around the call on screen. */
+data class CallContext(
+    val otherCalls: List<CallUiState> = emptyList(),
+    val canAddCall: Boolean = false,
+    val canConsult: Boolean = false,
+    val canMerge: Boolean = false,
+    val canSplit: Boolean = false,
+    val canSwap: Boolean = true,
+    val transferPair: CallWaiting.TransferPair? = null,
+    /** Errors to show once each (call setup, merge/record failures). */
+    val errors: List<String> = emptyList(),
+)
+
+/**
+ * DESIGN.md §5 call screen: SRTP lock at the top, avatar · name · number ·
+ * timer in the middle, the other call (or conference) as a tonal card, the
+ * 3×2 control grid with Record and Merge/Split in overflow, and Hang-up.
+ * Incoming calls get Decline/Answer (plus Hold & Answer / End & Answer when
+ * a call is already up).
+ */
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
 fun CallScreen(
     call: CallUiState,
-    onAnswer: () -> Unit,
-    onDecline: () -> Unit,
-    onHangup: () -> Unit,
-    onToggleMute: () -> Unit,
-    onToggleHold: () -> Unit,
-    onDtmf: (String) -> Unit,
-    onSelectAudioRoute: (AudioRouteOption) -> Unit,
-    onTransfer: (String) -> Unit,
-    onDismissTransferError: () -> Unit,
-    otherCalls: List<CallUiState> = emptyList(),
-    canAddCall: Boolean = false,
-    canConsult: Boolean = false,
-    transferPair: CallWaiting.TransferPair? = null,
-    callError: String? = null,
-    onEndAndAnswer: () -> Unit = {},
-    onSwapTo: (String) -> Unit = {},
-    onHangupOther: (String) -> Unit = {},
-    onAddCall: (String) -> String? = { null },
-    onConsult: (String) -> Unit = {},
-    onCompleteTransfer: () -> Unit = {},
-    onDismissCallError: () -> Unit = {},
+    actions: CallActions,
+    context: CallContext = CallContext(),
+    onDismissError: (String) -> Unit = {},
 ) {
-    val isSpeaker = call.audio.isSpeaker
-
-    // Shown over the lock screen for incoming calls.
+    // Shown over the lock screen for incoming calls: keep it out of screenshots.
     SecureWindow()
-    var elapsedSeconds by remember { mutableLongStateOf(0L) }
-    var showAudioPicker by remember { mutableStateOf(false) }
-    var showTransfer by remember { mutableStateOf(false) }
-    var showAddCall by remember { mutableStateOf(false) }
+
+    var showTransfer by rememberSaveable { mutableStateOf(false) }
+    var showAddCall by rememberSaveable { mutableStateOf(false) }
     var addCallError by remember { mutableStateOf<String?>(null) }
-    /** "Consult first" was tapped; the sheet closes once that call exists. */
     var consultRequested by remember { mutableStateOf(false) }
-    var showDtmfKeypad by remember { mutableStateOf(false) }
-    var rxLevel by remember { mutableFloatStateOf(0f) }
-    var txLevel by remember { mutableFloatStateOf(0f) }
-
-    val phase = call.phase
-    val callId = call.callId
-    val isMuted = call.muted
-    val isOnHold = call.onHold
-
-    // Pulsing animation for ringing/connecting states
-    val infiniteTransition = rememberInfiniteTransition(label = "pulse")
-    val pulseScale by infiniteTransition.animateFloat(
-        initialValue = 1f,
-        targetValue = 1.15f,
-        animationSpec = infiniteRepeatable(
-            animation = tween(800, easing = EaseInOut),
-            repeatMode = RepeatMode.Reverse
-        ),
-        label = "pulseScale"
-    )
-
-    // Call state comes from engine events via CallManager; only the level
-    // meters are sampled, since the engine has no event for them.
-    LaunchedEffect(callId, phase) {
-        if (callId == null || phase != CallPhase.ACTIVE) return@LaunchedEffect
-        while (true) {
-            val engine = SipEngineHolder.engine ?: break
-            try {
-                rxLevel = engine.getRxAudioLevel(callId)
-                txLevel = engine.getTxAudioLevel(callId)
-            } catch (_: Exception) {}
-            delay(300)
-        }
+    var showKeypad by rememberSaveable { mutableStateOf(Fixtures.current?.sheet == "keypad") }
+    var showAudio by rememberSaveable { mutableStateOf(false) }
+    var showMore by remember { mutableStateOf(false) }
+    var showRecordingNotice by remember { mutableStateOf(false) }
+    val snackbar = remember { SnackbarHostState() }
+    /** A result from a tap on this screen (merge refused, recording notice…), shown once. */
+    var localMessage by remember { mutableStateOf<String?>(null) }
+    LaunchedEffect(localMessage) {
+        val message = localMessage ?: return@LaunchedEffect
+        snackbar.showSnackbar(message)
+        localMessage = null
     }
 
-    // Timer — counts from the Connected event
+    val phase = call.phase
+    val active = phase == CallPhase.ACTIVE || phase == CallPhase.HELD
+    val incoming = phase == CallPhase.INCOMING
+
+    var elapsed by remember { mutableLongStateOf(0L) }
     LaunchedEffect(call.connectedAtElapsed, phase) {
         val connectedAt = call.connectedAtElapsed ?: return@LaunchedEffect
         while (phase == CallPhase.ACTIVE || phase == CallPhase.HELD) {
-            elapsedSeconds = (SystemClock.elapsedRealtime() - connectedAt) / 1000
+            elapsed = (SystemClock.elapsedRealtime() - connectedAt) / 1000
             delay(1000)
         }
     }
 
-    // Status text
-    val statusText = CallStateMapping.statusText(phase, elapsedSeconds)
+    // Errors and action results go to one snackbar on the call screen.
+    LaunchedEffect(context.errors) {
+        context.errors.firstOrNull()?.let { message ->
+            snackbar.showSnackbar(message)
+            onDismissError(message)
+        }
+    }
 
-    val isRingingOrConnecting = phase == CallPhase.RINGING || phase == CallPhase.CONNECTING || phase == CallPhase.INCOMING
-    val isActive = phase == CallPhase.ACTIVE || phase == CallPhase.HELD
+    // Spoken state changes (DESIGN.md §7): "Call connected", "Call on hold", "Recording started".
+    val announcement = announcementFor(call)
 
-    val displayName = call.displayName
-
-    // Audio picker dialog
-    // Close the transfer dialog if the call is no longer one that can be transferred.
-    if (showTransfer && phase != CallPhase.ACTIVE && phase != CallPhase.HELD) showTransfer = false
-    // The consultation call is on its way: it now has the screen.
-    if (consultRequested && otherCalls.isNotEmpty()) {
+    // Sheets
+    if (showTransfer && !active) showTransfer = false
+    if (consultRequested && context.otherCalls.isNotEmpty()) {
         consultRequested = false
         showTransfer = false
     }
     if (showTransfer) {
-        TransferDialog(
-            transferring = call.transferring,
+        NumberEntrySheet(
+            title = stringResource(R.string.ui_call_transfer_title),
+            confirmLabel = stringResource(R.string.ui_call_transfer),
+            confirmIcon = AriaIcons.Transfer,
+            busy = call.transferring,
+            busyText = stringResource(R.string.ui_call_transferring),
             error = call.transferError,
-            canConsult = canConsult,
-            onTransfer = onTransfer,
-            onConsult = {
-                consultRequested = true
-                onConsult(it)
-            },
+            onConfirm = actions.onTransfer,
             onDismiss = {
                 if (!call.transferring) {
                     showTransfer = false
                     consultRequested = false
-                    onDismissTransferError()
+                    actions.onDismissTransferError()
                 }
+            },
+            secondaryLabel = if (context.canConsult) stringResource(R.string.ui_call_consult_first) else null,
+            onSecondary = {
+                consultRequested = true
+                actions.onConsult(it)
             },
         )
     }
-
-    if (showAddCall && !canAddCall) showAddCall = false
+    if (showAddCall && !context.canAddCall) showAddCall = false
     if (showAddCall) {
-        NumberEntryDialog(
-            title = "Add call",
-            confirmLabel = "Call",
+        NumberEntrySheet(
+            title = stringResource(R.string.ui_call_add_call),
+            confirmLabel = stringResource(R.string.ui_dialer_call),
+            confirmIcon = AriaIcons.Call,
             busy = false,
             busyText = null,
             error = addCallError,
             onConfirm = { number ->
-                addCallError = onAddCall(number)
+                addCallError = actions.onAddCall(number)
                 if (addCallError == null) showAddCall = false
             },
             onDismiss = {
@@ -176,764 +253,676 @@ fun CallScreen(
             },
         )
     }
-
-    if (showAudioPicker) {
-        AlertDialog(
-            onDismissRequest = { showAudioPicker = false },
-            title = { Text("Audio Output", style = MaterialTheme.typography.titleLarge) },
-            text = {
-                Column {
-                    if (call.audio.options.isEmpty()) {
-                        Text("No audio outputs reported yet.", style = MaterialTheme.typography.bodyMedium)
-                    }
-                    call.audio.options.forEach { option ->
-                        AudioOutputOption(
-                            label = option.label,
-                            icon = routeIcon(option.type),
-                            selected = option.id == call.audio.currentId,
-                            onClick = {
-                                onSelectAudioRoute(option)
-                                showAudioPicker = false
-                            },
-                        )
-                    }
-                }
+    if (showKeypad && active) KeypadSheet(onDigit = actions.onDtmf, onDismiss = { showKeypad = false })
+    if (showAudio) {
+        AudioRouteSheet(
+            audio = call.audio,
+            onSelect = {
+                actions.onSelectAudioRoute(it)
+                showAudio = false
             },
-            confirmButton = {
-                TextButton(onClick = { showAudioPicker = false }) {
-                    Text("Close")
-                }
-            },
+            onDismiss = { showAudio = false },
         )
+    }
+    if (showRecordingNotice) {
+        RecordingNoticeDialog(
+            onConfirm = {
+                showRecordingNotice = false
+                actions.onStartRecording(true)?.let { localMessage = it }
+            },
+            onDismiss = { showRecordingNotice = false },
+        )
+    }
+
+    fun startRecording() {
+        if (actions.recordingConsentNeeded()) {
+            showRecordingNotice = true
+        } else {
+            actions.onStartRecording(false)?.let { localMessage = it }
+        }
     }
 
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        Color(0xFF1A1040),
-                        Color(0xFF0C1929),
-                        Color(0xFF0A0F1A),
-                    )
-                )
-            )
+            .background(MaterialTheme.colorScheme.background),
     ) {
+        AmbientBlobs(ringing = incoming || phase == CallPhase.RINGING || phase == CallPhase.CONNECTING)
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(32.dp)
-                .statusBarsPadding(),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = Spacing.screen),
+            horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            callError?.let { message ->
-                CallBanner(message = message, onDismiss = onDismissCallError)
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            // The other call: held while this one is up, or the one this
-            // ringing call would join.
-            otherCalls.forEach { other ->
-                OtherCallRow(
-                    call = other,
-                    foreground = call,
-                    onSwap = { onSwapTo(other.key) },
-                    onHangup = { onHangupOther(other.key) },
+            // Top: SRTP lock, overflow.
+            TopRow(
+                call = call,
+                showMenu = active,
+                menuOpen = showMore,
+                onMenu = { showMore = it },
+            ) {
+                MoreMenuItems(
+                    call = call,
+                    context = context,
+                    onRecord = {
+                        showMore = false
+                        if (call.recording) actions.onStopRecording() else startRecording()
+                    },
+                    onMerge = {
+                        showMore = false
+                        actions.onMerge()?.let { localMessage = it }
+                    },
+                    onSplit = {
+                        showMore = false
+                        actions.onSplit()?.let { localMessage = it }
+                    },
+                    onAudio = {
+                        showMore = false
+                        showAudio = true
+                    },
                 )
-                Spacer(modifier = Modifier.height(8.dp))
             }
 
-            Spacer(modifier = Modifier.weight(0.8f))
-
-            // Avatar with pulse ring during ringing
-            Box(contentAlignment = Alignment.Center) {
-                if (isRingingOrConnecting) {
-                    // Animated pulse rings
-                    Box(
-                        modifier = Modifier
-                            .size(130.dp)
-                            .scale(pulseScale)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.05f))
+            // Other call / conference
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+                context.otherCalls.forEach { other ->
+                    OtherCallCard(
+                        call = other,
+                        foreground = call,
+                        canSwap = context.canSwap,
+                        canMerge = context.canMerge,
+                        onSwap = { actions.onSwapTo(other.key) },
+                        onMerge = { actions.onMerge()?.let { localMessage = it } },
+                        onHangup = { actions.onHangupOther(other.key) },
                     )
-                    Box(
-                        modifier = Modifier
-                            .size(115.dp)
-                            .scale(pulseScale * 0.95f)
-                            .clip(CircleShape)
-                            .background(Color.White.copy(alpha = 0.08f))
-                    )
-                }
-                Box(
-                    modifier = Modifier
-                        .size(100.dp)
-                        .clip(CircleShape)
-                        .background(
-                            Brush.linearGradient(
-                                colors = listOf(
-                                    Color(0xFF6366F1),
-                                    Color(0xFF8B5CF6),
-                                )
-                            )
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    // Show initials if we have a name
-                    if (displayName.isNotEmpty() && displayName[0].isLetter()) {
-                        Text(
-                            text = displayName.take(1).uppercase(),
-                            fontSize = 36.sp,
-                            fontWeight = FontWeight.Bold,
-                            color = Color.White,
-                        )
-                    } else {
-                        Icon(
-                            Icons.Default.Person,
-                            contentDescription = null,
-                            modifier = Modifier.size(44.dp),
-                            tint = Color.White,
-                        )
-                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
-
-            // Caller name
-            Text(
-                text = displayName.ifEmpty { "Unknown" },
-                fontSize = 28.sp,
-                fontWeight = FontWeight.SemiBold,
-                color = Color.White,
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Status
-            Text(
-                text = statusText,
-                fontSize = 16.sp,
-                fontWeight = if (isRingingOrConnecting) FontWeight.Normal else FontWeight.Medium,
-                color = when {
-                    phase == CallPhase.HELD -> Color(0xFFFBBF24) // Amber
-                    isActive -> Color(0xFF22C55E) // Green
-                    else -> Color.White.copy(alpha = 0.6f)
-                },
-            )
-
-            // Media encryption, as negotiated (not as configured)
-            if (isActive && call.encrypted != null) {
-                Spacer(modifier = Modifier.height(8.dp))
-                val encrypted = call.encrypted
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        if (encrypted) Icons.Default.Lock else Icons.Default.LockOpen,
-                        contentDescription = null,
-                        tint = if (encrypted) Color(0xFF22C55E) else Color(0xFFFBBF24),
-                        modifier = Modifier.size(14.dp),
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
+            // Middle: who and how long
+            Column(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth()
+                    .verticalScroll(rememberScrollState())
+                    .semantics { isTraversalGroup = true; traversalIndex = -1f },
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+            ) {
+                Spacer(Modifier.height(Spacing.xl))
+                CallerAvatar(call, animate = incoming)
+                Spacer(Modifier.height(Spacing.lg))
+                Text(
+                    if (call.inConference) stringResource(R.string.ui_call_conference) else call.displayName.ifEmpty { stringResource(R.string.ui_call_unknown) },
+                    style = MaterialTheme.typography.headlineMedium,
+                    color = MaterialTheme.colorScheme.onSurface,
+                    textAlign = TextAlign.Center,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis,
+                    modifier = Modifier.semantics { heading(); traversalIndex = -1f },
+                )
+                val number = remoteNumber(call)
+                if (number != null && number != call.displayName) {
                     Text(
-                        if (encrypted) "Encrypted" else "Not encrypted",
-                        fontSize = 12.sp,
-                        color = Color.White.copy(alpha = 0.7f),
+                        number,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(top = Spacing.xxs),
                     )
+                }
+                Spacer(Modifier.height(Spacing.sm))
+                StateLine(call, elapsed)
+                AnimatedVisibility(call.recording) {
+                    RecordingBadge(Modifier.padding(top = Spacing.sm))
+                }
+                Spacer(Modifier.height(Spacing.xl))
+            }
+
+            // Spoken announcements only (invisible).
+            Text(
+                announcement,
+                modifier = Modifier
+                    .size(1.dp)
+                    .alpha(0f)
+                    .semantics { liveRegion = LiveRegionMode.Polite },
+            )
+
+            // Controls
+            AnimatedVisibility(
+                visible = active,
+                enter = fadeIn() + expandVertically(),
+                exit = fadeOut() + shrinkVertically(),
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    ControlGrid(
+                        call = call,
+                        canAddCall = context.canAddCall,
+                        onMute = actions.onToggleMute,
+                        onKeypad = { showKeypad = true },
+                        onSpeaker = {
+                            if (call.audio.options.any { it.type == AudioRouteType.BLUETOOTH || it.type == AudioRouteType.WIRED_HEADSET }) {
+                                showAudio = true
+                            } else {
+                                call.audio.speakerToggleTarget()?.let(actions.onSelectAudioRoute)
+                            }
+                        },
+                        onHold = actions.onToggleHold,
+                        onAddCall = {
+                            addCallError = null
+                            showAddCall = true
+                        },
+                        onTransfer = { showTransfer = true },
+                    )
+                    context.transferPair?.let { pair ->
+                        CompleteTransfer(pair, onComplete = actions.onCompleteTransfer)
+                    }
+                    Spacer(Modifier.height(Spacing.xl))
                 }
             }
 
-            // Audio level meters
-            if (isActive) {
-                Spacer(modifier = Modifier.height(20.dp))
+            // Bottom actions
+            AnimatedContent(
+                targetState = when {
+                    incoming && context.otherCalls.isNotEmpty() -> BottomMode.Waiting
+                    incoming -> BottomMode.Incoming
+                    phase == CallPhase.ENDED -> BottomMode.Ended
+                    else -> BottomMode.HangUp
+                },
+                transitionSpec = { fadeIn() togetherWith fadeOut() },
+                label = "callActions",
+            ) { mode ->
+                BottomActions(mode, actions)
+            }
+            Spacer(Modifier.height(Spacing.xl))
+        }
+        AriaSnackbarHost(
+            snackbar,
+            Modifier
+                .align(Alignment.BottomCenter)
+                .navigationBarsPadding()
+                .padding(bottom = Sizes.callAction + Spacing.xxl),
+        )
+    }
+}
+
+private enum class BottomMode { Incoming, Waiting, HangUp, Ended }
+
+@Composable
+private fun announcementFor(call: CallUiState): String {
+    val connected = stringResource(R.string.ui_call_announce_connected)
+    val held = stringResource(R.string.ui_call_announce_held)
+    val ended = stringResource(R.string.ui_call_announce_ended)
+    val recording = stringResource(R.string.ui_call_announce_recording)
+    return when {
+        call.recording -> recording
+        call.phase == CallPhase.HELD -> held
+        call.phase == CallPhase.ACTIVE -> connected
+        call.phase == CallPhase.ENDED -> ended
+        else -> ""
+    }
+}
+
+/** The dialable part of the remote URI ("+15552014410", "1017"). */
+private fun remoteNumber(call: CallUiState): String? {
+    val user = call.remoteUri.removePrefix("sip:").removePrefix("sips:").substringBefore("@").takeIf { it.isNotBlank() }
+        ?: return null
+    if (user.length < 7 || user.any { !it.isDigit() && it != '+' }) return user
+    return android.telephony.PhoneNumberUtils.formatNumber(user, java.util.Locale.getDefault().country) ?: user
+}
+
+/**
+ * Slow colour blobs behind the call (DESIGN.md §5 Android background):
+ * primary-container and brand-indigo glows drifting over the background.
+ * Still when animations are off.
+ */
+@Composable
+private fun AmbientBlobs(ringing: Boolean) {
+    val aria = LocalAriaColors.current
+    val reduced = LocalReducedMotion.current
+    val t = if (reduced) {
+        0.25f
+    } else {
+        val transition = rememberInfiniteTransition(label = "blobs")
+        val v by transition.animateFloat(
+            initialValue = 0f,
+            targetValue = 1f,
+            animationSpec = infiniteRepeatable(tween(if (ringing) 6_000 else 14_000, easing = LinearEasing), RepeatMode.Reverse),
+            label = "blobT",
+        )
+        v
+    }
+    Box(
+        Modifier
+            .fillMaxSize()
+            .drawBehind {
+                val w = size.width
+                val h = size.height
+                val a = Offset(w * (0.15f + 0.5f * t), h * (0.22f + 0.08f * t))
+                val b = Offset(w * (0.85f - 0.45f * t), h * (0.55f - 0.1f * t))
+                drawCircle(
+                    Brush.radialGradient(listOf(aria.callGlowA.copy(alpha = 0.55f), Color.Transparent), a, w * 0.75f),
+                    radius = w * 0.75f,
+                    center = a,
+                )
+                drawCircle(
+                    Brush.radialGradient(listOf(aria.callGlowB.copy(alpha = 0.5f), Color.Transparent), b, w * 0.7f),
+                    radius = w * 0.7f,
+                    center = b,
+                )
+            },
+    )
+}
+
+@OptIn(ExperimentalMaterial3ExpressiveApi::class)
+@Composable
+private fun CallerAvatar(call: CallUiState, animate: Boolean) {
+    val reduced = LocalReducedMotion.current
+    val rotation = if (animate && !reduced) {
+        val transition = rememberInfiniteTransition(label = "avatarSpin")
+        val r by transition.animateFloat(0f, 360f, infiniteRepeatable(tween(20_000, easing = LinearEasing)), label = "spin")
+        r
+    } else {
+        0f
+    }
+    Box(contentAlignment = Alignment.Center) {
+        // An Expressive cookie behind the avatar; it turns slowly while ringing.
+        Box(
+            Modifier
+                .size(Sizes.avatarLarge + Spacing.xl)
+                .rotate(rotation)
+                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f), MaterialShapes.Cookie12Sided.toShape()),
+        )
+        Avatar(
+            name = if (call.inConference) null else call.displayName,
+            key = call.remoteUri,
+            size = Sizes.avatarLarge,
+        )
+    }
+}
+
+@Composable
+private fun StateLine(call: CallUiState, elapsed: Long) {
+    val text = when (call.phase) {
+        CallPhase.INCOMING -> stringResource(R.string.ui_call_incoming)
+        CallPhase.CONNECTING -> stringResource(R.string.ui_call_calling)
+        CallPhase.RINGING -> stringResource(R.string.ui_call_ringing)
+        CallPhase.HELD -> stringResource(R.string.ui_call_on_hold)
+        CallPhase.ENDED -> stringResource(R.string.ui_call_ended)
+        CallPhase.ACTIVE -> CallStateMapping.statusText(CallPhase.ACTIVE, elapsed)
+    }
+    val timer = call.phase == CallPhase.ACTIVE
+    Text(
+        text,
+        style = if (timer) AriaType.display.copy(fontFeatureSettings = "tnum") else MaterialTheme.typography.titleMedium,
+        color = when (call.phase) {
+            CallPhase.HELD -> MaterialTheme.colorScheme.tertiary
+            CallPhase.ENDED -> MaterialTheme.colorScheme.error
+            else -> if (timer) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
+        },
+    )
+}
+
+/** "REC" with a pulsing dot, in the brand accent (DESIGN.md §5). */
+@Composable
+private fun RecordingBadge(modifier: Modifier = Modifier) {
+    val reduced = LocalReducedMotion.current
+    val alpha = if (reduced) {
+        1f
+    } else {
+        val transition = rememberInfiniteTransition(label = "rec")
+        val a by transition.animateFloat(1f, 0.3f, infiniteRepeatable(tween(900), RepeatMode.Reverse), label = "recAlpha")
+        a
+    }
+    val label = stringResource(R.string.ui_call_recording)
+    Surface(
+        modifier = modifier.semantics(mergeDescendants = true) { contentDescription = label },
+        shape = AriaShapes.chip,
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+    ) {
+        Row(
+            Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+            horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(Sizes.statusDot)
+                    .alpha(alpha)
+                    .background(LocalAriaColors.current.brandAccent, CircleShape),
+            )
+            Text(stringResource(R.string.ui_call_rec), style = MaterialTheme.typography.labelLarge)
+        }
+    }
+}
+
+@Composable
+private fun TopRow(
+    call: CallUiState,
+    showMenu: Boolean,
+    menuOpen: Boolean,
+    onMenu: (Boolean) -> Unit,
+    menu: @Composable () -> Unit,
+) {
+    Box(
+        Modifier
+            .fillMaxWidth()
+            .heightIn(min = Sizes.iconButton),
+    ) {
+        val encrypted = call.encrypted
+        if (encrypted != null && call.phase != CallPhase.INCOMING) {
+            val label = stringResource(if (encrypted) R.string.ui_call_encrypted else R.string.ui_call_not_encrypted)
+            Surface(
+                modifier = Modifier.align(Alignment.Center),
+                shape = AriaShapes.chip,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.8f),
+            ) {
                 Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 48.dp),
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    Modifier.padding(horizontal = Spacing.sm, vertical = Spacing.xs),
+                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
                     verticalAlignment = Alignment.CenterVertically,
                 ) {
-                    // RX (speaker) level
-                    Text("RX", fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f))
-                    AudioLevelBar(
-                        level = (rxLevel / 5000f).coerceIn(0f, 1f),
-                        color = Color(0xFF22C55E),
-                        modifier = Modifier.weight(1f),
+                    AriaIcon(
+                        if (encrypted) AriaIcons.Secure else AriaIcons.NotSecure,
+                        contentDescription = null,
+                        size = Sizes.iconSmall,
+                        tint = if (encrypted) LocalAriaColors.current.success else LocalAriaColors.current.statusConnecting,
                     )
-                    // TX (mic) level
-                    Text("TX", fontSize = 11.sp, color = Color.White.copy(alpha = 0.5f))
-                    AudioLevelBar(
-                        level = (txLevel / 5000f).coerceIn(0f, 1f),
-                        color = Color(0xFF6366F1),
-                        modifier = Modifier.weight(1f),
-                    )
+                    Text(label, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
-
-            Spacer(modifier = Modifier.weight(1f))
-
-            // Controls — only show when call is active
-            if (isActive) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    CallControlButton(
-                        icon = if (isMuted) Icons.Default.MicOff else Icons.Default.Mic,
-                        label = if (isMuted) "Unmute" else "Mute",
-                        isActive = isMuted,
-                        onClick = onToggleMute
-                    )
-                    CallControlButton(
-                        icon = if (isSpeaker) Icons.AutoMirrored.Filled.VolumeUp else Icons.AutoMirrored.Filled.VolumeDown,
-                        label = "Speaker",
-                        isActive = isSpeaker,
-                        onClick = { call.audio.speakerToggleTarget()?.let(onSelectAudioRoute) },
-                    )
-                    CallControlButton(
-                        icon = if (isOnHold) Icons.Default.PlayArrow else Icons.Default.Pause,
-                        label = if (isOnHold) "Resume" else "Hold",
-                        isActive = isOnHold,
-                        onClick = onToggleHold
-                    )
+        }
+        if (showMenu) {
+            Box(Modifier.align(Alignment.CenterEnd)) {
+                IconButton(onClick = { onMenu(true) }) {
+                    AriaIcon(AriaIcons.More, stringResource(R.string.ui_call_more))
                 }
-
-                Spacer(modifier = Modifier.height(20.dp))
-
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly
-                ) {
-                    CallControlButton(
-                        icon = Icons.Default.Dialpad,
-                        label = "Keypad",
-                        isActive = showDtmfKeypad,
-                        onClick = { showDtmfKeypad = !showDtmfKeypad }
-                    )
-                    CallControlButton(
-                        icon = routeIcon(call.audio.current?.type ?: AudioRouteType.EARPIECE),
-                        label = call.audio.current?.label ?: "Audio",
-                        isActive = false,
-                        onClick = { showAudioPicker = true }
-                    )
-                    CallControlButton(
-                        icon = Icons.AutoMirrored.Filled.PhoneForwarded,
-                        label = "Transfer",
-                        isActive = showTransfer,
-                        onClick = { showTransfer = true }
-                    )
-                    if (canAddCall) {
-                        CallControlButton(
-                            icon = Icons.Default.AddIcCall,
-                            label = "Add call",
-                            isActive = showAddCall,
-                            onClick = {
-                                addCallError = null
-                                showAddCall = true
-                            }
-                        )
-                    }
-                }
+                DropdownMenu(
+                    expanded = menuOpen,
+                    onDismissRequest = { onMenu(false) },
+                    shape = AriaShapes.contentRow,
+                ) { menu() }
             }
-
-            // Attended transfer: two connected calls, placed or answered, that
-            // the PBX can join.
-            if (transferPair != null) {
-                Spacer(modifier = Modifier.height(20.dp))
-                CompleteTransfer(
-                    pair = transferPair,
-                    onComplete = onCompleteTransfer,
-                    onDismissError = onDismissTransferError,
-                )
-            }
-
-            // DTMF Keypad overlay
-            if (showDtmfKeypad) {
-                Spacer(modifier = Modifier.height(16.dp))
-                DtmfKeypad(onDigit = onDtmf)
-            }
-
-            Spacer(modifier = Modifier.weight(0.6f))
-
-            if (phase == CallPhase.INCOMING && otherCalls.isNotEmpty()) {
-                // Call waiting: answer holds the call in progress, or ends it.
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                ) {
-                    LabeledRoundCallButton(
-                        icon = Icons.Default.CallEnd,
-                        label = "Decline",
-                        color = Color.Red,
-                        onClick = onDecline,
-                    )
-                    LabeledRoundCallButton(
-                        icon = Icons.AutoMirrored.Filled.PhoneCallback,
-                        label = "End & Answer",
-                        color = Color(0xFFF59E0B),
-                        onClick = onEndAndAnswer,
-                    )
-                    LabeledRoundCallButton(
-                        icon = Icons.Default.Call,
-                        label = "Hold & Answer",
-                        color = Color(0xFF22C55E),
-                        onClick = onAnswer,
-                    )
-                }
-            } else if (phase == CallPhase.INCOMING) {
-                // Answer / decline
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceEvenly,
-                ) {
-                    RoundCallButton(
-                        icon = Icons.Default.CallEnd,
-                        contentDescription = "Decline",
-                        color = Color.Red,
-                        onClick = onDecline,
-                    )
-                    RoundCallButton(
-                        icon = Icons.Default.Call,
-                        contentDescription = "Answer",
-                        color = Color(0xFF22C55E),
-                        onClick = onAnswer,
-                    )
-                }
-            } else if (phase != CallPhase.ENDED) {
-                // End call button
-                RoundCallButton(
-                    icon = Icons.Default.CallEnd,
-                    contentDescription = "End Call",
-                    color = Color.Red,
-                    onClick = onHangup,
-                )
-            } else {
-                Spacer(modifier = Modifier.height(84.dp))
-            }
-
-            Spacer(modifier = Modifier.height(48.dp))
         }
     }
 }
 
-/**
- * Transfer: a number field, or a number picked from contacts. "Transfer" is
- * blind: finding out whether it worked can take up to about 45 s, so the
- * dialog stays up with progress until it does; on success the call ends and
- * the call screen closes. "Consult first" instead calls the target, holding
- * this call, so the user can talk to them before completing the transfer.
- */
 @Composable
-private fun TransferDialog(
-    transferring: Boolean,
-    error: String?,
-    canConsult: Boolean,
-    onTransfer: (String) -> Unit,
-    onConsult: (String) -> Unit,
-    onDismiss: () -> Unit,
+private fun MoreMenuItems(
+    call: CallUiState,
+    context: CallContext,
+    onRecord: () -> Unit,
+    onMerge: () -> Unit,
+    onSplit: () -> Unit,
+    onAudio: () -> Unit,
 ) {
-    NumberEntryDialog(
-        title = "Transfer call",
-        confirmLabel = "Transfer",
-        busy = transferring,
-        busyText = "Transferring... This can take up to 45 seconds.",
-        error = error,
-        onConfirm = onTransfer,
-        onDismiss = onDismiss,
-        secondaryLabel = if (canConsult) "Consult first" else null,
-        onSecondary = onConsult,
+    DropdownMenuItem(
+        text = { Text(stringResource(if (call.recording) R.string.ui_call_stop_recording else R.string.ui_call_record)) },
+        leadingIcon = {
+            AriaIcon(
+                if (call.recording) AriaIcons.StopRecord else AriaIcons.Record,
+                null,
+                tint = LocalAriaColors.current.brandAccent,
+            )
+        },
+        enabled = call.phase == CallPhase.ACTIVE || call.recording,
+        onClick = onRecord,
     )
-}
-
-/** A number field with a contact picker, for transfer and add call. */
-@Composable
-private fun NumberEntryDialog(
-    title: String,
-    confirmLabel: String,
-    busy: Boolean,
-    busyText: String?,
-    error: String?,
-    onConfirm: (String) -> Unit,
-    onDismiss: () -> Unit,
-    secondaryLabel: String? = null,
-    onSecondary: (String) -> Unit = {},
-) {
-    val context = LocalContext.current
-    var target by remember { mutableStateOf("") }
-    val transferring = busy
-
-    // ACTION_PICK on phone numbers grants read access to the one picked row,
-    // so this needs no contacts permission of its own.
-    val pickContact = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val uri = result.data?.data ?: return@rememberLauncherForActivityResult
-        try {
-            context.contentResolver.query(
-                uri,
-                arrayOf(ContactsContract.CommonDataKinds.Phone.NUMBER),
-                null,
-                null,
-                null,
-            )?.use { cursor ->
-                if (cursor.moveToFirst()) target = cursor.getString(0).orEmpty()
-            }
-        } catch (_: Exception) {}
+    if (context.canSplit) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.ui_call_split)) },
+            leadingIcon = { AriaIcon(AriaIcons.Split, null) },
+            onClick = onSplit,
+        )
+    } else {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.ui_call_merge)) },
+            leadingIcon = { AriaIcon(AriaIcons.Merge, null) },
+            enabled = context.canMerge,
+            onClick = onMerge,
+        )
     }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text(title, style = MaterialTheme.typography.titleLarge) },
-        text = {
-            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = target,
-                    onValueChange = { target = it },
-                    label = { Text("Number or extension") },
-                    singleLine = true,
-                    enabled = !transferring,
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                TextButton(
-                    onClick = {
-                        pickContact.launch(
-                            Intent(Intent.ACTION_PICK, ContactsContract.CommonDataKinds.Phone.CONTENT_URI)
-                        )
-                    },
-                    enabled = !transferring,
-                ) {
-                    Icon(Icons.Default.Contacts, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(8.dp))
-                    Text("Choose contact")
-                }
-                if (transferring && busyText != null) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
-                        Spacer(Modifier.width(10.dp))
-                        Text(busyText, style = MaterialTheme.typography.bodyMedium)
-                    }
-                }
-                error?.let {
-                    Text(it, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodyMedium)
-                }
-            }
-        },
-        confirmButton = {
-            Row {
-                if (secondaryLabel != null) {
-                    TextButton(
-                        onClick = { onSecondary(target) },
-                        enabled = !transferring && target.isNotBlank(),
-                    ) { Text(secondaryLabel) }
-                }
-                TextButton(
-                    onClick = { onConfirm(target) },
-                    enabled = !transferring && target.isNotBlank(),
-                ) { Text(confirmLabel) }
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !transferring) { Text("Cancel") }
-        },
+    DropdownMenuItem(
+        text = { Text(stringResource(R.string.ui_call_audio_output)) },
+        leadingIcon = { AriaIcon(routeIcon(call.audio.current?.type ?: AudioRouteType.EARPIECE), null) },
+        onClick = onAudio,
     )
 }
 
-/** A dismissable message at the top of the call screen, e.g. a second call that failed. */
+/** The 3×2 control grid (2 columns at accessibility font sizes). */
 @Composable
-private fun CallBanner(message: String, onDismiss: () -> Unit) {
-    Surface(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = Color(0xFF7F1D1D).copy(alpha = 0.8f),
+private fun ControlGrid(
+    call: CallUiState,
+    canAddCall: Boolean,
+    onMute: () -> Unit,
+    onKeypad: () -> Unit,
+    onSpeaker: () -> Unit,
+    onHold: () -> Unit,
+    onAddCall: () -> Unit,
+    onTransfer: () -> Unit,
+) {
+    val columns = if (isAccessibilityFontScale()) 2 else 3
+    val route = call.audio.current
+    val speakerLabel = when (route?.type) {
+        null, AudioRouteType.EARPIECE, AudioRouteType.SPEAKER -> stringResource(R.string.ui_call_speaker)
+        else -> route.label
+    }
+    val speakerIcon = when (route?.type) {
+        AudioRouteType.BLUETOOTH, AudioRouteType.WIRED_HEADSET, AudioRouteType.STREAMING -> routeIcon(route.type)
+        else -> AriaIcons.Speaker
+    }
+    FlowRow(
+        modifier = Modifier.width(Sizes.callControlCell * columns + Spacing.xs * (columns - 1)),
+        horizontalArrangement = Arrangement.spacedBy(Spacing.xs, Alignment.CenterHorizontally),
+        verticalArrangement = Arrangement.spacedBy(Spacing.md),
+        maxItemsInEachRow = columns,
     ) {
-        Row(
-            modifier = Modifier.padding(start = 14.dp, top = 6.dp, bottom = 6.dp, end = 4.dp),
-            verticalAlignment = Alignment.CenterVertically,
+        CallControlButton(
+            icon = AriaIcons.Mic,
+            checkedIcon = AriaIcons.MicOff,
+            label = stringResource(R.string.ui_call_mute),
+            checked = call.muted,
+            onClick = onMute,
+        )
+        CallControlButton(icon = AriaIcons.Keypad, label = stringResource(R.string.ui_call_keypad), onClick = onKeypad)
+        CallControlButton(
+            icon = speakerIcon,
+            label = speakerLabel,
+            checked = route?.type == AudioRouteType.SPEAKER,
+            onClick = onSpeaker,
+        )
+        CallControlButton(
+            icon = AriaIcons.Hold,
+            checkedIcon = AriaIcons.Play,
+            label = stringResource(R.string.ui_call_hold),
+            checked = call.onHold,
+            onClick = onHold,
+        )
+        CallControlButton(
+            icon = AriaIcons.AddCall,
+            label = stringResource(R.string.ui_call_add_call),
+            enabled = canAddCall,
+            onClick = onAddCall,
+        )
+        CallControlButton(
+            icon = AriaIcons.Transfer,
+            label = stringResource(R.string.ui_call_transfer),
+            enabled = call.phase == CallPhase.ACTIVE || call.phase == CallPhase.HELD,
+            onClick = onTransfer,
+        )
+    }
+}
+
+@Composable
+private fun BottomActions(mode: BottomMode, actions: CallActions) {
+    when (mode) {
+        BottomMode.Incoming -> Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
         ) {
-            Text(message, color = Color.White, fontSize = 13.sp, modifier = Modifier.weight(1f))
-            IconButton(onClick = onDismiss) {
-                Icon(Icons.Default.Close, contentDescription = "Dismiss", tint = Color.White)
-            }
+            CallActionButton(
+                kind = CallActionKind.Decline,
+                onClick = actions.onDecline,
+                contentDescription = stringResource(R.string.ui_call_decline),
+                label = stringResource(R.string.ui_call_decline),
+            )
+            CallActionButton(
+                kind = CallActionKind.Answer,
+                onClick = actions.onAnswer,
+                contentDescription = stringResource(R.string.ui_call_answer),
+                label = stringResource(R.string.ui_call_answer),
+            )
         }
+        BottomMode.Waiting -> Row(
+            Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceEvenly,
+        ) {
+            CallActionButton(
+                kind = CallActionKind.Decline,
+                onClick = actions.onDecline,
+                contentDescription = stringResource(R.string.ui_call_decline),
+                label = stringResource(R.string.ui_call_decline),
+            )
+            CallActionButton(
+                kind = CallActionKind.HangUp,
+                icon = AriaIcons.Swap,
+                onClick = actions.onEndAndAnswer,
+                contentDescription = stringResource(R.string.ui_call_end_and_answer),
+                label = stringResource(R.string.ui_call_end_and_answer),
+            )
+            CallActionButton(
+                kind = CallActionKind.Answer,
+                icon = AriaIcons.Hold,
+                onClick = actions.onAnswer,
+                contentDescription = stringResource(R.string.ui_call_hold_and_answer),
+                label = stringResource(R.string.ui_call_hold_and_answer),
+            )
+        }
+        BottomMode.HangUp -> CallActionButton(
+            kind = CallActionKind.HangUp,
+            onClick = actions.onHangup,
+            contentDescription = stringResource(R.string.ui_call_hang_up),
+        )
+        BottomMode.Ended -> Spacer(Modifier.height(Sizes.callAction))
     }
 }
 
 /**
- * The call that is not on screen: its name and state, Swap (or Resume) to
- * bring it back once both calls are answered, and End.
+ * The call that is not on screen, as a tonal card: avatar, name and state,
+ * then Swap · Merge · End (DESIGN.md §5 "other-call row").
  */
 @Composable
-private fun OtherCallRow(
+private fun OtherCallCard(
     call: CallUiState,
     foreground: CallUiState,
+    canSwap: Boolean,
+    canMerge: Boolean,
     onSwap: () -> Unit,
+    onMerge: () -> Unit,
     onHangup: () -> Unit,
 ) {
-    val canResume = CallWaiting.isConnected(call) && call.phase == CallPhase.HELD &&
+    val canResume = canSwap && CallWaiting.isConnected(call) && call.phase == CallPhase.HELD &&
         foreground.phase != CallPhase.INCOMING
-    val swapLabel = if (foreground.phase == CallPhase.ACTIVE) "Swap" else "Resume"
+    val stateText = when {
+        call.inConference -> stringResource(R.string.ui_call_in_conference)
+        call.phase == CallPhase.HELD -> stringResource(R.string.ui_call_on_hold)
+        call.phase == CallPhase.ACTIVE -> stringResource(R.string.ui_call_active)
+        else -> CallStateMapping.statusText(call.phase, 0)
+    }
     Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        color = Color.White.copy(alpha = 0.08f),
+        shape = AriaShapes.card,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.92f),
     ) {
         Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 10.dp),
+            Modifier.padding(start = Spacing.md, end = Spacing.xs, top = Spacing.sm, bottom = Spacing.sm),
             verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(Spacing.sm),
         ) {
-            Icon(
-                if (call.phase == CallPhase.HELD) Icons.Default.Pause else Icons.Default.Call,
-                contentDescription = null,
-                tint = if (call.phase == CallPhase.HELD) Color(0xFFFBBF24) else Color.White,
-                modifier = Modifier.size(20.dp),
-            )
-            Spacer(Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
+            Avatar(name = call.displayName, key = call.remoteUri)
+            Column(
+                Modifier
+                    .weight(1f)
+                    .semantics(mergeDescendants = true) {},
+            ) {
                 Text(
-                    call.displayName.ifEmpty { "Unknown" },
-                    color = Color.White,
-                    fontSize = 15.sp,
-                    fontWeight = FontWeight.Medium,
+                    call.displayName.ifEmpty { stringResource(R.string.ui_call_unknown) },
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
                 )
                 Text(
-                    CallStateMapping.statusText(call.phase, 0).takeIf { call.phase != CallPhase.ACTIVE } ?: "Active",
-                    color = Color.White.copy(alpha = 0.6f),
-                    fontSize = 12.sp,
+                    stateText,
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = if (call.phase == CallPhase.HELD) MaterialTheme.colorScheme.tertiary else MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
             if (canResume) {
-                TextButton(onClick = onSwap) {
-                    Icon(Icons.Default.SwapCalls, contentDescription = null, modifier = Modifier.size(18.dp))
-                    Spacer(Modifier.width(6.dp))
-                    Text(swapLabel)
-                }
+                SmallAction(AriaIcons.Swap, stringResource(R.string.ui_call_swap), onSwap)
             }
-            IconButton(onClick = onHangup) {
-                Icon(Icons.Default.CallEnd, contentDescription = "End this call", tint = Color(0xFFEF4444))
+            if (canMerge) {
+                SmallAction(AriaIcons.Merge, stringResource(R.string.ui_call_merge), onMerge)
             }
-        }
-    }
-}
-
-/** "Complete transfer" for a transferred call and a consultation call, with progress and errors. */
-@Composable
-private fun CompleteTransfer(
-    pair: CallWaiting.TransferPair,
-    onComplete: () -> Unit,
-    onDismissError: () -> Unit,
-) {
-    val transferring = pair.transferred.transferring || pair.consult.transferring
-    val error = pair.transferred.transferError ?: pair.consult.transferError
-    Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.fillMaxWidth()) {
-        Button(
-            onClick = onComplete,
-            enabled = !transferring,
-            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF6366F1)),
-        ) {
-            if (transferring) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp, color = Color.White)
-                Spacer(Modifier.width(10.dp))
-                Text("Transferring...")
-            } else {
-                Icon(Icons.AutoMirrored.Filled.PhoneForwarded, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(Modifier.width(8.dp))
-                Text("Complete transfer")
-            }
-        }
-        Text(
-            "Connects ${pair.transferred.displayName} with ${pair.consult.displayName}",
-            color = Color.White.copy(alpha = 0.6f),
-            fontSize = 12.sp,
-        )
-        error?.let {
-            Spacer(Modifier.height(8.dp))
-            CallBanner(message = it, onDismiss = onDismissError)
-        }
-    }
-}
-
-private fun routeIcon(type: AudioRouteType): ImageVector = when (type) {
-    AudioRouteType.EARPIECE -> Icons.Default.PhoneInTalk
-    AudioRouteType.SPEAKER -> Icons.AutoMirrored.Filled.VolumeUp
-    AudioRouteType.BLUETOOTH -> Icons.Default.Bluetooth
-    AudioRouteType.WIRED_HEADSET -> Icons.Default.Headset
-    AudioRouteType.STREAMING -> Icons.Default.Cast
-}
-
-@Composable
-private fun RoundCallButton(
-    icon: ImageVector,
-    contentDescription: String,
-    color: Color,
-    onClick: () -> Unit,
-) {
-    Box(contentAlignment = Alignment.Center) {
-        Box(
-            modifier = Modifier
-                .size(84.dp)
-                .clip(CircleShape)
-                .background(color.copy(alpha = 0.15f))
-        )
-        FloatingActionButton(
-            onClick = onClick,
-            containerColor = color,
-            shape = CircleShape,
-            modifier = Modifier.size(72.dp),
-            elevation = FloatingActionButtonDefaults.elevation(
-                defaultElevation = 8.dp,
-            ),
-        ) {
-            Icon(
-                icon,
-                contentDescription = contentDescription,
-                modifier = Modifier.size(30.dp),
-                tint = Color.White,
-            )
-        }
-    }
-}
-
-@Composable
-private fun LabeledRoundCallButton(
-    icon: ImageVector,
-    label: String,
-    color: Color,
-    onClick: () -> Unit,
-) {
-    Column(horizontalAlignment = Alignment.CenterHorizontally) {
-        RoundCallButton(icon = icon, contentDescription = label, color = color, onClick = onClick)
-        Spacer(Modifier.height(6.dp))
-        Text(label, fontSize = 13.sp, color = Color.White.copy(alpha = 0.8f))
-    }
-}
-
-@Composable
-private fun AudioOutputOption(
-    label: String,
-    icon: ImageVector,
-    selected: Boolean,
-    onClick: () -> Unit,
-) {
-    Surface(
-        onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(12.dp),
-        color = if (selected) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,
-    ) {
-        Row(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 14.dp),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Icon(icon, contentDescription = null, modifier = Modifier.size(24.dp))
-            Spacer(modifier = Modifier.width(14.dp))
-            Text(label, style = MaterialTheme.typography.bodyLarge, fontSize = 16.sp)
-            if (selected) {
-                Spacer(modifier = Modifier.weight(1f))
-                Icon(
-                    Icons.Default.Check,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(22.dp),
-                )
-            }
-        }
-    }
-}
-
-@Composable
-private fun CallControlButton(
-    icon: ImageVector,
-    label: String,
-    isActive: Boolean,
-    onClick: () -> Unit,
-) {
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        IconButton(
-            onClick = onClick,
-            modifier = Modifier
-                .size(60.dp)
-                .clip(CircleShape)
-                .background(
-                    if (isActive) Color.White else Color.White.copy(alpha = 0.12f)
-                )
-        ) {
-            Icon(
-                icon,
-                contentDescription = label,
-                tint = if (isActive) Color(0xFF1A1040) else Color.White,
-                modifier = Modifier.size(26.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = label,
-            fontSize = 13.sp,
-            fontWeight = FontWeight.Medium,
-            color = Color.White.copy(alpha = 0.7f)
-        )
-    }
-}
-
-@Composable
-private fun DtmfKeypad(onDigit: (String) -> Unit) {
-    val keys = listOf(
-        listOf("1", "2", "3"),
-        listOf("4", "5", "6"),
-        listOf("7", "8", "9"),
-        listOf("*", "0", "#"),
-    )
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
-        modifier = Modifier.padding(horizontal = 32.dp),
-    ) {
-        keys.forEach { row ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceEvenly,
+            val endLabel = stringResource(R.string.ui_call_end_other, call.displayName)
+            FilledTonalIconButton(
+                onClick = onHangup,
+                colors = IconButtonDefaults.filledTonalIconButtonColors(
+                    containerColor = MaterialTheme.colorScheme.errorContainer,
+                    contentColor = MaterialTheme.colorScheme.onErrorContainer,
+                ),
+                modifier = Modifier.size(Sizes.iconButton),
             ) {
-                row.forEach { digit ->
-                    Surface(
-                        onClick = { onDigit(digit) },
-                        modifier = Modifier.size(64.dp),
-                        shape = CircleShape,
-                        color = Color.White.copy(alpha = 0.12f),
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = digit,
-                                fontSize = 24.sp,
-                                fontWeight = FontWeight.Normal,
-                                color = Color.White,
-                            )
-                        }
-                    }
-                }
+                AriaIcon(AriaIcons.HangUp, endLabel)
             }
-            Spacer(modifier = Modifier.height(10.dp))
         }
     }
 }
 
 @Composable
-private fun AudioLevelBar(
-    level: Float,
-    color: Color,
-    modifier: Modifier = Modifier,
-) {
-    Box(
-        modifier = modifier
-            .height(6.dp)
-            .clip(RoundedCornerShape(3.dp))
-            .background(Color.White.copy(alpha = 0.1f))
+private fun SmallAction(icon: Int, label: String, onClick: () -> Unit) {
+    FilledTonalIconButton(onClick = onClick, modifier = Modifier.size(Sizes.iconButton)) {
+        AriaIcon(icon, label)
+    }
+}
+
+/** Attended transfer: joins the transferred call and the consultation call. */
+@Composable
+private fun CompleteTransfer(pair: CallWaiting.TransferPair, onComplete: () -> Unit) {
+    val busy = pair.transferred.transferring || pair.consult.transferring
+    Column(
+        Modifier
+            .fillMaxWidth()
+            .padding(top = Spacing.lg),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.spacedBy(Spacing.xs),
     ) {
-        Box(
-            modifier = Modifier
-                .fillMaxHeight()
-                .fillMaxWidth(fraction = level)
-                .clip(RoundedCornerShape(3.dp))
-                .background(color)
+        AriaButton(
+            text = stringResource(R.string.ui_call_complete_transfer),
+            onClick = onComplete,
+            icon = AriaIcons.Transfer,
+            loading = busy,
+        )
+        Text(
+            stringResource(R.string.ui_call_complete_transfer_detail, pair.transferred.displayName, pair.consult.displayName),
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center,
         )
     }
+}
+
+@Composable
+private fun RecordingNoticeDialog(onConfirm: () -> Unit, onDismiss: () -> Unit) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = { AriaIcon(AriaIcons.Record, null, tint = LocalAriaColors.current.brandAccent) },
+        title = { Text(stringResource(R.string.ui_call_record_notice_title)) },
+        text = { Text(stringResource(R.string.ui_call_record_notice_body)) },
+        confirmButton = { TextButton(onClick = onConfirm) { Text(stringResource(R.string.ui_call_record)) } },
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_cancel)) } },
+        shape = AriaShapes.card,
+    )
 }
 
 /** [CallScreen] driven by [CallManager]: used by the app and by the lock-screen call activity. */
@@ -946,37 +935,52 @@ fun ManagedCallScreen(call: CallUiState) {
         androidx.activity.result.contract.ActivityResultContracts.RequestPermission(),
     ) { }
     LaunchedEffect(call.key) {
-        if (com.solutions5060.aria.fixtures.Fixtures.active) return@LaunchedEffect
+        if (Fixtures.active) return@LaunchedEffect
         if (!com.solutions5060.aria.ui.permissions.Permissions.hasMicrophone(context)) {
             micLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
         }
     }
     val calls by CallManager.calls.collectAsState()
     val callError by CallManager.error.collectAsState()
+    val actionError by CallManager.actionError.collectAsState()
+    val key = call.key
     CallScreen(
-        otherCalls = CallWaiting.others(calls, call),
-        canAddCall = CallWaiting.canAddCall(call, calls),
-        canConsult = CallWaiting.canConsult(call, calls),
-        transferPair = CallWaiting.attendedTransferPair(calls),
-        callError = callError,
-        onEndAndAnswer = { CallManager.endOthersAndAnswer(call.key) },
-        onSwapTo = { CallManager.swapTo(it) },
-        onHangupOther = { CallManager.hangup(it) },
-        onAddCall = { CallManager.placeCall(context, it) },
-        onConsult = { CallManager.consult(call.key, it) },
-        onCompleteTransfer = { CallManager.transferAttended() },
-        onDismissCallError = { CallManager.clearError() },
         call = call,
-        // Every action names the call shown when it was tapped: by the time it
-        // runs, another call (a waiting one, say) may have taken the screen.
-        onAnswer = { CallManager.answerByKey(call.key) },
-        onDecline = { CallManager.rejectByKey(call.key) },
-        onHangup = { CallManager.hangup(call.key) },
-        onToggleMute = { CallManager.setMuted(call.key, !call.muted) },
-        onToggleHold = { CallManager.setHold(call.key, !call.onHold) },
-        onDtmf = { CallManager.sendDtmf(call.key, it) },
-        onSelectAudioRoute = { CallManager.selectAudioRoute(call.key, it) },
-        onTransfer = { CallManager.transfer(call.key, it) },
-        onDismissTransferError = { CallManager.clearTransferError() },
+        context = CallContext(
+            otherCalls = CallWaiting.others(calls, call),
+            canAddCall = CallWaiting.canAddCall(call, calls),
+            canConsult = CallWaiting.canConsult(call, calls),
+            canMerge = Conference.canMerge(calls),
+            canSplit = Conference.canSplit(calls),
+            canSwap = Conference.canSwap(calls),
+            transferPair = CallWaiting.attendedTransferPair(calls),
+            errors = listOfNotNull(callError, actionError),
+        ),
+        onDismissError = { message ->
+            if (message == callError) CallManager.clearError()
+            if (message == actionError) CallManager.clearActionError()
+        },
+        actions = CallActions(
+            onAnswer = { CallManager.answerByKey(key) },
+            onDecline = { CallManager.rejectByKey(key) },
+            onEndAndAnswer = { CallManager.endOthersAndAnswer(key) },
+            onHangup = { CallManager.hangup(key) },
+            onToggleMute = { CallManager.setMuted(key, !call.muted) },
+            onToggleHold = { CallManager.setHold(key, !call.onHold) },
+            onDtmf = { CallManager.sendDtmf(key, it) },
+            onSelectAudioRoute = { CallManager.selectAudioRoute(key, it) },
+            onTransfer = { CallManager.transfer(key, it) },
+            onConsult = { CallManager.consult(key, it) },
+            onCompleteTransfer = { CallManager.transferAttended() },
+            onDismissTransferError = { CallManager.clearTransferError() },
+            onAddCall = { CallManager.placeCall(context, it) },
+            onSwapTo = { CallManager.swapTo(it) },
+            onHangupOther = { CallManager.hangup(it) },
+            onMerge = { CallManager.mergeCalls() },
+            onSplit = { CallManager.splitConference() },
+            onStartRecording = { consent -> CallManager.startRecording(key, consentGiven = consent) },
+            onStopRecording = { CallManager.stopRecording(key) },
+            recordingConsentNeeded = { CallManager.recordingConsentNeeded() },
+        ),
     )
 }
