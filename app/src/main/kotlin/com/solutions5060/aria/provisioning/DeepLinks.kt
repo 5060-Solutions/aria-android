@@ -12,6 +12,13 @@ sealed interface DeepLink {
 
     /** A `tel:` or `sip:` target to dial. Prefilled and confirmed, never called directly. */
     data class Dial(val target: String) : DeepLink
+
+    /** Open a tab (from one of the app's own notifications). Only the known tabs. */
+    data class OpenTab(val route: String) : DeepLink {
+        companion object {
+            val ROUTES = setOf("dialer", "contacts", "history", "voicemail", "settings")
+        }
+    }
 }
 
 /**

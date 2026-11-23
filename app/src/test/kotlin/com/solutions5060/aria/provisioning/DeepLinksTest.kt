@@ -65,3 +65,13 @@ class DeepLinksTest {
         assertNull(DeepLinks.pending.value)
     }
 }
+
+class OpenTabTest {
+    @org.junit.Test
+    fun onlyKnownTabsAreRoutes() {
+        org.junit.Assert.assertEquals(
+            setOf("dialer", "contacts", "history", "voicemail", "settings"),
+            DeepLink.OpenTab.ROUTES,
+        )
+    }
+}

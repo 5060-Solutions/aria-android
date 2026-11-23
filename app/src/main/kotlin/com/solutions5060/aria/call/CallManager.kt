@@ -63,10 +63,13 @@ data class CallUiState(
     val inConference: Boolean = false,
     /** Being recorded to a WAV file ([CallManager.startRecording]). */
     val recording: Boolean = false,
+    /** The name of the matching phone contact, if contacts access was granted. */
+    val contactName: String? = null,
 ) {
-    /** Name if the network sent one, else the user part of the URI. */
+    /** The contact's name, else the name the network sent, else the user part of the URI. */
     val displayName: String
-        get() = remoteName?.takeIf { it.isNotBlank() }
+        get() = contactName?.takeIf { it.isNotBlank() }
+            ?: remoteName?.takeIf { it.isNotBlank() }
             ?: remoteUri.removePrefix("sip:").substringBefore("@")
 }
 
@@ -183,6 +186,7 @@ object CallManager {
         var ringTimeout: Runnable? = null
         var inConference = false
         var recording = false
+        var contactName: String? = null
     }
 
     /** Every call by record key, oldest first. Main-thread only. */
@@ -426,6 +430,7 @@ object CallManager {
         // Known before dialling, so hangup(id) works at any point, even before
         // makeCallWithId runs (it then never dials).
         rec.callId = newOutgoingCallId()
+        rec.contactName = ContactNames.nameFor(appContext, sipUri)
         records[rec.key] = rec
         _error.value = null
         publishAll()
@@ -640,6 +645,8 @@ object CallManager {
         // The engine names an offered call after its token, so a caller who
         // hangs up before we answer can be matched before accept.
         if (token.isNotEmpty()) rec.callId = "incoming-$token"
+        // Before the incoming-call notification is posted, so it shows the name.
+        rec.contactName = ContactNames.nameFor(appContext, callerUri)
         records[rec.key] = rec
         armRingTimeout(rec)
         publishAll()
@@ -1250,7 +1257,9 @@ object CallManager {
 
         val connectedAt = rec.connectedAtElapsed
         val durationSeconds = connectedAt?.let { ((SystemClock.elapsedRealtime() - it) / 1000).toInt() } ?: 0
-        recordHistory(rec.remoteUri, rec.remoteName, rec.direction, rec.startedAtMillis, durationSeconds, reason)
+        recordHistory(rec.remoteUri, rec.contactName ?: rec.remoteName, rec.direction, rec.startedAtMillis, durationSeconds, reason)
+        // A caller sent to voicemail leaves the message after this.
+        com.solutions5060.aria.voicemail.VoicemailMonitor.afterCall(appContext)
 
         val callId = rec.callId
         if (callId != null && connectedAt != null) {
@@ -1318,6 +1327,7 @@ object CallManager {
         transferError = transferError,
         inConference = inConference,
         recording = recording,
+        contactName = contactName,
     )
 
     /**

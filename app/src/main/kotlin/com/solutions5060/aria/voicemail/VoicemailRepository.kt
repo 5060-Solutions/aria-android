@@ -39,9 +39,16 @@ class VoicemailRepository(context: Context) {
         VoicemailJson.parseMessages(client.voicemailMessages(jwt, box(client, jwt)))
     }
 
-    fun markRead(messageId: String) = withAuth { client, jwt -> client.markVoicemailRead(jwt, messageId) }
+    fun markRead(messageId: String) {
+        withAuth { client, jwt -> client.markVoicemailRead(jwt, messageId) }
+        // The tab badge follows at once rather than at the next poll.
+        VoicemailMonitor.refresh(appContext)
+    }
 
-    fun delete(messageId: String) = withAuth { client, jwt -> client.deleteVoicemail(jwt, messageId) }
+    fun delete(messageId: String) {
+        withAuth { client, jwt -> client.deleteVoicemail(jwt, messageId) }
+        VoicemailMonitor.refresh(appContext)
+    }
 
     /** A URL the media player can stream this message from without our JWT. */
     fun audioUrl(messageId: String): String = withAuth { client, jwt ->
