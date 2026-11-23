@@ -120,4 +120,64 @@
     <string name="ui_connection_connecting_body">Connecting to Aria. Calls in progress continue.</string>
     <string name="ui_connection_down_body">Incoming calls can\'t reach this phone right now.</string>
     <string name="ui_settings_diagnostics">Diagnostics</string>
+
+    <!-- Common -->
+    <string name="ui_back">Back</string>
+    <string name="ui_undo">Undo</string>
+    <string name="ui_delete">Delete</string>
+    <string name="ui_today">Today</string>
+    <string name="ui_yesterday">Yesterday</string>
+
+    <!-- History -->
+    <string name="ui_history_all">All</string>
+    <string name="ui_history_missed">Missed</string>
+    <string name="ui_history_empty">No calls yet</string>
+    <string name="ui_history_empty_body">Calls you make and receive will appear here.</string>
+    <string name="ui_history_empty_missed">No missed calls</string>
+    <string name="ui_history_empty_missed_body">You\'re all caught up.</string>
+    <string name="ui_history_deleted">Call removed from history</string>
+    <string name="ui_history_call_back">Call back</string>
+    <string name="ui_history_details">Details for %1$s</string>
+    <string name="ui_history_call_details">Call details</string>
+    <string name="ui_history_call_name">Call %1$s</string>
+    <string name="ui_history_dir_missed">Missed call</string>
+    <string name="ui_history_dir_declined">Declined call</string>
+    <string name="ui_history_dir_incoming">Incoming call</string>
+    <string name="ui_history_dir_outgoing">Outgoing call</string>
+
+    <!-- Contacts -->
+    <string name="ui_contacts_search">Search contacts</string>
+    <string name="ui_contacts_clear_search">Clear search</string>
+    <string name="ui_contacts_favorites">Favorites</string>
+    <string name="ui_contacts_show_numbers">Show numbers</string>
+    <string name="ui_contacts_access_title">See your contacts here</string>
+    <string name="ui_contacts_access_body">Allow access to call people from your address book. Aria never uploads your contacts.</string>
+    <string name="ui_contacts_allow">Allow access</string>
+    <string name="ui_contacts_empty">No contacts</string>
+    <string name="ui_contacts_empty_body">People you add to your address book will appear here.</string>
+    <string name="ui_contacts_no_match">No matches</string>
+    <string name="ui_contacts_no_match_body">Try a different name or number.</string>
+
+    <!-- Voicemail -->
+    <string name="ui_refresh">Refresh</string>
+    <string name="ui_expand">Show details</string>
+    <string name="ui_collapse">Hide details</string>
+    <string name="ui_voicemail_call_box">Call voicemail</string>
+    <string name="ui_voicemail_empty">No voicemail</string>
+    <string name="ui_voicemail_empty_body">Messages callers leave for you will appear here.</string>
+    <string name="ui_voicemail_unavailable">Voicemail unavailable</string>
+    <string name="ui_voicemail_load_failed">Could not load voicemail.</string>
+    <string name="ui_voicemail_play_failed">Could not play this message.</string>
+    <string name="ui_voicemail_delete_failed">Could not delete the message.</string>
+    <string name="ui_voicemail_delete_title">Delete voicemail?</string>
+    <string name="ui_voicemail_delete_body">The message from %1$s will be deleted. This cannot be undone.</string>
+    <string name="ui_voicemail_play">Play message from %1$s</string>
+    <string name="ui_voicemail_pause">Pause message from %1$s</string>
+    <string name="ui_voicemail_transcription">Transcription</string>
+    <string name="ui_voicemail_position">%1$s of %2$s</string>
+    <string name="ui_voicemail_unread_marker">Unread</string>
+    <plurals name="ui_contacts_more_numbers">
+        <item quantity="one">%d more</item>
+        <item quantity="other">%d more</item>
+    </plurals>
 </resources>
