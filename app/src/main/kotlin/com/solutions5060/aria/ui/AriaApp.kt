@@ -32,6 +32,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 import androidx.navigation.compose.rememberNavController
 import com.solutions5060.aria.call.CallAlertSetup
 import com.solutions5060.aria.call.CallManager
+import com.solutions5060.aria.call.EmergencyRouting
 import com.solutions5060.aria.history.CallHistoryStore
 import com.solutions5060.aria.security.SecurePrefs
 import com.solutions5060.aria.service.EngineManager
@@ -263,7 +264,8 @@ private fun MainApp(
         }
     }
     fun placeCall(number: String) {
-        if (Permissions.hasMicrophone(context)) {
+        // Emergency numbers go to the native dialer, so no microphone prompt.
+        if (Permissions.hasMicrophone(context) || EmergencyRouting.isEmergency(number)) {
             callError = CallManager.placeCall(context, number)
         } else {
             micRationaleFor = number

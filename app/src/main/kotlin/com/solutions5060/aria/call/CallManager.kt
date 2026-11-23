@@ -18,6 +18,8 @@ import com.solutions5060.aria.service.IncomingCallService
 import com.solutions5060.aria.service.SipEngineHolder
 import com.solutions5060.aria.history.CallHistoryRecorder
 import com.solutions5060.aria.history.CallHistoryStore
+import com.solutions5060.aria.recording.RecordingConsent
+import com.solutions5060.aria.recording.RecordingsRepository
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -57,6 +59,10 @@ data class CallUiState(
     val transferring: Boolean = false,
     /** Why the last transfer attempt failed; the call is still up. */
     val transferError: String? = null,
+    /** Mixed into a local three-way conference with the other call ([CallManager.mergeCalls]). */
+    val inConference: Boolean = false,
+    /** Being recorded to a WAV file ([CallManager.startRecording]). */
+    val recording: Boolean = false,
 ) {
     /** Name if the network sent one, else the user part of the URI. */
     val displayName: String
@@ -128,6 +134,15 @@ object CallManager {
     /** The last call-setup failure, for the dialer to show. */
     val error: StateFlow<String?> = _error.asStateFlow()
 
+    private val _actionError = MutableStateFlow<String?>(null)
+
+    /**
+     * Why the last in-call action (merge, split, start or stop recording)
+     * failed, for the call screen to show; the calls are unchanged. Cleared
+     * with [clearActionError].
+     */
+    val actionError: StateFlow<String?> = _actionError.asStateFlow()
+
     /** Mutable bookkeeping for one call. Main-thread only. */
     private class CallRecord(
         val key: String,
@@ -166,6 +181,8 @@ object CallManager {
         var deferredEndReason: EndReason? = null
         /** Ends the call as missed if it rings too long; null once it stops ringing. */
         var ringTimeout: Runnable? = null
+        var inConference = false
+        var recording = false
     }
 
     /** Every call by record key, oldest first. Main-thread only. */
@@ -219,6 +236,10 @@ object CallManager {
 
     fun clearError() {
         _error.value = null
+    }
+
+    fun clearActionError() {
+        _actionError.value = null
     }
 
     // ── Engine events ───────────────────────────────────────────────────
@@ -281,6 +302,8 @@ object CallManager {
         info.remoteName?.takeIf { it.isNotBlank() }?.let { rec.remoteName = it }
         rec.muted = info.muted
         rec.onHold = info.onHold
+        rec.inConference = info.inConference
+        rec.recording = info.recording
 
         if (info.state == CallState.ENDED) {
             info.endReason?.let { rec.deferredEndReason = CallStateMapping.endReasonFor(it) }
@@ -377,6 +400,12 @@ object CallManager {
      * null when the call is under way.
      */
     fun placeCall(context: Context, number: String): String? {
+        // Before anything else, including the two-call limit: an emergency
+        // number always reaches the native dialer, never the gateway.
+        if (EmergencyRouting.isEmergency(number)) {
+            Log.i(TAG, "Emergency number: handing off to the native dialer")
+            return EmergencyRouting.handOff(context, number)
+        }
         // A second call is allowed next to an answered one; the core holds
         // the first when this one is dialled (see startOutgoing).
         CallWaiting.outgoingRefusal(uiStates())?.let { return it }
@@ -834,6 +863,8 @@ object CallManager {
 
     /** Bring the held call with record [key] back, holding whichever call is active. */
     fun swapTo(key: String) {
+        // The core refuses a swap while conferenced; Split first.
+        if (!Conference.canSwap(uiStates())) return
         records[key]?.let { setHold(it, false) }
     }
 
@@ -1026,6 +1057,106 @@ object CallManager {
         if (changed) publishAll()
     }
 
+    // ── Conference ──────────────────────────────────────────────────────
+
+    /**
+     * Merges the two connected calls into a local three-way conference
+     * (`conference_merge`). Both come off hold and report
+     * [CallUiState.inConference]. Returns why not when there is no pair to
+     * merge; an engine failure is reported through [actionError].
+     */
+    fun mergeCalls(): String? {
+        val pair = Conference.mergePair(uiStates()) ?: return "Merge needs two connected calls."
+        val a = pair.first.callId ?: return null
+        val b = pair.second.callId ?: return null
+        _actionError.value = null
+        engineExecutor.execute {
+            try {
+                val engine = SipEngineHolder.engine ?: throw IllegalStateException("Not connected")
+                // Local mixing only (no gateway request); events update both calls.
+                engine.conferenceMerge(a, b)
+            } catch (e: Exception) {
+                Log.w(TAG, "Merge failed: ${e.javaClass.simpleName}")
+                mainHandler.post { _actionError.value = "The calls could not be merged." }
+            }
+        }
+        return null
+    }
+
+    /**
+     * Ends the conference, keeping both calls (`conference_split`): the newer
+     * one stays connected, the older goes on hold. Returns why not when there
+     * is no conference.
+     */
+    fun splitConference(): String? {
+        if (!Conference.canSplit(uiStates())) return "There is no conference to split."
+        _actionError.value = null
+        engineExecutor.execute {
+            try {
+                val engine = SipEngineHolder.engine ?: throw IllegalStateException("Not connected")
+                engine.conferenceSplit()
+            } catch (e: Exception) {
+                Log.w(TAG, "Split failed: ${e.javaClass.simpleName}")
+                mainHandler.post { _actionError.value = "The conference could not be split." }
+            }
+        }
+        return null
+    }
+
+    // ── Recording ───────────────────────────────────────────────────────
+
+    /** Whether the user still has to confirm the recording notice ([RecordingConsent]). */
+    fun recordingConsentNeeded(): Boolean = !RecordingConsent.isAcknowledged(appContext)
+
+    /**
+     * Starts recording the connected call with record [key] into
+     * `filesDir/recordings` (`start_recording`). [consentGiven] is true when
+     * the user has just confirmed the recording notice; it is remembered.
+     * Without it, and without an earlier confirmation, nothing is recorded.
+     * Returns why not; an engine failure is reported through [actionError].
+     */
+    fun startRecording(key: String, consentGiven: Boolean = false): String? {
+        if (consentGiven) RecordingConsent.acknowledge(appContext)
+        if (recordingConsentNeeded()) return "Confirm the recording notice first."
+        val rec = records[key] ?: return null
+        if (rec.finished || rec.connectedAtElapsed == null) return "Only a connected call can be recorded."
+        if (rec.recording) return null
+        val callId = rec.callId ?: return null
+        val file = RecordingsRepository(appContext).newRecordingFile(rec.remoteUri)
+        _actionError.value = null
+        engineExecutor.execute {
+            try {
+                val engine = SipEngineHolder.engine ?: throw IllegalStateException("Not connected")
+                // Reports the call with recording = true.
+                engine.startRecording(callId, file.absolutePath)
+            } catch (e: Exception) {
+                Log.w(TAG, "Start recording failed: ${e.javaClass.simpleName}")
+                if (file.length() == 0L) file.delete()
+                mainHandler.post { _actionError.value = "Recording could not start." }
+            }
+        }
+        return null
+    }
+
+    /**
+     * Stops recording the call with record [key] (`stop_recording`). The file
+     * stays in the recordings list. Recording also stops by itself when the
+     * call ends.
+     */
+    fun stopRecording(key: String) {
+        val rec = records[key] ?: return
+        if (rec.finished || !rec.recording) return
+        val callId = rec.callId ?: return
+        engineExecutor.execute {
+            try {
+                SipEngineHolder.engine?.stopRecording(callId)
+            } catch (e: Exception) {
+                Log.w(TAG, "Stop recording failed: ${e.javaClass.simpleName}")
+                mainHandler.post { _actionError.value = "The recording may be incomplete." }
+            }
+        }
+    }
+
     // ── Audio routing ──────────────────────────────────────────────────
 
     /** Telecom changed the available or active audio route. */
@@ -1184,6 +1315,8 @@ object CallManager {
         encrypted = encrypted,
         transferring = transferring,
         transferError = transferError,
+        inConference = inConference,
+        recording = recording,
     )
 
     private fun publishAll() {

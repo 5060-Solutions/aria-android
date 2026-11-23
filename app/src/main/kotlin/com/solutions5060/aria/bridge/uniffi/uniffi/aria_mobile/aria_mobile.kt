@@ -892,6 +892,22 @@ internal open class UniffiVTableCallbackInterfacePlatformAudioBridge(
 
 
 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -955,6 +971,10 @@ internal interface UniffiLib : Library {
     ): Byte
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_check_remote_hangup(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_conference_merge(`ptr`: Pointer,`callA`: RustBuffer.ByValue,`callB`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_conference_split(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_get_active_call(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_get_calls(`ptr`: Pointer,uniffi_out_err: UniffiRustCallStatus, 
@@ -969,6 +989,8 @@ internal interface UniffiLib : Library {
     ): RustBuffer.ByValue
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_hangup(`ptr`: Pointer,`callId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_is_recording(`ptr`: Pointer,`callId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Byte
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_make_call(`ptr`: Pointer,`uri`: RustBuffer.ByValue,`credentials`: RustBuffer.ByValue,`preferredCodecs`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_make_call_with_id(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`uri`: RustBuffer.ByValue,`credentials`: RustBuffer.ByValue,`preferredCodecs`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -993,6 +1015,10 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_set_mute(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`muted`: Byte,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_start_recording(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`path`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_stop_recording(`ptr`: Pointer,`callId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_swap_calls(`ptr`: Pointer,`activeCallId`: RustBuffer.ByValue,`heldCallId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_transfer_attended(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`consultCallId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1009,7 +1035,13 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_aria_mobile_core_fn_func_init_runtime(uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_aria_mobile_core_fn_func_is_emergency_number(`dial`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Byte
     fun uniffi_aria_mobile_core_fn_func_new_outgoing_call_id(uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_aria_mobile_core_fn_func_provision_preview(`link`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): RustBuffer.ByValue
+    fun uniffi_aria_mobile_core_fn_func_provision_redeem(`link`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): RustBuffer.ByValue
     fun uniffi_aria_mobile_core_fn_func_shutdown_runtime(uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
@@ -1127,7 +1159,13 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_aria_mobile_core_checksum_func_init_runtime(
     ): Short
+    fun uniffi_aria_mobile_core_checksum_func_is_emergency_number(
+    ): Short
     fun uniffi_aria_mobile_core_checksum_func_new_outgoing_call_id(
+    ): Short
+    fun uniffi_aria_mobile_core_checksum_func_provision_preview(
+    ): Short
+    fun uniffi_aria_mobile_core_checksum_func_provision_redeem(
     ): Short
     fun uniffi_aria_mobile_core_checksum_func_shutdown_runtime(
     ): Short
@@ -1167,6 +1205,10 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_check_remote_hangup(
     ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_conference_merge(
+    ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_conference_split(
+    ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_active_call(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_calls(
@@ -1180,6 +1222,8 @@ internal interface UniffiLib : Library {
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_handle_push_notification(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_hangup(
+    ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_is_recording(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_make_call(
     ): Short
@@ -1204,6 +1248,10 @@ internal interface UniffiLib : Library {
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_hold(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_mute(
+    ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_start_recording(
+    ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_stop_recording(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_swap_calls(
     ): Short
@@ -1253,7 +1301,16 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_aria_mobile_core_checksum_func_init_runtime() != 32843.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aria_mobile_core_checksum_func_is_emergency_number() != 33955.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aria_mobile_core_checksum_func_new_outgoing_call_id() != 37587.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_func_provision_preview() != 43833.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_func_provision_redeem() != 51727.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_func_shutdown_runtime() != 2017.toShort()) {
@@ -1313,6 +1370,12 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_check_remote_hangup() != 44253.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_conference_merge() != 25690.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_conference_split() != 4102.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_get_active_call() != 15775.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1332,6 +1395,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_hangup() != 12235.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_is_recording() != 22113.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_make_call() != 192.toShort()) {
@@ -1368,6 +1434,12 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_mute() != 20691.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_start_recording() != 4927.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_stop_recording() != 37421.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_swap_calls() != 26608.toShort()) {
@@ -1998,6 +2070,25 @@ public interface AriaMobileEngineInterface {
     fun `checkRemoteHangup`(): kotlin.String?
     
     /**
+     * Merge two connected calls (held or not) into a local three-way
+     * conference: both come off hold, each far end hears the microphone
+     * plus the other far end, and the speaker plays both. Both are
+     * reported `Connected` with `in_conference` true, `call_a` first.
+     * Throws `InvalidState` unless they are distinct connected calls and
+     * neither is in a conference. See "Conference" in the README for hold,
+     * mute, hangup and transfer while conferenced.
+     */
+    fun `conferenceMerge`(`callA`: kotlin.String, `callB`: kotlin.String)
+    
+    /**
+     * End the conference, keeping both calls: the most recently created
+     * one stays `Connected`, the other goes `OnHold`; both are reported with
+     * `in_conference` false, the held one first. Throws `InvalidState` when
+     * there is no conference.
+     */
+    fun `conferenceSplit`()
+    
+    /**
      * The connected call that is off hold, if any; otherwise the most
      * recently created live call (held, or outgoing and ringing).
      */
@@ -2046,6 +2137,11 @@ public interface AriaMobileEngineInterface {
      * did not confirm (after one retry) through `on_error`.
      */
     fun `hangup`(`callId`: kotlin.String)
+    
+    /**
+     * Whether a call is being recorded.
+     */
+    fun `isRecording`(`callId`: kotlin.String): kotlin.Boolean
     
     /**
      * `make_call_with_id` with an id the core picks. The app learns the id
@@ -2134,18 +2230,43 @@ public interface AriaMobileEngineInterface {
      * call is ever off hold; each call whose hold state changed is reported
      * through `on_call_state_changed`. A call that connects (answered, or an
      * outgoing call that is answered) likewise holds the others first.
+     * On a conferenced call it holds or resumes the whole conference (both
+     * calls, the named one reported first), which stays a conference.
      */
     fun `setHold`(`callId`: kotlin.String, `onHold`: kotlin.Boolean)
     
     /**
-     * Set mute state.
+     * Set mute state. On a conferenced call the microphone is shared, so
+     * both calls are muted and reported, the named one first.
      */
     fun `setMute`(`callId`: kotlin.String, `muted`: kotlin.Boolean)
     
     /**
+     * Start recording a connected call to a new WAV file at `path`
+     * (replaced if it exists): 16-bit PCM mono at the call's codec rate
+     * (8000 Hz, or 48000 Hz for Opus), the far end and this end mixed, plus
+     * the other far end while the call is in a conference. Held time is
+     * recorded as silence. Reports the call with `recording` true. Throws
+     * `InvalidState` for an unknown, ringing or already recorded call, and
+     * `MediaError` when the file cannot be created. Recording stops by
+     * itself when the call ends; the file is complete by the time `Ended`
+     * is delivered. Consent and disclosure are the app's responsibility.
+     */
+    fun `startRecording`(`callId`: kotlin.String, `path`: kotlin.String)
+    
+    /**
+     * Stop recording a call and finish the WAV file. Returns its path.
+     * Reports the call with `recording` false. Throws `InvalidState` when
+     * the call is not being recorded, and `MediaError` when the file could
+     * not be finished (it may be truncated).
+     */
+    fun `stopRecording`(`callId`: kotlin.String): kotlin.String
+    
+    /**
      * Put `active_call_id` on hold and resume `held_call_id` in one step.
      * Each call whose hold state changed is reported, the one going on hold
-     * first. Throws `InvalidState` unless both are distinct connected calls.
+     * first. Throws `InvalidState` unless both are distinct connected calls,
+     * and while a conference is up (`conference_split` first).
      */
     fun `swapCalls`(`activeCallId`: kotlin.String, `heldCallId`: kotlin.String)
     
@@ -2600,6 +2721,45 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
+     * Merge two connected calls (held or not) into a local three-way
+     * conference: both come off hold, each far end hears the microphone
+     * plus the other far end, and the speaker plays both. Both are
+     * reported `Connected` with `in_conference` true, `call_a` first.
+     * Throws `InvalidState` unless they are distinct connected calls and
+     * neither is in a conference. See "Conference" in the README for hold,
+     * mute, hangup and transfer while conferenced.
+     */
+    @Throws(MobileException::class)override fun `conferenceMerge`(`callA`: kotlin.String, `callB`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(MobileException) { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_conference_merge(
+        it, FfiConverterString.lower(`callA`),FfiConverterString.lower(`callB`),_status)
+}
+    }
+    
+    
+
+    
+    /**
+     * End the conference, keeping both calls: the most recently created
+     * one stays `Connected`, the other goes `OnHold`; both are reported with
+     * `in_conference` false, the held one first. Throws `InvalidState` when
+     * there is no conference.
+     */
+    @Throws(MobileException::class)override fun `conferenceSplit`()
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(MobileException) { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_conference_split(
+        it, _status)
+}
+    }
+    
+    
+
+    
+    /**
      * The connected call that is off hold, if any; otherwise the most
      * recently created live call (held, or outgoing and ringing).
      */override fun `getActiveCall`(): CallInfo? {
@@ -2717,6 +2877,21 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 }
     }
     
+    
+
+    
+    /**
+     * Whether a call is being recorded.
+     */override fun `isRecording`(`callId`: kotlin.String): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_is_recording(
+        it, FfiConverterString.lower(`callId`),_status)
+}
+    }
+    )
+    }
     
 
     
@@ -2905,6 +3080,8 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
      * call is ever off hold; each call whose hold state changed is reported
      * through `on_call_state_changed`. A call that connects (answered, or an
      * outgoing call that is answered) likewise holds the others first.
+     * On a conferenced call it holds or resumes the whole conference (both
+     * calls, the named one reported first), which stays a conference.
      */
     @Throws(MobileException::class)override fun `setHold`(`callId`: kotlin.String, `onHold`: kotlin.Boolean)
         = 
@@ -2919,7 +3096,8 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
-     * Set mute state.
+     * Set mute state. On a conferenced call the microphone is shared, so
+     * both calls are muted and reported, the named one first.
      */
     @Throws(MobileException::class)override fun `setMute`(`callId`: kotlin.String, `muted`: kotlin.Boolean)
         = 
@@ -2934,9 +3112,52 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
+     * Start recording a connected call to a new WAV file at `path`
+     * (replaced if it exists): 16-bit PCM mono at the call's codec rate
+     * (8000 Hz, or 48000 Hz for Opus), the far end and this end mixed, plus
+     * the other far end while the call is in a conference. Held time is
+     * recorded as silence. Reports the call with `recording` true. Throws
+     * `InvalidState` for an unknown, ringing or already recorded call, and
+     * `MediaError` when the file cannot be created. Recording stops by
+     * itself when the call ends; the file is complete by the time `Ended`
+     * is delivered. Consent and disclosure are the app's responsibility.
+     */
+    @Throws(MobileException::class)override fun `startRecording`(`callId`: kotlin.String, `path`: kotlin.String)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(MobileException) { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_start_recording(
+        it, FfiConverterString.lower(`callId`),FfiConverterString.lower(`path`),_status)
+}
+    }
+    
+    
+
+    
+    /**
+     * Stop recording a call and finish the WAV file. Returns its path.
+     * Reports the call with `recording` false. Throws `InvalidState` when
+     * the call is not being recorded, and `MediaError` when the file could
+     * not be finished (it may be truncated).
+     */
+    @Throws(MobileException::class)override fun `stopRecording`(`callId`: kotlin.String): kotlin.String {
+            return FfiConverterString.lift(
+    callWithPointer {
+    uniffiRustCallWithError(MobileException) { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_stop_recording(
+        it, FfiConverterString.lower(`callId`),_status)
+}
+    }
+    )
+    }
+    
+
+    
+    /**
      * Put `active_call_id` on hold and resume `held_call_id` in one step.
      * Each call whose hold state changed is reported, the one going on hold
-     * first. Throws `InvalidState` unless both are distinct connected calls.
+     * first. Throws `InvalidState` unless both are distinct connected calls,
+     * and while a conference is up (`conference_split` first).
      */
     @Throws(MobileException::class)override fun `swapCalls`(`activeCallId`: kotlin.String, `heldCallId`: kotlin.String)
         = 
@@ -3377,7 +3598,17 @@ data class CallInfo (
     /**
      * Why the call ended; set only when `state` is `Ended`.
      */
-    var `endReason`: EndReason?
+    var `endReason`: EndReason?, 
+    /**
+     * Mixed into a local three-way conference with the other live call
+     * (`conference_merge`). See "Conference" in the README.
+     */
+    var `inConference`: kotlin.Boolean = false, 
+    /**
+     * This call is being recorded to a WAV file (`start_recording`).
+     * False on the `Ended` event: recording stops when the call ends.
+     */
+    var `recording`: kotlin.Boolean = false
 ) {
     
     companion object
@@ -3398,6 +3629,8 @@ public object FfiConverterTypeCallInfo: FfiConverterRustBuffer<CallInfo> {
             FfiConverterBoolean.read(buf),
             FfiConverterULong.read(buf),
             FfiConverterOptionalTypeEndReason.read(buf),
+            FfiConverterBoolean.read(buf),
+            FfiConverterBoolean.read(buf),
         )
     }
 
@@ -3410,7 +3643,9 @@ public object FfiConverterTypeCallInfo: FfiConverterRustBuffer<CallInfo> {
             FfiConverterBoolean.allocationSize(value.`muted`) +
             FfiConverterBoolean.allocationSize(value.`onHold`) +
             FfiConverterULong.allocationSize(value.`durationSecs`) +
-            FfiConverterOptionalTypeEndReason.allocationSize(value.`endReason`)
+            FfiConverterOptionalTypeEndReason.allocationSize(value.`endReason`) +
+            FfiConverterBoolean.allocationSize(value.`inConference`) +
+            FfiConverterBoolean.allocationSize(value.`recording`)
     )
 
     override fun write(value: CallInfo, buf: ByteBuffer) {
@@ -3423,6 +3658,8 @@ public object FfiConverterTypeCallInfo: FfiConverterRustBuffer<CallInfo> {
             FfiConverterBoolean.write(value.`onHold`, buf)
             FfiConverterULong.write(value.`durationSecs`, buf)
             FfiConverterOptionalTypeEndReason.write(value.`endReason`, buf)
+            FfiConverterBoolean.write(value.`inConference`, buf)
+            FfiConverterBoolean.write(value.`recording`, buf)
     }
 }
 
@@ -3640,6 +3877,160 @@ public object FfiConverterTypeMediaStats: FfiConverterRustBuffer<MediaStats> {
             FfiConverterDouble.write(value.`jitterMs`, buf)
             FfiConverterUInt.write(value.`packetLoss`, buf)
             FfiConverterDouble.write(value.`rttMs`, buf)
+    }
+}
+
+
+
+/**
+ * What a setup link would add, for the confirmation screen. Nothing secret.
+ */
+data class ProvisionPreview (
+    var `tenantName`: kotlin.String, 
+    var `extension`: kotlin.String, 
+    var `displayName`: kotlin.String, 
+    var `domain`: kotlin.String, 
+    var `expiresAt`: kotlin.String?, 
+    /**
+     * `host[:port]` of the setup server: who is setting the line up.
+     */
+    var `serverHost`: kotlin.String
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeProvisionPreview: FfiConverterRustBuffer<ProvisionPreview> {
+    override fun read(buf: ByteBuffer): ProvisionPreview {
+        return ProvisionPreview(
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ProvisionPreview) = (
+            FfiConverterString.allocationSize(value.`tenantName`) +
+            FfiConverterString.allocationSize(value.`extension`) +
+            FfiConverterString.allocationSize(value.`displayName`) +
+            FfiConverterString.allocationSize(value.`domain`) +
+            FfiConverterOptionalString.allocationSize(value.`expiresAt`) +
+            FfiConverterString.allocationSize(value.`serverHost`)
+    )
+
+    override fun write(value: ProvisionPreview, buf: ByteBuffer) {
+            FfiConverterString.write(value.`tenantName`, buf)
+            FfiConverterString.write(value.`extension`, buf)
+            FfiConverterString.write(value.`displayName`, buf)
+            FfiConverterString.write(value.`domain`, buf)
+            FfiConverterOptionalString.write(value.`expiresAt`, buf)
+            FfiConverterString.write(value.`serverHost`, buf)
+    }
+}
+
+
+
+/**
+ * The credentials a redeemed setup link returned. Store `password` in the
+ * Keychain / Keystore; never log it.
+ */
+data class ProvisionedAccount (
+    var `username`: kotlin.String, 
+    var `authUsername`: kotlin.String?, 
+    var `password`: kotlin.String, 
+    /**
+     * Lower-cased.
+     */
+    var `domain`: kotlin.String, 
+    /**
+     * "udp", "tcp", "tls" or "auto"; "tls" when the server sent none.
+     */
+    var `transport`: kotlin.String, 
+    /**
+     * 0 when the server sent none (resolve through DNS SRV).
+     */
+    var `port`: kotlin.UShort, 
+    /**
+     * `host` or `host:port`, lower-cased, without a `sip:` prefix.
+     */
+    var `outboundProxy`: kotlin.String?, 
+    /**
+     * Digits and `*#+` only.
+     */
+    var `voicemail`: kotlin.String?, 
+    /**
+     * "sdes" or "disabled"; absent otherwise.
+     */
+    var `srtp`: kotlin.String?, 
+    var `tenantName`: kotlin.String, 
+    /**
+     * The username when the server sent no display name.
+     */
+    var `displayName`: kotlin.String, 
+    /**
+     * `host[:port]` of the setup server.
+     */
+    var `serverHost`: kotlin.String
+) {
+    
+    companion object
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeProvisionedAccount: FfiConverterRustBuffer<ProvisionedAccount> {
+    override fun read(buf: ByteBuffer): ProvisionedAccount {
+        return ProvisionedAccount(
+            FfiConverterString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterUShort.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+            FfiConverterString.read(buf),
+        )
+    }
+
+    override fun allocationSize(value: ProvisionedAccount) = (
+            FfiConverterString.allocationSize(value.`username`) +
+            FfiConverterOptionalString.allocationSize(value.`authUsername`) +
+            FfiConverterString.allocationSize(value.`password`) +
+            FfiConverterString.allocationSize(value.`domain`) +
+            FfiConverterString.allocationSize(value.`transport`) +
+            FfiConverterUShort.allocationSize(value.`port`) +
+            FfiConverterOptionalString.allocationSize(value.`outboundProxy`) +
+            FfiConverterOptionalString.allocationSize(value.`voicemail`) +
+            FfiConverterOptionalString.allocationSize(value.`srtp`) +
+            FfiConverterString.allocationSize(value.`tenantName`) +
+            FfiConverterString.allocationSize(value.`displayName`) +
+            FfiConverterString.allocationSize(value.`serverHost`)
+    )
+
+    override fun write(value: ProvisionedAccount, buf: ByteBuffer) {
+            FfiConverterString.write(value.`username`, buf)
+            FfiConverterOptionalString.write(value.`authUsername`, buf)
+            FfiConverterString.write(value.`password`, buf)
+            FfiConverterString.write(value.`domain`, buf)
+            FfiConverterString.write(value.`transport`, buf)
+            FfiConverterUShort.write(value.`port`, buf)
+            FfiConverterOptionalString.write(value.`outboundProxy`, buf)
+            FfiConverterOptionalString.write(value.`voicemail`, buf)
+            FfiConverterOptionalString.write(value.`srtp`, buf)
+            FfiConverterString.write(value.`tenantName`, buf)
+            FfiConverterString.write(value.`displayName`, buf)
+            FfiConverterString.write(value.`serverHost`, buf)
     }
 }
 
@@ -4046,6 +4437,97 @@ public object FfiConverterTypeMobileError : FfiConverterRustBuffer<MobileExcepti
             }
             is MobileException.TransferUnsupported -> {
                 buf.putInt(11)
+                Unit
+            }
+        }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
+    }
+
+}
+
+
+
+
+
+/**
+ * Why a setup link could not be used. The message is written for the user
+ * and never contains the link or its token.
+ */
+sealed class ProvisionException(message: String): kotlin.Exception(message) {
+        
+    /**
+     * Not a version-1 `aria://provision` link, or its URL breaks the rules:
+     * not https, has userinfo, not `/provision/softphone/<token>`.
+     */
+        class InvalidLink(message: String) : ProvisionException(message)
+        
+    /**
+     * The server answered 404: unknown, already used, or expired.
+     */
+        class Expired(message: String) : ProvisionException(message)
+        
+    /**
+     * The server could not be reached or did not answer within 10 s.
+     */
+        class Network(message: String) : ProvisionException(message)
+        
+    /**
+     * The redeem returned a different line than the preview showed.
+     */
+        class Mismatch(message: String) : ProvisionException(message)
+        
+    /**
+     * Any other reply: a non-200 status (redirects are not followed), more
+     * than 16 KB, not JSON, `v` other than 1, or an unusable field.
+     */
+        class Server(message: String) : ProvisionException(message)
+        
+
+    companion object ErrorHandler : UniffiRustCallStatusErrorHandler<ProvisionException> {
+        override fun lift(error_buf: RustBuffer.ByValue): ProvisionException = FfiConverterTypeProvisionError.lift(error_buf)
+    }
+}
+
+/**
+ * @suppress
+ */
+public object FfiConverterTypeProvisionError : FfiConverterRustBuffer<ProvisionException> {
+    override fun read(buf: ByteBuffer): ProvisionException {
+        
+            return when(buf.getInt()) {
+            1 -> ProvisionException.InvalidLink(FfiConverterString.read(buf))
+            2 -> ProvisionException.Expired(FfiConverterString.read(buf))
+            3 -> ProvisionException.Network(FfiConverterString.read(buf))
+            4 -> ProvisionException.Mismatch(FfiConverterString.read(buf))
+            5 -> ProvisionException.Server(FfiConverterString.read(buf))
+            else -> throw RuntimeException("invalid error enum value, something is very wrong!!")
+        }
+        
+    }
+
+    override fun allocationSize(value: ProvisionException): ULong {
+        return 4UL
+    }
+
+    override fun write(value: ProvisionException, buf: ByteBuffer) {
+        when(value) {
+            is ProvisionException.InvalidLink -> {
+                buf.putInt(1)
+                Unit
+            }
+            is ProvisionException.Expired -> {
+                buf.putInt(2)
+                Unit
+            }
+            is ProvisionException.Network -> {
+                buf.putInt(3)
+                Unit
+            }
+            is ProvisionException.Mismatch -> {
+                buf.putInt(4)
+                Unit
+            }
+            is ProvisionException.Server -> {
+                buf.putInt(5)
                 Unit
             }
         }.let { /* this makes the `when` an expression, which ensures it is exhaustive */ }
@@ -4799,12 +5281,64 @@ public object FfiConverterSequenceTypeAudioCodec: FfiConverterRustBuffer<List<Au
     
 
         /**
+         * Whether `dial` is an emergency number (911, 112, 999, 000; the
+         * desktop list) after trimming, stripping a `sip:`/`sips:`/`tel:` prefix
+         * and any `@host` or `;params`, and removing spaces and dashes. Apps
+         * must NEVER place these through VoIP: hand them to the native dialer
+         * (`tel:`).
+         */ fun `isEmergencyNumber`(`dial`: kotlin.String): kotlin.Boolean {
+            return FfiConverterBoolean.lift(
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_func_is_emergency_number(
+        FfiConverterString.lower(`dial`),_status)
+}
+    )
+    }
+    
+
+        /**
          * A fresh `outgoing-<uuid>` call_id for `make_call_with_id`.
          */ fun `newOutgoingCallId`(): kotlin.String {
             return FfiConverterString.lift(
     uniffiRustCall() { _status ->
     UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_func_new_outgoing_call_id(
         _status)
+}
+    )
+    }
+    
+
+        /**
+         * Fetch the preview of a one-click setup link
+         * (`aria://provision?v=1&url=<https://HOST/provision/softphone/TOKEN>`)
+         * with `GET`. Does not use the link up. Show it and ask the user to
+         * confirm before `provision_redeem`. Blocks for up to about 10 s; call it
+         * off the UI thread. A legacy QR link (no `v=1`) throws `InvalidLink`:
+         * parse those as before.
+         */
+    @Throws(ProvisionException::class) fun `provisionPreview`(`link`: kotlin.String): ProvisionPreview {
+            return FfiConverterTypeProvisionPreview.lift(
+    uniffiRustCallWithError(ProvisionException) { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_func_provision_preview(
+        FfiConverterString.lower(`link`),_status)
+}
+    )
+    }
+    
+
+        /**
+         * Redeem a setup link with `POST`, using it up, after the user confirmed
+         * its preview. Throws `Mismatch` when the server returns a different
+         * extension or domain than the preview showed (if the link was not
+         * previewed in this process, a preview is fetched first). Then log in
+         * with `extension-login` using `username`, `password` and `domain`.
+         * Blocks for up to about 20 s; call it off the UI thread.
+         */
+    @Throws(ProvisionException::class) fun `provisionRedeem`(`link`: kotlin.String): ProvisionedAccount {
+            return FfiConverterTypeProvisionedAccount.lift(
+    uniffiRustCallWithError(ProvisionException) { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_func_provision_redeem(
+        FfiConverterString.lower(`link`),_status)
 }
     )
     }
