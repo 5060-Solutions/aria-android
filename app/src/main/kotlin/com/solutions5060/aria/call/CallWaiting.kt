@@ -1,5 +1,7 @@
 package com.solutions5060.aria.call
 
+import com.solutions5060.aria.R
+import com.solutions5060.aria.Txt
 import uniffi.aria_mobile.CallDirection
 import uniffi.aria_mobile.MobileException
 
@@ -47,9 +49,9 @@ object CallWaiting {
         val live = calls.filter(::isLive)
         return when {
             live.isEmpty() -> null
-            live.size >= MAX_CALLS -> "You're already on two calls. End one to place another."
-            live.any { it.phase == CallPhase.INCOMING } -> "Answer or decline the incoming call first."
-            live.any { !isConnected(it) } -> "Wait for the current call to connect first."
+            live.size >= MAX_CALLS -> Txt.get(R.string.call_refuse_two_calls, "You're already on two calls. End one to place another.")
+            live.any { it.phase == CallPhase.INCOMING } -> Txt.get(R.string.call_refuse_answer_first, "Answer or decline the incoming call first.")
+            live.any { !isConnected(it) } -> Txt.get(R.string.call_refuse_wait_connect, "Wait for the current call to connect first.")
             else -> null
         }
     }
@@ -158,21 +160,21 @@ object CallWaiting {
     fun attendedTransferErrorMessage(error: Throwable, partnerEnded: Boolean = false): String = when {
         // The core throws InvalidState when one leg ended mid-transfer; that
         // call is gone, so "both calls are still up" would be wrong.
-        partnerEnded -> "The other call ended, so the transfer was not completed."
+        partnerEnded -> Txt.get(R.string.attended_err_partner_ended, "The other call ended, so the transfer was not completed.")
         else -> attendedTransferFailure(error)
     }
 
     private fun attendedTransferFailure(error: Throwable): String = when (error) {
         is MobileException.TransferUnsupported ->
-            "The phone system can't join these two calls. Both calls are still up."
-        is MobileException.InvalidState -> "The transfer can't be completed right now. Both calls are still up."
-        is MobileException.GatewayException -> "A transfer is already in progress. Both calls are still up."
+            Txt.get(R.string.attended_err_unsupported, "The phone system can't join these two calls. Both calls are still up.")
+        is MobileException.InvalidState -> Txt.get(R.string.attended_err_invalid_state, "The transfer can't be completed right now. Both calls are still up.")
+        is MobileException.GatewayException -> Txt.get(R.string.attended_err_in_progress, "A transfer is already in progress. Both calls are still up.")
         is MobileException.CallFailed -> CallStateMapping.sipStatusIn(error.message)?.let { code ->
-            "The transfer failed: ${CallStateMapping.sipStatusText(code)} (SIP $code). Both calls are still up."
-        } ?: "The phone system refused the transfer. Both calls are still up."
+            Txt.get(R.string.attended_err_sip, "The transfer failed: %1\$s (SIP %2\$d). Both calls are still up.", CallStateMapping.sipStatusText(code), code)
+        } ?: Txt.get(R.string.attended_err_refused, "The phone system refused the transfer. Both calls are still up.")
         is MobileException.Timeout ->
-            "The phone system didn't say whether the transfer worked. Both calls are still up."
-        is MobileException.NetworkException -> "Network error. Both calls are still up."
-        else -> "The transfer failed. Both calls are still up."
+            Txt.get(R.string.attended_err_timeout, "The phone system didn't say whether the transfer worked. Both calls are still up.")
+        is MobileException.NetworkException -> Txt.get(R.string.attended_err_network, "Network error. Both calls are still up.")
+        else -> Txt.get(R.string.attended_err_generic, "The transfer failed. Both calls are still up.")
     }
 }

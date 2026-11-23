@@ -4,6 +4,8 @@ import android.content.Context
 import android.content.Intent
 import android.net.Uri
 import android.util.Log
+import com.solutions5060.aria.R
+import com.solutions5060.aria.Txt
 
 /**
  * Emergency numbers never go over VoIP. The gateway cannot give a
@@ -70,7 +72,7 @@ object EmergencyRouting {
             null
         } catch (e: Exception) {
             Log.w(TAG, "No dialer for an emergency call: ${e.javaClass.simpleName}")
-            "Aria can't place emergency calls. Use your phone's dialer to call ${normalise(dial)}."
+            Txt.get(R.string.call_err_emergency_no_dialer, "Aria can't place emergency calls. Use your phone's dialer to call %1\$s.", normalise(dial))
         }
     }
 }

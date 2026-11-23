@@ -11,6 +11,8 @@ import android.telecom.DisconnectCause
 import android.telecom.TelecomManager
 import android.util.Log
 import android.widget.Toast
+import com.solutions5060.aria.R
+import com.solutions5060.aria.Txt
 import com.solutions5060.aria.ai.CallTranscription
 import com.solutions5060.aria.service.AriaConnection
 import com.solutions5060.aria.service.EngineManager
@@ -301,7 +303,7 @@ object CallManager {
                 mainHandler.post {
                     Toast.makeText(
                         appContext,
-                        "The call ended on this phone, but the other party may still be connected.",
+                        Txt.get(R.string.call_err_hangup_unconfirmed, "The call ended on this phone, but the other party may still be connected."),
                         Toast.LENGTH_LONG,
                     ).show()
                 }
@@ -439,9 +441,9 @@ object CallManager {
         // A second call is allowed next to an answered one; the core holds
         // the first when this one is dialled (see startOutgoing).
         CallWaiting.outgoingRefusal(uiStates())?.let { return it }
-        if (SipEngineHolder.engine == null) return "Not connected. Go to Settings and connect first."
+        if (SipEngineHolder.engine == null) return Txt.get(R.string.call_err_not_connected, "Not connected. Go to Settings and connect first.")
         val credentials = EngineManager.savedCredentials(context)
-            ?: return "Missing SIP credentials. Scan a QR code in Settings."
+            ?: return Txt.get(R.string.call_err_no_credentials, "Missing SIP credentials. Scan a QR code in Settings.")
 
         // Normalize: if already a SIP URI, use as-is; otherwise construct one.
         val sipUri = if (number.startsWith("sip:")) number else "sip:$number@${credentials.domain}"
@@ -503,7 +505,7 @@ object CallManager {
     fun onOutgoingConnectionFailed(recordKey: String?) {
         val rec = recordKey?.let { records[it] } ?: return
         if (rec.finished) return
-        _error.value = "The system could not place the call."
+        _error.value = Txt.get(R.string.call_err_system_refused, "The system could not place the call.")
         finish(rec, EndReason.FAILED)
     }
 
@@ -512,7 +514,7 @@ object CallManager {
         val credentials = EngineManager.savedCredentials(appContext)
         val engine = SipEngineHolder.engine
         if (credentials == null || engine == null) {
-            _error.value = "Not connected. Go to Settings and connect first."
+            _error.value = Txt.get(R.string.call_err_not_connected, "Not connected. Go to Settings and connect first.")
             finish(rec, EndReason.FAILED)
             return
         }
@@ -632,7 +634,7 @@ object CallManager {
         if (token.isNotEmpty() && records.values.any { it.callToken == token }) return
         Log.w(TAG, "Telecom refused incoming call; declining as busy")
         recordHistory(
-            remoteUri = extras.getString(EXTRA_CALLER_URI) ?: "Unknown",
+            remoteUri = extras.getString(EXTRA_CALLER_URI) ?: Txt.get(R.string.caller_unknown, "Unknown"),
             remoteName = extras.getString(EXTRA_CALLER_NAME),
             direction = CallDirection.INBOUND,
             startedAtMillis = System.currentTimeMillis(),
@@ -644,7 +646,7 @@ object CallManager {
 
     private fun createIncomingRecord(extras: Bundle): CallRecord? {
         val token = extras.getString(EXTRA_CALL_TOKEN).orEmpty()
-        val callerUri = extras.getString(EXTRA_CALLER_URI) ?: "Unknown"
+        val callerUri = extras.getString(EXTRA_CALLER_URI) ?: Txt.get(R.string.caller_unknown, "Unknown")
         val callerName = extras.getString(EXTRA_CALLER_NAME)
         if (token.isNotEmpty() && records.values.any { it.callToken == token }) {
             // A call already here (ringing, answered or just ended), reported
@@ -777,7 +779,7 @@ object CallManager {
                 mainHandler.post {
                     rec.answerInFlight = false
                     if (!rec.finished) {
-                        _error.value = "Failed to answer: ${e.message}"
+                        _error.value = Txt.get(R.string.call_err_answer_failed, "Failed to answer: %1\$s", e.message ?: e.javaClass.simpleName)
                         finish(rec, EndReason.FAILED)
                     }
                 }
@@ -973,7 +975,7 @@ object CallManager {
         if (rec.finished || rec.transferring || rec.connectedAtElapsed == null) return
         val dial = CallStateMapping.normalizeTransferTarget(target)
         if (dial.isEmpty()) {
-            rec.transferError = "Enter a number to transfer to."
+            rec.transferError = Txt.get(R.string.call_err_enter_transfer_target, "Enter a number to transfer to.")
             publishAll()
             return
         }
@@ -1035,7 +1037,7 @@ object CallManager {
         val ui = states.firstOrNull { it.key == rec.key } ?: return
         if (!CallWaiting.canConsult(ui, states)) return
         val dial = CallStateMapping.normalizeTransferTarget(target)
-        rec.transferError = if (dial.isEmpty()) "Enter a number to call." else placeCall(appContext, dial)
+        rec.transferError = if (dial.isEmpty()) Txt.get(R.string.call_err_enter_number, "Enter a number to call.") else placeCall(appContext, dial)
         publishAll()
     }
 
@@ -1100,7 +1102,7 @@ object CallManager {
      */
     fun mergeCalls(): String? {
         if (com.solutions5060.aria.fixtures.Fixtures.active) return fixtureMerge()
-        val pair = Conference.mergePair(uiStates()) ?: return "Merge needs two connected calls."
+        val pair = Conference.mergePair(uiStates()) ?: return Txt.get(R.string.call_err_merge_needs_two, "Merge needs two connected calls.")
         val a = pair.first.callId ?: return null
         val b = pair.second.callId ?: return null
         _actionError.value = null
@@ -1111,7 +1113,7 @@ object CallManager {
                 engine.conferenceMerge(a, b)
             } catch (e: Exception) {
                 Log.w(TAG, "Merge failed: ${e.javaClass.simpleName}")
-                mainHandler.post { _actionError.value = "The calls could not be merged." }
+                mainHandler.post { _actionError.value = Txt.get(R.string.call_err_merge_failed, "The calls could not be merged.") }
             }
         }
         return null
@@ -1124,7 +1126,7 @@ object CallManager {
      */
     fun splitConference(): String? {
         if (com.solutions5060.aria.fixtures.Fixtures.active) return fixtureSplit()
-        if (!Conference.canSplit(uiStates())) return "There is no conference to split."
+        if (!Conference.canSplit(uiStates())) return Txt.get(R.string.call_err_no_conference, "There is no conference to split.")
         _actionError.value = null
         engineExecutor.execute {
             try {
@@ -1132,7 +1134,7 @@ object CallManager {
                 engine.conferenceSplit()
             } catch (e: Exception) {
                 Log.w(TAG, "Split failed: ${e.javaClass.simpleName}")
-                mainHandler.post { _actionError.value = "The conference could not be split." }
+                mainHandler.post { _actionError.value = Txt.get(R.string.call_err_split_failed, "The conference could not be split.") }
             }
         }
         return null
@@ -1152,9 +1154,9 @@ object CallManager {
      */
     fun startRecording(key: String, consentGiven: Boolean = false): String? {
         if (consentGiven) RecordingConsent.acknowledge(appContext)
-        if (recordingConsentNeeded()) return "Confirm the recording notice first."
+        if (recordingConsentNeeded()) return Txt.get(R.string.call_err_record_consent, "Confirm the recording notice first.")
         val rec = records[key] ?: return null
-        if (rec.finished || rec.connectedAtElapsed == null) return "Only a connected call can be recorded."
+        if (rec.finished || rec.connectedAtElapsed == null) return Txt.get(R.string.call_err_record_not_connected, "Only a connected call can be recorded.")
         if (rec.recording) return null
         val callId = rec.callId ?: return null
         val file = RecordingsRepository(appContext).newRecordingFile(rec.remoteUri)
@@ -1167,7 +1169,7 @@ object CallManager {
             } catch (e: Exception) {
                 Log.w(TAG, "Start recording failed: ${e.javaClass.simpleName}")
                 if (file.length() == 0L) file.delete()
-                mainHandler.post { _actionError.value = "Recording could not start." }
+                mainHandler.post { _actionError.value = Txt.get(R.string.call_err_record_start, "Recording could not start.") }
             }
         }
         return null
@@ -1187,7 +1189,7 @@ object CallManager {
                 SipEngineHolder.engine?.stopRecording(callId)
             } catch (e: Exception) {
                 Log.w(TAG, "Stop recording failed: ${e.javaClass.simpleName}")
-                mainHandler.post { _actionError.value = "The recording may be incomplete." }
+                mainHandler.post { _actionError.value = Txt.get(R.string.call_err_record_incomplete, "The recording may be incomplete.") }
             }
         }
     }
@@ -1378,7 +1380,7 @@ object CallManager {
     /** Fixture mode: what the core reports after `conference_merge` (both connected, conferenced). */
     private fun fixtureMerge(): String? {
         val calls = _calls.value
-        val pair = Conference.mergePair(calls) ?: return "Merge needs two connected calls."
+        val pair = Conference.mergePair(calls) ?: return Txt.get(R.string.call_err_merge_needs_two, "Merge needs two connected calls.")
         val keys = setOf(pair.first.key, pair.second.key)
         showFixtureCalls(
             calls.map {
@@ -1391,7 +1393,7 @@ object CallManager {
     /** Fixture mode: what the core reports after `conference_split` (older held, newer connected). */
     private fun fixtureSplit(): String? {
         val calls = _calls.value
-        if (!Conference.canSplit(calls)) return "There is no conference to split."
+        if (!Conference.canSplit(calls)) return Txt.get(R.string.call_err_no_conference, "There is no conference to split.")
         val newest = calls.lastOrNull { it.inConference }?.key
         showFixtureCalls(
             calls.map {

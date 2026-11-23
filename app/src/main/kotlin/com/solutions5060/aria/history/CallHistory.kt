@@ -1,6 +1,8 @@
 package com.solutions5060.aria.history
 
 import android.content.Context
+import com.solutions5060.aria.R
+import com.solutions5060.aria.Txt
 import com.solutions5060.aria.call.EndReason
 import org.json.JSONArray
 import org.json.JSONObject
@@ -122,13 +124,13 @@ object CallHistoryRecorder {
 
     /** The secondary line in the history list. */
     fun summary(entry: CallHistoryEntry): String = when {
-        entry.missed -> "Missed"
-        entry.rejected -> "Declined"
-        entry.answeredElsewhere -> "Answered elsewhere"
-        entry.durationSeconds <= 0 -> if (entry.direction == "outbound") "Not answered" else "Not connected"
+        entry.missed -> Txt.get(R.string.history_missed, "Missed")
+        entry.rejected -> Txt.get(R.string.history_declined, "Declined")
+        entry.answeredElsewhere -> Txt.get(R.string.history_answered_elsewhere, "Answered elsewhere")
+        entry.durationSeconds <= 0 -> if (entry.direction == "outbound") Txt.get(R.string.history_not_answered, "Not answered") else Txt.get(R.string.history_not_connected, "Not connected")
         else -> {
             val duration = "%d:%02d".format(java.util.Locale.ROOT, entry.durationSeconds / 60, entry.durationSeconds % 60)
-            if (entry.transferred) "$duration · Transferred" else duration
+            if (entry.transferred) Txt.get(R.string.history_transferred, "%1\$s · Transferred", duration) else duration
         }
     }
 }

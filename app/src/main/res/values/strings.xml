@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <string name="app_name">Aria</string>
+    <string name="app_name" translatable="false">Aria</string>
 
     <!-- Common -->
     <string name="action_cancel">Cancel</string>
@@ -12,7 +12,7 @@
     <string name="manual_setup_title">Enter account details</string>
     <string name="manual_setup_subtitle">Use the details your administrator gave you.</string>
     <string name="manual_setup_server">Tenant domain or server</string>
-    <string name="manual_setup_server_hint">acme.sip.ariaroute.com</string>
+    <string name="manual_setup_server_hint" translatable="false">acme.sip.ariaroute.com</string>
     <string name="manual_setup_extension">Extension</string>
     <string name="manual_setup_password">Password</string>
     <string name="manual_setup_show_password">Show password</string>
@@ -146,7 +146,7 @@
     <string name="diag_copy">Copy diagnostics</string>
     <string name="diag_copied">Diagnostics copied</string>
     <string name="diag_reconnect">Reconnect</string>
-    <string name="diag_none">—</string>
+    <string name="diag_none" translatable="false">—</string>
 
     <!-- Recordings -->
     <string name="settings_audio_recording">Audio &amp; recording</string>
@@ -159,4 +159,85 @@
     <string name="recordings_delete">Delete</string>
     <string name="recordings_delete_title">Delete this recording?</string>
     <string name="recordings_delete_body">It is removed from this phone and can\'t be recovered.</string>
+
+    <!-- Calls, notifications, history, transcription -->
+    <string name="call_err_not_connected">Not connected. Go to Settings and connect first.</string>
+    <string name="call_err_no_credentials">Missing SIP credentials. Scan a QR code in Settings.</string>
+    <string name="call_err_system_refused">The system could not place the call.</string>
+    <string name="call_err_answer_failed">Failed to answer: %1$s</string>
+    <string name="call_err_hangup_unconfirmed">The call ended on this phone, but the other party may still be connected.</string>
+    <string name="call_err_enter_transfer_target">Enter a number to transfer to.</string>
+    <string name="call_err_enter_number">Enter a number to call.</string>
+    <string name="call_err_merge_needs_two">Merge needs two connected calls.</string>
+    <string name="call_err_merge_failed">The calls could not be merged.</string>
+    <string name="call_err_no_conference">There is no conference to split.</string>
+    <string name="call_err_split_failed">The conference could not be split.</string>
+    <string name="call_err_record_consent">Confirm the recording notice first.</string>
+    <string name="call_err_record_not_connected">Only a connected call can be recorded.</string>
+    <string name="call_err_record_start">Recording could not start.</string>
+    <string name="call_err_record_incomplete">The recording may be incomplete.</string>
+    <string name="call_err_emergency_no_dialer">Aria can\'t place emergency calls. Use your phone\'s dialer to call %1$s.</string>
+    <string name="call_refuse_two_calls">You\'re already on two calls. End one to place another.</string>
+    <string name="call_refuse_answer_first">Answer or decline the incoming call first.</string>
+    <string name="call_refuse_wait_connect">Wait for the current call to connect first.</string>
+    <string name="call_dial_auth_expired">The call couldn\'t be placed because the connection to the call service had expired. It is being renewed; please call again.</string>
+    <string name="call_dial_failed">Call failed: %1$s</string>
+    <string name="call_phase_incoming">Incoming Call</string>
+    <string name="call_phase_calling">Calling...</string>
+    <string name="call_phase_ringing">Ringing...</string>
+    <string name="call_phase_on_hold">On Hold</string>
+    <string name="call_phase_ended">Call Ended</string>
+    <string name="transfer_err_invalid_target">That number can\'t be used as a transfer target.</string>
+    <string name="transfer_err_invalid_state">This call can\'t be transferred right now.</string>
+    <string name="transfer_err_unsupported">The phone system can\'t transfer this call. You\'re still on the call.</string>
+    <string name="transfer_err_sip">The transfer failed: %1$s (SIP %2$d). You\'re still on the call.</string>
+    <string name="transfer_err_refused">The phone system refused the transfer. You\'re still on the call.</string>
+    <string name="transfer_err_timeout">The transfer didn\'t go through: no one answered, or the phone system didn\'t say whether it worked. You\'re still on the call.</string>
+    <string name="transfer_err_gateway">The transfer failed at the gateway. You\'re still on the call.</string>
+    <string name="transfer_err_network">Network error. You\'re still on the call.</string>
+    <string name="transfer_err_generic">The transfer failed. You\'re still on the call.</string>
+    <string name="attended_err_partner_ended">The other call ended, so the transfer was not completed.</string>
+    <string name="attended_err_unsupported">The phone system can\'t join these two calls. Both calls are still up.</string>
+    <string name="attended_err_invalid_state">The transfer can\'t be completed right now. Both calls are still up.</string>
+    <string name="attended_err_in_progress">A transfer is already in progress. Both calls are still up.</string>
+    <string name="attended_err_sip">The transfer failed: %1$s (SIP %2$d). Both calls are still up.</string>
+    <string name="attended_err_refused">The phone system refused the transfer. Both calls are still up.</string>
+    <string name="attended_err_timeout">The phone system didn\'t say whether the transfer worked. Both calls are still up.</string>
+    <string name="attended_err_network">Network error. Both calls are still up.</string>
+    <string name="attended_err_generic">The transfer failed. Both calls are still up.</string>
+    <string name="channel_incoming_calls">Incoming Calls</string>
+    <string name="channel_incoming_calls_desc">Notifications for incoming VoIP calls</string>
+    <string name="channel_active_calls">Active Calls</string>
+    <string name="channel_active_calls_desc">Ongoing call notification</string>
+    <string name="notif_in_call_with">In call with %1$s</string>
+    <string name="notif_incoming_call">Incoming Call</string>
+    <string name="notif_call_waiting">Call Waiting</string>
+    <string name="caller_unknown">Unknown</string>
+    <string name="history_missed">Missed</string>
+    <string name="history_declined">Declined</string>
+    <string name="history_answered_elsewhere">Answered elsewhere</string>
+    <string name="history_not_answered">Not answered</string>
+    <string name="history_not_connected">Not connected</string>
+    <string name="history_transferred">%1$s · Transferred</string>
+    <string name="transcription_title">On-device transcription</string>
+    <string name="transcription_body">Calls are transcribed on this phone. Audio and transcripts never leave the device.</string>
+    <string name="transcription_unsupported">This version of Aria was built without transcription support.</string>
+    <string name="transcription_start_failed">Could not start on-device AI: %1$s</string>
+    <string name="transcription_toggle">Transcribe my calls</string>
+    <string name="transcription_toggle_on">Both sides of the call are transcribed on this phone.</string>
+    <string name="transcription_toggle_needs_model">Download a speech model below to turn this on.</string>
+    <string name="transcription_kind_summaries">Summaries</string>
+    <string name="transcription_kind_speech">Transcription</string>
+    <string name="transcription_remove">Remove</string>
+    <string name="transcription_unavailable">Unavailable</string>
+    <string name="transcription_download">Download</string>
+    <string name="transcripts_title">Call transcripts</string>
+    <string name="transcripts_clear_all">Clear all</string>
+    <string name="transcripts_empty">No transcripts yet. Turn on \"Transcribe my calls\" in Settings › Transcription, and calls from then on will appear here.</string>
+    <string name="transcripts_delete_all_title">Delete all transcripts?</string>
+    <string name="transcripts_delete_all_body">This cannot be undone.</string>
+    <string name="transcripts_delete">Delete</string>
+    <string name="transcripts_no_speech">No speech was recognised in this call.</string>
+    <string name="transcripts_you">You</string>
+    <string name="transcripts_them">Them</string>
 </resources>

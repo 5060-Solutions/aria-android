@@ -51,7 +51,7 @@ object IncomingCallNotifier {
         val caller = Person.Builder().setName(callerName).setImportant(true).build()
         val notification = NotificationCompat.Builder(context, AriaApplication.CHANNEL_INCOMING_CALL)
             .setSmallIcon(R.drawable.ic_phone)
-            .setContentTitle(if (waiting) "Call Waiting" else "Incoming Call")
+            .setContentTitle(context.getString(if (waiting) R.string.notif_call_waiting else R.string.notif_incoming_call))
             .setContentText(callerName)
             .setPriority(NotificationCompat.PRIORITY_MAX)
             .setCategory(NotificationCompat.CATEGORY_CALL)

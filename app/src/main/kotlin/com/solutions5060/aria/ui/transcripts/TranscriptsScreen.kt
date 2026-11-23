@@ -1,5 +1,7 @@
 package com.solutions5060.aria.ui.transcripts
 
+import androidx.compose.ui.res.stringResource
+import com.solutions5060.aria.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
@@ -67,12 +69,12 @@ fun TranscriptsScreen(onBack: () -> Unit = {}) {
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Text(
-                "Call transcripts",
+                stringResource(R.string.transcripts_title),
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.weight(1f),
             )
             if (rows.isNotEmpty()) {
-                TextButton(onClick = { confirmClear = true }) { Text("Clear all") }
+                TextButton(onClick = { confirmClear = true }) { Text(stringResource(R.string.transcripts_clear_all)) }
             }
         }
 
@@ -80,8 +82,7 @@ fun TranscriptsScreen(onBack: () -> Unit = {}) {
             loading -> CircularProgressIndicator(Modifier.padding(24.dp))
 
             rows.isEmpty() -> Text(
-                "No transcripts yet. Turn on \"Transcribe my calls\" in " +
-                    "Settings › Transcription, and calls from then on will appear here.",
+                stringResource(R.string.transcripts_empty),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -110,8 +111,8 @@ fun TranscriptsScreen(onBack: () -> Unit = {}) {
     if (confirmClear) {
         AlertDialog(
             onDismissRequest = { confirmClear = false },
-            title = { Text("Delete all transcripts?") },
-            text = { Text("This cannot be undone.") },
+            title = { Text(stringResource(R.string.transcripts_delete_all_title)) },
+            text = { Text(stringResource(R.string.transcripts_delete_all_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     confirmClear = false
@@ -119,10 +120,10 @@ fun TranscriptsScreen(onBack: () -> Unit = {}) {
                         withContext(Dispatchers.IO) { engine?.aiClearInsights() }
                         refresh()
                     }
-                }) { Text("Delete") }
+                }) { Text(stringResource(R.string.transcripts_delete)) }
             },
             dismissButton = {
-                TextButton(onClick = { confirmClear = false }) { Text("Cancel") }
+                TextButton(onClick = { confirmClear = false }) { Text(stringResource(R.string.action_cancel)) }
             },
         )
     }
@@ -152,7 +153,7 @@ private fun TranscriptRow(
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                 )
             }
-            TextButton(onClick = onDelete) { Text("Delete") }
+            TextButton(onClick = onDelete) { Text(stringResource(R.string.transcripts_delete)) }
         }
     }
 }
@@ -172,7 +173,7 @@ private fun TranscriptDetail(insight: AiCallInsight, onDismiss: () -> Unit) {
                 style = MaterialTheme.typography.headlineSmall,
                 modifier = Modifier.weight(1f),
             )
-            TextButton(onClick = onDismiss) { Text("Back") }
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.action_back)) }
         }
 
         insight.summaryHeadline?.let { headline ->
@@ -186,7 +187,7 @@ private fun TranscriptDetail(insight: AiCallInsight, onDismiss: () -> Unit) {
 
         if (insight.segments.isEmpty()) {
             Text(
-                "No speech was recognised in this call.",
+                stringResource(R.string.transcripts_no_speech),
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
             )
@@ -195,7 +196,7 @@ private fun TranscriptDetail(insight: AiCallInsight, onDismiss: () -> Unit) {
         insight.segments.forEach { seg ->
             Column(Modifier.fillMaxWidth()) {
                 Text(
-                    if (seg.speaker == "local") "You" else "Them",
+                    if (seg.speaker == "local") stringResource(R.string.transcripts_you) else stringResource(R.string.transcripts_them),
                     style = MaterialTheme.typography.labelMedium,
                     color = MaterialTheme.colorScheme.primary,
                 )
