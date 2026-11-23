@@ -240,4 +240,20 @@
     <string name="transcripts_no_speech">No speech was recognised in this call.</string>
     <string name="transcripts_you">You</string>
     <string name="transcripts_them">Them</string>
+    <!-- Permission, alert and connection messages -->
+    <string name="perm_notifications_title">Allow notifications</string>
+    <string name="perm_notifications_body">Aria uses notifications to ring for incoming calls and to show the call you\'re on. Without them you can only answer calls while the app is open.</string>
+    <string name="perm_continue">Continue</string>
+    <string name="perm_not_now">Not now</string>
+    <string name="alert_title">Incoming calls need attention</string>
+    <string name="alert_notifications_off">Notifications are off for Aria, so incoming calls can\'t be answered from the lock screen or another app. Turn on notifications to see and answer calls.</string>
+    <string name="alert_background_restricted">Battery use for Aria is set to Restricted, so Android blocks the notifications that deliver incoming calls. In App info > Battery, choose Unrestricted or Optimized.</string>
+    <string name="alert_full_screen_denied">Aria isn\'t allowed to show calls full screen, so on a locked phone calls appear only as a notification. Allow full-screen notifications to see the call screen.</string>
+    <string name="alert_open_settings">Open settings</string>
+    <string name="mic_title">Microphone access</string>
+    <string name="mic_body">Aria uses the microphone only during calls, so the other person can hear you.</string>
+    <string name="mic_denied">Aria needs microphone access to make calls. You can allow it in Settings > Apps > Aria > Permissions.</string>
+    <string name="voicemail_play_error">Could not play this message.</string>
+    <string name="conn_err_registration_failed">Registration failed</string>
+    <string name="conn_err_no_gateway_credentials">No gateway credentials</string>
 </resources>

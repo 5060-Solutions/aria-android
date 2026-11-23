@@ -284,11 +284,10 @@ private fun MainApp(
     if (showNotificationRationale && call == null && Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
         AlertDialog(
             onDismissRequest = {},
-            title = { Text("Allow notifications") },
+            title = { Text(stringResource(R.string.perm_notifications_title)) },
             text = {
                 Text(
-                    "Aria uses notifications to ring for incoming calls and to show the call you're on. " +
-                        "Without them you can only answer calls while the app is open.",
+                    stringResource(R.string.perm_notifications_body),
                 )
             },
             confirmButton = {
@@ -297,13 +296,13 @@ private fun MainApp(
                     alertProblemDismissed = true
                     Permissions.markNotificationPromptShown(context)
                     notificationLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
-                }) { Text("Continue") }
+                }) { Text(stringResource(R.string.perm_continue)) }
             },
             dismissButton = {
                 TextButton(onClick = {
                     showNotificationRationale = false
                     Permissions.markNotificationPromptShown(context)
-                }) { Text("Not now") }
+                }) { Text(stringResource(R.string.perm_not_now)) }
             },
         )
     }
@@ -312,19 +311,16 @@ private fun MainApp(
     if (problem != null && !alertProblemDismissed && !showNotificationRationale && call == null) {
         AlertDialog(
             onDismissRequest = { alertProblemDismissed = true },
-            title = { Text("Incoming calls need attention") },
+            title = { Text(stringResource(R.string.alert_title)) },
             text = {
                 Text(
                     when (problem) {
                         CallAlertSetup.Problem.NOTIFICATIONS_OFF ->
-                            "Notifications are off for Aria, so incoming calls can't be answered from the lock screen or " +
-                                "another app. Turn on notifications to see and answer calls."
+                            stringResource(R.string.alert_notifications_off)
                         CallAlertSetup.Problem.BACKGROUND_RESTRICTED ->
-                            "Battery use for Aria is set to Restricted, so Android blocks the notifications that " +
-                                "deliver incoming calls. In App info > Battery, choose Unrestricted or Optimized."
+                            stringResource(R.string.alert_background_restricted)
                         CallAlertSetup.Problem.FULL_SCREEN_DENIED ->
-                            "Aria isn't allowed to show calls full screen, so on a locked phone calls appear only as a " +
-                                "notification. Allow full-screen notifications to see the call screen."
+                            stringResource(R.string.alert_full_screen_denied)
                     },
                 )
             },
@@ -336,10 +332,10 @@ private fun MainApp(
                     } catch (e: Exception) {
                         Log.w(TAG, "Could not open settings: ${e.message}")
                     }
-                }) { Text("Open settings") }
+                }) { Text(stringResource(R.string.alert_open_settings)) }
             },
             dismissButton = {
-                TextButton(onClick = { alertProblemDismissed = true }) { Text("Not now") }
+                TextButton(onClick = { alertProblemDismissed = true }) { Text(stringResource(R.string.perm_not_now)) }
             },
         )
     }
@@ -348,13 +344,14 @@ private fun MainApp(
     // microphone is requested before the first call, with the reason first.
     var micRationaleFor by remember { mutableStateOf<String?>(null) }
     var pendingCall by remember { mutableStateOf<String?>(null) }
+    val micDenied = stringResource(R.string.mic_denied)
     val micLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission(),
     ) { granted ->
         val number = pendingCall
         pendingCall = null
         callError = when {
-            !granted -> "Aria needs microphone access to make calls. You can allow it in Settings > Apps > Aria > Permissions."
+            !granted -> micDenied
             number != null -> CallManager.placeCall(context, number)
             else -> null
         }
@@ -373,16 +370,16 @@ private fun MainApp(
     micRationaleFor?.let { number ->
         AlertDialog(
             onDismissRequest = { micRationaleFor = null },
-            title = { Text("Microphone access") },
-            text = { Text("Aria uses the microphone only during calls, so the other person can hear you.") },
+            title = { Text(stringResource(R.string.mic_title)) },
+            text = { Text(stringResource(R.string.mic_body)) },
             confirmButton = {
                 TextButton(onClick = {
                     micRationaleFor = null
                     pendingCall = number
                     micLauncher.launch(Manifest.permission.RECORD_AUDIO)
-                }) { Text("Continue") }
+                }) { Text(stringResource(R.string.perm_continue)) }
             },
-            dismissButton = { TextButton(onClick = { micRationaleFor = null }) { Text("Cancel") } },
+            dismissButton = { TextButton(onClick = { micRationaleFor = null }) { Text(stringResource(R.string.action_cancel)) } },
         )
     }
 

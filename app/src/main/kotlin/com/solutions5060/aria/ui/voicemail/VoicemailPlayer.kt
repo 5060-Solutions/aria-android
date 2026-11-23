@@ -1,5 +1,7 @@
 package com.solutions5060.aria.ui.voicemail
 
+import com.solutions5060.aria.R
+import com.solutions5060.aria.Txt
 import android.content.Context
 import android.media.AudioAttributes
 import android.media.AudioManager
@@ -81,14 +83,14 @@ class VoicemailPlayer(context: Context) {
             }
             mp.setOnErrorListener { _, what, _ ->
                 Log.w(TAG, "Playback error $what")
-                onError("Could not play this message.")
+                onError(Txt.get(R.string.voicemail_play_error, "Could not play this message."))
                 stop()
                 true
             }
             mp.prepareAsync()
         } catch (e: Exception) {
             Log.w(TAG, "Failed to start playback: ${e.javaClass.simpleName}")
-            onError("Could not play this message.")
+            onError(Txt.get(R.string.voicemail_play_error, "Could not play this message."))
             stop()
         }
     }
