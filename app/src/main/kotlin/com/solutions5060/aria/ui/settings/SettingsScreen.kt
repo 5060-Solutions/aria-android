@@ -39,7 +39,7 @@ import com.solutions5060.aria.provisioning.defaultSipPort
 import com.solutions5060.aria.service.EngineManager
 import com.solutions5060.aria.service.PbxApiClient
 import com.solutions5060.aria.service.SipEngineHolder
-import com.solutions5060.aria.ui.theme.AriaGreen
+import com.solutions5060.aria.ui.theme.LocalAriaColors
 
 private const val PREFS_NAME = "aria_prefs"
 
@@ -286,7 +286,7 @@ fun SettingsScreen(
                     Surface(
                         shape = RoundedCornerShape(12.dp),
                         color = if (isRegistered) {
-                            AriaGreen.copy(alpha = 0.14f)
+                            LocalAriaColors.current.statusRegistered.copy(alpha = 0.14f)
                         } else {
                             MaterialTheme.colorScheme.error.copy(alpha = 0.14f)
                         },
@@ -298,13 +298,13 @@ fun SettingsScreen(
                             Icon(
                                 if (isRegistered) Icons.Default.CheckCircle else Icons.Default.Error,
                                 contentDescription = null,
-                                tint = if (isRegistered) AriaGreen else MaterialTheme.colorScheme.error,
+                                tint = if (isRegistered) LocalAriaColors.current.statusRegistered else MaterialTheme.colorScheme.error,
                                 modifier = Modifier.size(14.dp),
                             )
                             Spacer(modifier = Modifier.width(5.dp))
                             Text(
                                 if (isRegistered) "Connected" else "Disconnected",
-                                color = if (isRegistered) AriaGreen else MaterialTheme.colorScheme.error,
+                                color = if (isRegistered) LocalAriaColors.current.statusRegistered else MaterialTheme.colorScheme.error,
                                 style = MaterialTheme.typography.labelSmall,
                                 fontWeight = FontWeight.SemiBold,
                             )

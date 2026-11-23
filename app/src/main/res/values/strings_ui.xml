@@ -1,0 +1,32 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Design-system and screen chrome strings (UI layer). Kept apart from
+     strings.xml so the UI and feature work do not conflict. -->
+<resources>
+    <!-- Tabs -->
+    <string name="ui_tab_dialer">Dialer</string>
+    <string name="ui_tab_history">History</string>
+    <string name="ui_tab_contacts">Contacts</string>
+    <string name="ui_tab_voicemail">Voicemail</string>
+    <string name="ui_tab_settings">Settings</string>
+    <plurals name="ui_voicemail_unread">
+        <item quantity="one">%d new voicemail</item>
+        <item quantity="other">%d new voicemails</item>
+    </plurals>
+
+    <!-- Toggle state, as TalkBack reads it: "Mute, on" -->
+    <string name="ui_state_on">On</string>
+    <string name="ui_state_off">Off</string>
+
+    <!-- Dial keys -->
+    <string name="ui_dial_star">star</string>
+    <string name="ui_dial_pound">pound</string>
+    <string name="ui_dial_plus">plus</string>
+
+    <!-- Registration status (desktop wording) -->
+    <string name="ui_status_registered">Registered</string>
+    <string name="ui_status_connecting">Connecting…</string>
+    <string name="ui_status_error">Connection error</string>
+    <string name="ui_status_offline">Offline</string>
+    <string name="ui_dnd_on">Do not disturb on</string>
+    <string name="ui_forwarding_on">Forwarding on</string>
+</resources>

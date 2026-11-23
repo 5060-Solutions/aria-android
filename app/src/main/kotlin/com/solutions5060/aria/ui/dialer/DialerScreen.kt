@@ -33,7 +33,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.solutions5060.aria.R
-import com.solutions5060.aria.ui.theme.AriaGreen
+import com.solutions5060.aria.ui.theme.LocalAriaColors
 
 @OptIn(ExperimentalFoundationApi::class)
 @Composable
@@ -98,7 +98,7 @@ fun DialerScreen(
             // Status chip – directly associated with identity
             Surface(
                 shape = RoundedCornerShape(12.dp),
-                color = if (isConnected) AriaGreen.copy(alpha = 0.14f) else MaterialTheme.colorScheme.error.copy(alpha = 0.14f),
+                color = if (isConnected) LocalAriaColors.current.statusRegistered.copy(alpha = 0.14f) else MaterialTheme.colorScheme.error.copy(alpha = 0.14f),
             ) {
                 Row(
                     modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
@@ -108,14 +108,14 @@ fun DialerScreen(
                         modifier = Modifier
                             .size(7.dp)
                             .clip(CircleShape)
-                            .background(if (isConnected) AriaGreen else MaterialTheme.colorScheme.error)
+                            .background(if (isConnected) LocalAriaColors.current.statusRegistered else MaterialTheme.colorScheme.error)
                     )
                     Spacer(modifier = Modifier.width(5.dp))
                     Text(
                         if (isConnected) "Online" else "Offline",
                         style = MaterialTheme.typography.labelSmall,
                         fontWeight = FontWeight.SemiBold,
-                        color = if (isConnected) AriaGreen else MaterialTheme.colorScheme.error,
+                        color = if (isConnected) LocalAriaColors.current.statusRegistered else MaterialTheme.colorScheme.error,
                     )
                 }
             }
@@ -280,7 +280,7 @@ fun DialerScreen(
                 modifier = Modifier
                     .size(74.dp)
                     .clip(CircleShape)
-                    .background(AriaGreen.copy(alpha = 0.12f))
+                    .background(LocalAriaColors.current.statusRegistered.copy(alpha = 0.12f))
             )
             FloatingActionButton(
                 onClick = {
@@ -299,7 +299,7 @@ fun DialerScreen(
                         }
                     }
                 },
-                containerColor = AriaGreen,
+                containerColor = LocalAriaColors.current.statusRegistered,
                 shape = CircleShape,
                 modifier = Modifier.size(66.dp),
                 elevation = FloatingActionButtonDefaults.elevation(

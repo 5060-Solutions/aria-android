@@ -1,0 +1,20 @@
+# Pinned versions for the UI layer (Material 3 Expressive).
+# compose-bom 2026.09.00 = Compose UI 1.12.1. material3 is pinned above the BOM to 1.5.0,
+# the first stable with public Material 3 Expressive APIs (built on Compose 1.12).
+# BOM 2026.11.01 (Compose 1.13) needs compileSdk 37.1; move up with the platform.
+[versions]
+composeBom = "2026.09.00"
+material3 = "1.5.0"
+graphicsShapes = "1.1.0"
+activityCompose = "1.13.0"
+
+[libraries]
+compose-bom = { group = "androidx.compose", name = "compose-bom", version.ref = "composeBom" }
+compose-ui = { group = "androidx.compose.ui", name = "ui" }
+compose-ui-graphics = { group = "androidx.compose.ui", name = "ui-graphics" }
+compose-ui-tooling = { group = "androidx.compose.ui", name = "ui-tooling" }
+compose-ui-tooling-preview = { group = "androidx.compose.ui", name = "ui-tooling-preview" }
+compose-material3 = { group = "androidx.compose.material3", name = "material3", version.ref = "material3" }
+compose-material-icons-extended = { group = "androidx.compose.material", name = "material-icons-extended" }
+graphics-shapes = { group = "androidx.graphics", name = "graphics-shapes", version.ref = "graphicsShapes" }
+activity-compose = { group = "androidx.activity", name = "activity-compose", version.ref = "activityCompose" }
