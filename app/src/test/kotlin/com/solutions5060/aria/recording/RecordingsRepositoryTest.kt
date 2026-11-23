@@ -83,3 +83,17 @@ class RecordingsRepositoryTest {
         assertTrue(outside.exists())
     }
 }
+
+class RecordingsDeleteAllTest {
+    @get:org.junit.Rule
+    val tmp = org.junit.rules.TemporaryFolder()
+
+    @org.junit.Test
+    fun signOutRemovesEveryRecording() {
+        val r = RecordingsRepository(java.io.File(tmp.root, "recordings"))
+        r.newRecordingFile("sip:1@x", 1).writeText("a")
+        r.newRecordingFile("sip:2@x", 2).writeText("b")
+        r.deleteAll()
+        org.junit.Assert.assertEquals(emptyList<Recording>(), r.list())
+    }
+}

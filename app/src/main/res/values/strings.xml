@@ -147,4 +147,16 @@
     <string name="diag_copied">Diagnostics copied</string>
     <string name="diag_reconnect">Reconnect</string>
     <string name="diag_none">—</string>
+
+    <!-- Recordings -->
+    <string name="settings_audio_recording">Audio &amp; recording</string>
+    <string name="recordings_title">Call recordings</string>
+    <string name="recordings_row_desc">Stored only on this phone</string>
+    <string name="recordings_empty_title">No recordings</string>
+    <string name="recordings_empty_body">Calls you record appear here. They stay on this phone.</string>
+    <string name="recordings_play">Play</string>
+    <string name="recordings_share">Share</string>
+    <string name="recordings_delete">Delete</string>
+    <string name="recordings_delete_title">Delete this recording?</string>
+    <string name="recordings_delete_body">It is removed from this phone and can\'t be recovered.</string>
 </resources>

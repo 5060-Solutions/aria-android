@@ -102,6 +102,11 @@ class RecordingsRepository(val dir: File) {
             }
             .sortedByDescending { it.modifiedAtMillis }
 
+    /** Deletes every recording (sign-out). */
+    fun deleteAll() {
+        dir.listFiles()?.filter { it.isFile }?.forEach { it.delete() }
+    }
+
     /** Deletes [recording]; false if it was not one of ours or could not be removed. */
     fun delete(recording: Recording): Boolean = owns(recording.file) && recording.file.delete()
 

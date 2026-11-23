@@ -47,7 +47,7 @@ class ConnectionReducerTest {
 
     @Test
     fun coreStatusesMapToTheChip() {
-        val up = ConnectionState(status = ConnectionStatus.REGISTERED, deviceId = "gw-a", gatewayNode = "gw1.ariaroute.com:443")
+        val up = ConnectionState(status = ConnectionStatus.REGISTERED, deviceId = "gw-a", gatewayNode = "gw1.push.ariaroute.com:443")
 
         val recovering = up.then(ConnectionEvent.CoreRegistration("recovering", null, "gw-a"))
         assertEquals(ConnectionStatus.CONNECTING, recovering.status)
