@@ -33,12 +33,9 @@
 
     <!-- Connection sheet -->
     <string name="ui_connection_title">Connection</string>
-    <string name="ui_connection_gateway">Gateway</string>
     <string name="ui_connection_transport">Transport</string>
     <string name="ui_connection_unknown">Not connected yet</string>
-    <string name="ui_connection_no_network">No network</string>
     <string name="ui_connection_no_network_body">Aria reconnects as soon as this phone is back online.</string>
-    <string name="ui_connection_last_error">Last error</string>
     <string name="ui_connection_reconnect">Reconnect</string>
 
     <!-- Dialer -->
@@ -49,7 +46,6 @@
     <string name="ui_dialer_clear">Clear number</string>
     <string name="ui_dialer_add_plus">Type plus</string>
     <string name="ui_dialer_paste">Paste</string>
-    <string name="ui_dialer_status">Connection status</string>
 
     <!-- Call screen -->
     <string name="ui_call_unknown">Unknown</string>
@@ -98,4 +94,30 @@
     <string name="ui_call_announce_held">Call on hold</string>
     <string name="ui_call_announce_ended">Call ended</string>
     <string name="ui_call_announce_recording">Recording started</string>
+
+    <!-- Review fixes -->
+    <string name="ui_status_reconnecting">Reconnecting…</string>
+    <string name="ui_connection_node">Gateway node</string>
+    <string name="ui_dialer_hint">Enter a number</string>
+    <string name="ui_call_quality">Call quality %1$s</string>
+    <string name="ui_call_quality_good">Good</string>
+    <string name="ui_call_quality_fair">Fair</string>
+    <string name="ui_call_quality_poor">Poor</string>
+    <string name="ui_call_codec">Codec: %1$s</string>
+    <string name="ui_connection_account">Account</string>
+    <string name="ui_connection_codec">Codec</string>
+    <string name="ui_connection_encryption">Call encryption</string>
+    <string name="ui_connection_encryption_none">None</string>
+    <string name="ui_connection_media">Media</string>
+    <string name="ui_connection_media_value">Loss %1$d · jitter %2$d ms · RTT %3$d ms</string>
+    <string name="ui_connection_network">Network</string>
+    <string name="ui_connection_wifi">Wi-Fi</string>
+    <string name="ui_connection_cellular">Mobile data</string>
+    <string name="ui_connection_ethernet">Ethernet</string>
+    <string name="ui_connection_online">Online</string>
+    <string name="ui_connection_offline">Offline</string>
+    <string name="ui_connection_ok_body">Calls can reach this phone.</string>
+    <string name="ui_connection_connecting_body">Connecting to Aria. Calls in progress continue.</string>
+    <string name="ui_connection_down_body">Incoming calls can\'t reach this phone right now.</string>
+    <string name="ui_settings_diagnostics">Diagnostics</string>
 </resources>

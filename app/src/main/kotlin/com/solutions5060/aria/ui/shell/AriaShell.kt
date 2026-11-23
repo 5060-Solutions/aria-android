@@ -171,11 +171,14 @@ private fun TabIcon(tab: AriaTab, selected: Boolean, voicemailUnread: Int) {
 @Composable
 private fun TabLabel(tab: AriaTab) {
     val style = MaterialTheme.typography.labelMedium
-    Text(
-        stringResource(tab.label),
-        style = style,
-        maxLines = 1,
-        softWrap = false,
-        autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = style.fontSize),
-    )
+    // Five labels share the width: grow with the font scale only so far, then shrink to fit.
+    com.solutions5060.aria.ui.components.CappedFontScale(max = 1.3f) {
+        Text(
+            stringResource(tab.label),
+            style = style,
+            maxLines = 1,
+            softWrap = false,
+            autoSize = TextAutoSize.StepBased(minFontSize = 8.sp, maxFontSize = style.fontSize),
+        )
+    }
 }

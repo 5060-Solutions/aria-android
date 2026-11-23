@@ -115,8 +115,7 @@ fun DialerScreen(
     extensionNumber: String = "",
     domain: String = "",
     connection: ConnectionState = ConnectionState(),
-    transport: String = "",
-    onReconnect: () -> Unit = {},
+    onOpenDiagnostics: () -> Unit = {},
     dnd: Boolean = false,
     forwarding: Boolean = false,
     callError: String? = null,
@@ -178,15 +177,10 @@ fun DialerScreen(
     }
 
     if (showConnection) {
-        ConnectionSheet(
-            state = connection,
-            account = listOf(displayName, extensionNumber.takeIf { it.isNotBlank() }?.let { "Ext $it" }, domain)
-                .filter { !it.isNullOrBlank() }
-                .joinToString(" · "),
-            transport = transport,
-            onReconnect = onReconnect,
-            onDismiss = { showConnection = false },
-        )
+        ConnectionSheet(onOpenDiagnostics = {
+            showConnection = false
+            onOpenDiagnostics()
+        }, onDismiss = { showConnection = false })
     }
 
     Column(
@@ -199,7 +193,7 @@ fun DialerScreen(
         Spacer(Modifier.height(Spacing.xs))
         StatusChip(
             accountName = displayName.ifBlank { extensionNumber },
-            status = connection.status.toRegistrationStatus(),
+            status = connection.toRegistrationStatus(),
             dnd = dnd,
             forwarding = forwarding,
             onClick = { showConnection = true },
@@ -224,10 +218,15 @@ fun DialerScreen(
             contentAlignment = Alignment.BottomCenter,
         ) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                // Always one display line, so the layout does not jump; a faint hint when empty.
                 BasicText(
-                    text = formatForDisplay(number),
+                    text = if (number.isEmpty()) stringResource(R.string.ui_dialer_hint) else formatForDisplay(number),
                     style = AriaType.display.copy(
-                        color = MaterialTheme.colorScheme.onSurface,
+                        color = if (number.isEmpty()) {
+                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+                        } else {
+                            MaterialTheme.colorScheme.onSurface
+                        },
                         textAlign = TextAlign.Center,
                     ),
                     maxLines = 1,

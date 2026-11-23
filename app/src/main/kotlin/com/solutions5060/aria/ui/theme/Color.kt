@@ -106,6 +106,14 @@ data class AriaExtendedColors(
     val statusConnecting: Color,
     val statusError: Color,
     val statusOffline: Color,
+    /**
+     * Fills of the 72 dp Call/Answer and Hang-up/Decline buttons: the same in
+     * light and dark, with a white glyph (DESIGN.md §1). [success] and
+     * [hangup] are for text and small accents only.
+     */
+    val answerFill: Color = Color(0xFF2E7D32),
+    val hangupFill: Color = Color(0xFFBA1A1A),
+    val onCallFill: Color = Color(0xFFFFFFFF),
     /** The recording badge and AI accents: brand indigo, fixed. */
     val brandAccent: Color,
     /** The call screen's ambient blob colours. */
