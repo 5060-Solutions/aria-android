@@ -46,7 +46,7 @@ fun DialerScreen(
     callError: String? = null,
     onDismissError: () -> Unit = {},
 ) {
-    var number by remember { mutableStateOf("") }
+    var number by remember { mutableStateOf(com.solutions5060.aria.fixtures.Fixtures.current?.dialNumber ?: "") }
     val context = LocalContext.current
     val lastDialedKey = "last_dialed_number"
     val haptic = LocalHapticFeedback.current

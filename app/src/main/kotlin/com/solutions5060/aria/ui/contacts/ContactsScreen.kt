@@ -38,11 +38,12 @@ data class Contact(
 @Composable
 fun ContactsScreen(onCall: (String) -> Unit) {
     val context = LocalContext.current
-    var contacts by remember { mutableStateOf<List<Contact>>(emptyList()) }
+    val fixture = com.solutions5060.aria.fixtures.Fixtures.current
+    var contacts by remember { mutableStateOf(fixture?.contacts ?: emptyList()) }
     var searchQuery by remember { mutableStateOf("") }
     var hasPermission by remember {
         mutableStateOf(
-            ContextCompat.checkSelfPermission(
+            fixture != null || ContextCompat.checkSelfPermission(
                 context, Manifest.permission.READ_CONTACTS
             ) == PackageManager.PERMISSION_GRANTED
         )
@@ -63,7 +64,7 @@ fun ContactsScreen(onCall: (String) -> Unit) {
     }
 
     LaunchedEffect(hasPermission) {
-        if (hasPermission) {
+        if (hasPermission && fixture == null) {
             contacts = loadContacts(context.contentResolver)
         }
     }

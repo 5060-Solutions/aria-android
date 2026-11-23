@@ -30,7 +30,9 @@ fun HistoryScreen(onCall: (String) -> Unit) {
     // and the recents thumbnail.
     SecureWindow()
     val context = LocalContext.current
-    val history = remember { CallHistoryStore.load(context) }
+    val history = remember {
+        com.solutions5060.aria.fixtures.Fixtures.current?.history ?: CallHistoryStore.load(context)
+    }
 
     Scaffold(
         topBar = {

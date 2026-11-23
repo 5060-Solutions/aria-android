@@ -56,29 +56,38 @@ fun SettingsScreen(
     // Renders the account and device identifiers.
     SecureWindow()
 
+    // Debug fixture mode: sample account, no network.
+    val fixture = com.solutions5060.aria.fixtures.Fixtures.current?.account
+
     // Core SIP fields (read-only after QR scan)
-    var sipUsername by rememberSaveable { mutableStateOf(prefs.getString("sip_username", "") ?: "") }
+    var sipUsername by rememberSaveable { mutableStateOf(fixture?.extension ?: prefs.getString("sip_username", "") ?: "") }
     // Password is sensitive: read from encrypted storage and keep it out of the
     // saveable instance-state bundle (use remember, not rememberSaveable).
     var sipPassword by remember { mutableStateOf(SecurePrefs.getString(context, "sip_password", "") ?: "") }
-    var sipDomain by rememberSaveable { mutableStateOf(prefs.getString("sip_domain", "") ?: "") }
-    var sipRegistrar by rememberSaveable { mutableStateOf(prefs.getString("sip_registrar", "") ?: "") }
-    var sipDisplayName by rememberSaveable { mutableStateOf(prefs.getString("sip_display_name", "") ?: "") }
-    var sipTransport by rememberSaveable { mutableStateOf(prefs.getString("sip_transport", null) ?: DEFAULT_SIP_TRANSPORT) }
-    var sipPort by rememberSaveable { mutableStateOf(prefs.getString("sip_port", null) ?: defaultSipPort(sipTransport).toString()) }
+    var sipDomain by rememberSaveable { mutableStateOf(fixture?.domain ?: prefs.getString("sip_domain", "") ?: "") }
+    var sipRegistrar by rememberSaveable { mutableStateOf(fixture?.server ?: prefs.getString("sip_registrar", "") ?: "") }
+    var sipDisplayName by rememberSaveable {
+        mutableStateOf(fixture?.displayName ?: prefs.getString("sip_display_name", "") ?: "")
+    }
+    var sipTransport by rememberSaveable {
+        mutableStateOf(fixture?.transport ?: prefs.getString("sip_transport", null) ?: DEFAULT_SIP_TRANSPORT)
+    }
+    var sipPort by rememberSaveable {
+        mutableStateOf(fixture?.port?.toString() ?: prefs.getString("sip_port", null) ?: defaultSipPort(sipTransport).toString())
+    }
     var apiUrl by rememberSaveable { mutableStateOf(prefs.getString("api_url", "") ?: "") }
     var tenantDomain by rememberSaveable { mutableStateOf(prefs.getString("tenant_domain", "") ?: "") }
 
     // PBX auth state
     var jwt by remember { mutableStateOf(SecurePrefs.getString(context, "jwt", null)) }
-    var extensionId by remember { mutableStateOf(prefs.getString("extension_id", null)) }
+    var extensionId by remember { mutableStateOf(fixture?.extensionId ?: prefs.getString("extension_id", null)) }
     var tenantId by remember { mutableStateOf(prefs.getString("tenant_id", null)) }
-    var deviceId by remember { mutableStateOf(prefs.getString("device_id", null)) }
+    var deviceId by remember { mutableStateOf(fixture?.deviceId ?: prefs.getString("device_id", null)) }
     var gatewayUrl by remember { mutableStateOf(prefs.getString("gateway_url", null)) }
 
     // UI state
     var isConnecting by remember { mutableStateOf(false) }
-    var isRegistered by remember { mutableStateOf(jwt != null && deviceId != null) }
+    var isRegistered by remember { mutableStateOf(fixture?.registered ?: (jwt != null && deviceId != null)) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
     var fcmToken by remember { mutableStateOf<String?>(null) }
     var showQRScanner by remember { mutableStateOf(false) }
@@ -90,6 +99,7 @@ fun SettingsScreen(
 
     // Fetch FCM token on first composition
     LaunchedEffect(Unit) {
+        if (fixture != null) return@LaunchedEffect
         try {
             FirebaseMessaging.getInstance().token.addOnSuccessListener { token ->
                 fcmToken = token
@@ -98,6 +108,7 @@ fun SettingsScreen(
     }
 
     fun performLogin() {
+        if (fixture != null) return
         if (apiUrl.isEmpty() || sipUsername.isEmpty() || sipPassword.isEmpty() || sipDomain.isEmpty()) {
             errorMessage = "Missing required fields. Scan a QR code to configure."
             return

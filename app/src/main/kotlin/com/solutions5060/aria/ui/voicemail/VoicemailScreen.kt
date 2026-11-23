@@ -53,11 +53,12 @@ fun VoicemailScreen(onCall: (String) -> Unit) {
     val repository = remember { VoicemailRepository(context) }
     val accessNumber = remember { repository.accessNumber() }
 
-    var messages by remember { mutableStateOf<List<VoicemailMessage>>(emptyList()) }
-    var loading by remember { mutableStateOf(true) }
+    val fixture = com.solutions5060.aria.fixtures.Fixtures.current
+    var messages by remember { mutableStateOf<List<VoicemailMessage>>(fixture?.voicemail ?: emptyList()) }
+    var loading by remember { mutableStateOf(fixture == null) }
     var error by remember { mutableStateOf<String?>(null) }
-    var expandedId by remember { mutableStateOf<String?>(null) }
-    var playingId by remember { mutableStateOf<String?>(null) }
+    var expandedId by remember { mutableStateOf(fixture?.voicemailPlayingId) }
+    var playingId by remember { mutableStateOf(fixture?.voicemailPlayingId) }
     var preparingId by remember { mutableStateOf<String?>(null) }
     var confirmDelete by remember { mutableStateOf<VoicemailMessage?>(null) }
     var player by remember { mutableStateOf<MediaPlayer?>(null) }
@@ -74,6 +75,7 @@ fun VoicemailScreen(onCall: (String) -> Unit) {
     }
 
     fun refresh() {
+        if (fixture != null) return
         scope.launch {
             loading = true
             error = null
@@ -90,6 +92,7 @@ fun VoicemailScreen(onCall: (String) -> Unit) {
     fun markRead(message: VoicemailMessage) {
         if (message.read) return
         messages = messages.map { if (it.id == message.id) it.copy(read = true) else it }
+        if (fixture != null) return
         scope.launch {
             try {
                 withContext(Dispatchers.IO) { repository.markRead(message.id) }
@@ -101,6 +104,11 @@ fun VoicemailScreen(onCall: (String) -> Unit) {
 
     fun play(message: VoicemailMessage) {
         stopPlayback()
+        if (fixture != null) {
+            playingId = message.id
+            markRead(message)
+            return
+        }
         preparingId = message.id
         scope.launch {
             try {
