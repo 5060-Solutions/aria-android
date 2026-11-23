@@ -1,5 +1,7 @@
 package com.solutions5060.aria.ui.settings
 
+import androidx.compose.ui.res.stringResource
+import com.solutions5060.aria.R
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
@@ -76,11 +78,10 @@ fun TranscriptionScreen(onBack: () -> Unit = {}) {
             .padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp),
     ) {
-        Text("On-device transcription", style = MaterialTheme.typography.headlineSmall)
+        Text(stringResource(R.string.transcription_title), style = MaterialTheme.typography.headlineSmall)
 
         Text(
-            "Calls are transcribed on this phone. Audio and transcripts never " +
-                "leave the device.",
+            stringResource(R.string.transcription_body),
             style = MaterialTheme.typography.bodyMedium,
             color = MaterialTheme.colorScheme.onSurfaceVariant,
         )
@@ -90,7 +91,7 @@ fun TranscriptionScreen(onBack: () -> Unit = {}) {
             // empty list that looks like a loading failure.
             Card(Modifier.fillMaxWidth()) {
                 Text(
-                    "This version of Aria was built without transcription support.",
+                    stringResource(R.string.transcription_unsupported),
                     modifier = Modifier.padding(16.dp),
                     style = MaterialTheme.typography.bodyMedium,
                 )
@@ -101,7 +102,7 @@ fun TranscriptionScreen(onBack: () -> Unit = {}) {
         initError?.let {
             Card(Modifier.fillMaxWidth()) {
                 Text(
-                    "Could not start on-device AI: $it",
+                    stringResource(R.string.transcription_start_failed, it),
                     modifier = Modifier.padding(16.dp),
                     color = MaterialTheme.colorScheme.error,
                     style = MaterialTheme.typography.bodyMedium,
@@ -118,12 +119,12 @@ fun TranscriptionScreen(onBack: () -> Unit = {}) {
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 Column(Modifier.weight(1f)) {
-                    Text("Transcribe my calls", fontWeight = FontWeight.Medium)
+                    Text(stringResource(R.string.transcription_toggle), fontWeight = FontWeight.Medium)
                     Text(
                         if (sttInstalled) {
-                            "Both sides of the call are transcribed on this phone."
+                            stringResource(R.string.transcription_toggle_on)
                         } else {
-                            "Download a speech model below to turn this on."
+                            stringResource(R.string.transcription_toggle_needs_model)
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -178,7 +179,7 @@ private fun ModelRow(
                 Column(Modifier.weight(1f)) {
                     Text(model.displayName, fontWeight = FontWeight.Medium)
                     Text(
-                        "${if (model.kind == "llm") "Summaries" else "Transcription"} · " +
+                        "${if (model.kind == "llm") stringResource(R.string.transcription_kind_summaries) else stringResource(R.string.transcription_kind_speech)} · " +
                             humanBytes(model.sizeBytes),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
@@ -189,17 +190,17 @@ private fun ModelRow(
                     progress.state != "completed" && progress.state != "failed"
 
                 when {
-                    model.installed -> TextButton(onClick = onDelete) { Text("Remove") }
-                    downloading -> TextButton(onClick = onCancel) { Text("Cancel") }
+                    model.installed -> TextButton(onClick = onDelete) { Text(stringResource(R.string.transcription_remove)) }
+                    downloading -> TextButton(onClick = onCancel) { Text(stringResource(R.string.action_cancel)) }
                     // A model this phone cannot run stays visible with the
                     // reason attached: users understand a locked door, but not
                     // an option that silently disappeared.
                     !model.available -> Text(
-                        "Unavailable",
+                        stringResource(R.string.transcription_unavailable),
                         style = MaterialTheme.typography.labelMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                     )
-                    else -> FilledTonalButton(onClick = onDownload) { Text("Download") }
+                    else -> FilledTonalButton(onClick = onDownload) { Text(stringResource(R.string.transcription_download)) }
                 }
             }
 

@@ -1,6 +1,8 @@
 package com.solutions5060.aria.call
 
 import android.telecom.DisconnectCause
+import com.solutions5060.aria.R
+import com.solutions5060.aria.Txt
 import uniffi.aria_mobile.CallDirection
 import uniffi.aria_mobile.CallState
 import uniffi.aria_mobile.MobileException
@@ -181,9 +183,8 @@ object CallStateMapping {
         // The token is renewed in the background; the call is not redialled
         // on the user's behalf (the callee could ring twice).
         is MobileException.AuthenticationException ->
-            "The call couldn't be placed because the connection to the call service had expired. " +
-                "It is being renewed; please call again."
-        else -> "Call failed: ${error.message}"
+            Txt.get(R.string.call_dial_auth_expired, "The call couldn't be placed because the connection to the call service had expired. It is being renewed; please call again.")
+        else -> Txt.get(R.string.call_dial_failed, "Call failed: %1\$s", error.message ?: error.javaClass.simpleName)
     }
 
     /** Longest call token accepted from an intent. */
@@ -199,12 +200,12 @@ object CallStateMapping {
 
     /** The status line under the caller's name. */
     fun statusText(phase: CallPhase, elapsedSeconds: Long): String = when (phase) {
-        CallPhase.INCOMING -> "Incoming Call"
-        CallPhase.CONNECTING -> "Calling..."
-        CallPhase.RINGING -> "Ringing..."
+        CallPhase.INCOMING -> Txt.get(R.string.call_phase_incoming, "Incoming Call")
+        CallPhase.CONNECTING -> Txt.get(R.string.call_phase_calling, "Calling...")
+        CallPhase.RINGING -> Txt.get(R.string.call_phase_ringing, "Ringing...")
         CallPhase.ACTIVE -> formatElapsed(elapsedSeconds)
-        CallPhase.HELD -> "On Hold"
-        CallPhase.ENDED -> "Call Ended"
+        CallPhase.HELD -> Txt.get(R.string.call_phase_on_hold, "On Hold")
+        CallPhase.ENDED -> Txt.get(R.string.call_phase_ended, "Call Ended")
     }
 
     /**
@@ -212,20 +213,19 @@ object CallStateMapping {
      * leaves the call up, which the message says where it is not obvious.
      */
     fun transferErrorMessage(error: Throwable): String = when (error) {
-        is MobileException.InvalidTarget -> "That number can't be used as a transfer target."
-        is MobileException.InvalidState -> "This call can't be transferred right now."
+        is MobileException.InvalidTarget -> Txt.get(R.string.transfer_err_invalid_target, "That number can't be used as a transfer target.")
+        is MobileException.InvalidState -> Txt.get(R.string.transfer_err_invalid_state, "This call can't be transferred right now.")
         is MobileException.TransferUnsupported ->
-            "The phone system can't transfer this call. You're still on the call."
+            Txt.get(R.string.transfer_err_unsupported, "The phone system can't transfer this call. You're still on the call.")
         is MobileException.CallFailed -> sipStatusIn(error.message)?.let { code ->
-            "The transfer failed: ${sipStatusText(code)} (SIP $code). You're still on the call."
-        } ?: "The phone system refused the transfer. You're still on the call."
+            Txt.get(R.string.transfer_err_sip, "The transfer failed: %1\$s (SIP %2\$d). You're still on the call.", sipStatusText(code), code)
+        } ?: Txt.get(R.string.transfer_err_refused, "The phone system refused the transfer. You're still on the call.")
         // Covers a 408 too: no one answered, or no outcome was reported.
         is MobileException.Timeout ->
-            "The transfer didn't go through: no one answered, or the phone system didn't say whether it worked. " +
-                "You're still on the call."
-        is MobileException.GatewayException -> "The transfer failed at the gateway. You're still on the call."
-        is MobileException.NetworkException -> "Network error. You're still on the call."
-        else -> "The transfer failed. You're still on the call."
+            Txt.get(R.string.transfer_err_timeout, "The transfer didn't go through: no one answered, or the phone system didn't say whether it worked. You're still on the call.")
+        is MobileException.GatewayException -> Txt.get(R.string.transfer_err_gateway, "The transfer failed at the gateway. You're still on the call.")
+        is MobileException.NetworkException -> Txt.get(R.string.transfer_err_network, "Network error. You're still on the call.")
+        else -> Txt.get(R.string.transfer_err_generic, "The transfer failed. You're still on the call.")
     }
 
     /** The SIP status a core error message carries ("... (SIP 486) ..."), if any. */

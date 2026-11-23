@@ -45,6 +45,8 @@ import com.solutions5060.aria.ui.setup.ManualSetupScreen
 import com.solutions5060.aria.ui.setup.SetupLinkScreen
 import com.solutions5060.aria.security.SecurePrefs
 import com.solutions5060.aria.service.EngineManager
+import kotlinx.coroutines.launch
+import com.solutions5060.aria.service.SipEngineHolder
 import com.solutions5060.aria.service.ConnectionStatus
 import com.solutions5060.aria.service.GatewayConnection
 import com.solutions5060.aria.ui.connection.ConnectionViewModel
@@ -126,6 +128,12 @@ fun AriaApp() {
         prefs.edit().clear().apply()
         SecurePrefs.clear(context)
         CallHistoryStore.clear(context)
+        // Transcripts belong to the account too (the speech models stay).
+        SipEngineHolder.engine?.let { engine ->
+            com.solutions5060.aria.AppScope.scope.launch {
+                runCatching { engine.aiClearInsights() }
+            }
+        }
         EngineManager.reset()
         GatewayConnection.onSignedOut()
         // Recordings are this account's calls; they go with it.

@@ -39,6 +39,7 @@ class AriaApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        Txt.install(this)
 
         // Migrate any legacy plaintext secrets into encrypted storage before
         // anything reads credentials.
@@ -94,10 +95,10 @@ class AriaApplication : Application() {
 
         val incomingChannel = NotificationChannel(
             CHANNEL_INCOMING_CALL,
-            "Incoming Calls",
+            getString(R.string.channel_incoming_calls),
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = "Notifications for incoming VoIP calls"
+            description = getString(R.string.channel_incoming_calls_desc)
             setSound(
                 RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
                 AudioAttributes.Builder()
@@ -111,10 +112,10 @@ class AriaApplication : Application() {
 
         val activeChannel = NotificationChannel(
             CHANNEL_ACTIVE_CALL,
-            "Active Calls",
+            getString(R.string.channel_active_calls),
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = "Ongoing call notification"
+            description = getString(R.string.channel_active_calls_desc)
         }
 
         val voicemailChannel = NotificationChannel(

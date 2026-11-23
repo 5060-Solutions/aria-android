@@ -106,7 +106,7 @@ class IncomingCallService : Service() {
             stopSelf()
             return START_NOT_STICKY
         }
-        val callerName = intent?.getStringExtra(EXTRA_CALLER_NAME) ?: "Unknown"
+        val callerName = intent?.getStringExtra(EXTRA_CALLER_NAME) ?: getString(R.string.caller_unknown)
         Log.i(TAG, "Starting active call service")
         if (!promote(buildActiveNotification(callerName))) stopSelf()
         return START_NOT_STICKY
@@ -169,8 +169,8 @@ class IncomingCallService : Service() {
 
         return NotificationCompat.Builder(this, AriaApplication.CHANNEL_ACTIVE_CALL)
             .setSmallIcon(R.drawable.ic_phone)
-            .setContentTitle("Aria")
-            .setContentText("In call with $callerName")
+            .setContentTitle(getString(R.string.app_name))
+            .setContentText(getString(R.string.notif_in_call_with, callerName))
             .setOngoing(true)
             .setCategory(NotificationCompat.CATEGORY_CALL)
             .setContentIntent(openPending)
