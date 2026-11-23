@@ -50,6 +50,11 @@ fun AriaListItem(
     modifier: Modifier = Modifier,
     supporting: String? = null,
     supportingColor: Color = MaterialTheme.colorScheme.onSurfaceVariant,
+    /** A small glyph before the supporting text (call direction). */
+    @androidx.annotation.DrawableRes supportingIcon: Int? = null,
+    supportingIconTint: Color = supportingColor,
+    /** What TalkBack reads for [supportingIcon]; null when decorative. */
+    supportingIconDescription: String? = null,
     headlineColor: Color = MaterialTheme.colorScheme.onSurface,
     emphasized: Boolean = false,
     leading: (@Composable () -> Unit)? = null,
@@ -104,13 +109,26 @@ fun AriaListItem(
                         overflow = TextOverflow.Ellipsis,
                     )
                     if (supporting != null) {
-                        Text(
-                            supporting,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = supportingColor,
-                            maxLines = if (large) 3 else 1,
-                            overflow = TextOverflow.Ellipsis,
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.xxs),
+                        ) {
+                            if (supportingIcon != null) {
+                                AriaIcon(
+                                    supportingIcon,
+                                    contentDescription = supportingIconDescription,
+                                    size = Sizes.iconSmall,
+                                    tint = supportingIconTint,
+                                )
+                            }
+                            Text(
+                                supporting,
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = supportingColor,
+                                maxLines = if (large) 3 else 1,
+                                overflow = TextOverflow.Ellipsis,
+                            )
+                        }
                     }
                 }
                 if (trailing != null) {
