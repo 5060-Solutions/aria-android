@@ -21,6 +21,8 @@ import com.solutions5060.aria.provisioning.ProvisioningCredentials
 fun SetupScreen(
     onCredentialsScanned: (ProvisioningCredentials) -> Unit,
     onManualSetup: () -> Unit,
+    /** A scanned `aria://provision?v=1` setup link, confirmed and redeemed elsewhere. */
+    onSetupLinkScanned: (String) -> Unit = {},
 ) {
     var showQRScanner by remember { mutableStateOf(false) }
 
@@ -28,6 +30,10 @@ fun SetupScreen(
         QRScannerScreen(
             onCredentialsScanned = onCredentialsScanned,
             onDismiss = { showQRScanner = false },
+            onSetupLinkScanned = { link ->
+                showQRScanner = false
+                onSetupLinkScanned(link)
+            },
         )
         return
     }

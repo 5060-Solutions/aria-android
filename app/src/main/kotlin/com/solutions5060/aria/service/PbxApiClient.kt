@@ -80,7 +80,7 @@ class PbxApiClient(private val baseUrl: String) {
             } catch (_: Exception) {
                 responseBody
             }
-            throw Exception("Login failed (${response.code}): $errorMsg")
+            throw HttpException(response.code, "Login failed (${response.code}): $errorMsg")
         }
 
         val json = JSONObject(responseBody)

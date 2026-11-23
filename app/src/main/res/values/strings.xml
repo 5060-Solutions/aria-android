@@ -1,4 +1,57 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">Aria</string>
+
+    <!-- Common -->
+    <string name="action_cancel">Cancel</string>
+    <string name="action_back">Back</string>
+    <string name="action_call">Call</string>
+    <string name="action_retry">Try again</string>
+
+    <!-- Manual setup -->
+    <string name="manual_setup_title">Enter account details</string>
+    <string name="manual_setup_subtitle">Use the details your administrator gave you.</string>
+    <string name="manual_setup_server">Tenant domain or server</string>
+    <string name="manual_setup_server_hint">acme.sip.ariaroute.com</string>
+    <string name="manual_setup_extension">Extension</string>
+    <string name="manual_setup_password">Password</string>
+    <string name="manual_setup_show_password">Show password</string>
+    <string name="manual_setup_hide_password">Hide password</string>
+    <string name="manual_setup_api_url">API URL (optional)</string>
+    <string name="manual_setup_api_url_hint">Leave blank for %1$s</string>
+    <string name="manual_setup_sign_in">Sign in</string>
+    <string name="manual_setup_signing_in">Signing in…</string>
+    <string name="manual_setup_error_server_required">Enter your tenant domain or server.</string>
+    <string name="manual_setup_error_server_invalid">Enter a host name such as acme.sip.ariaroute.com.</string>
+    <string name="manual_setup_error_extension_required">Enter your extension.</string>
+    <string name="manual_setup_error_extension_invalid">Use letters, digits, dots, dashes or underscores.</string>
+    <string name="manual_setup_error_password_required">Enter your password.</string>
+    <string name="manual_setup_error_api_not_https">The API URL must start with https://.</string>
+    <string name="manual_setup_error_api_invalid">Enter a valid https URL, such as https://api.ariaroute.com.</string>
+    <string name="manual_setup_error_credentials">The extension or password is incorrect.</string>
+    <string name="manual_setup_error_not_found">The server did not recognise this tenant domain.</string>
+    <string name="manual_setup_error_network">Could not reach the server. Check the address and your connection.</string>
+
+    <!-- Setup link confirm -->
+    <string name="setup_link_title">Set up this line?</string>
+    <string name="setup_link_loading">Checking setup link…</string>
+    <string name="setup_link_body">This link signs Aria in to the account below. Continue only if you trust where it came from.</string>
+    <string name="setup_link_replace_warning">You\'ll be signed out of your current account.</string>
+    <string name="setup_link_tenant">Organisation</string>
+    <string name="setup_link_extension">Extension</string>
+    <string name="setup_link_name">Name</string>
+    <string name="setup_link_domain">Domain</string>
+    <string name="setup_link_server">Set up by</string>
+    <string name="setup_link_confirm">Set up line</string>
+    <string name="setup_link_redeeming">Setting up…</string>
+    <string name="setup_link_error_invalid">This isn\'t a valid Aria setup link.</string>
+    <string name="setup_link_error_expired">This setup link has expired or was already used. Ask your administrator for a new one.</string>
+    <string name="setup_link_error_network">Couldn\'t reach the setup server. Check your connection and try again.</string>
+    <string name="setup_link_error_mismatch">The setup server returned a different account than it showed. Nothing was saved.</string>
+    <string name="setup_link_error_server">The setup server had a problem. Try again later.</string>
+    <string name="setup_link_error_insecure">This setup link points to an insecure or invalid server, so it was refused.</string>
+
+    <!-- Dial links -->
+    <string name="dial_link_title">Call %1$s?</string>
+    <string name="dial_link_body">Another app asked Aria to call this number.</string>
 </resources>

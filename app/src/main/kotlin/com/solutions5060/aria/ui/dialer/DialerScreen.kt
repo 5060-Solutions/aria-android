@@ -45,8 +45,11 @@ fun DialerScreen(
     isConnected: Boolean = false,
     callError: String? = null,
     onDismissError: () -> Unit = {},
+    /** A number handed in from a tel:/sip: link; replaces what is typed. */
+    prefill: String? = null,
 ) {
     var number by remember { mutableStateOf(com.solutions5060.aria.fixtures.Fixtures.current?.dialNumber ?: "") }
+    LaunchedEffect(prefill) { if (prefill != null) number = prefill }
     val context = LocalContext.current
     val lastDialedKey = "last_dialed_number"
     val haptic = LocalHapticFeedback.current
