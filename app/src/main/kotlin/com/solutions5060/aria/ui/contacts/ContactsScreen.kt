@@ -29,10 +29,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 
-data class Contact(
-    val name: String,
-    val phoneNumber: String,
-)
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -65,7 +61,7 @@ fun ContactsScreen(onCall: (String) -> Unit) {
 
     LaunchedEffect(hasPermission) {
         if (hasPermission && fixture == null) {
-            contacts = loadContacts(context.contentResolver)
+            contacts = ContactsSource.load(context)
         }
     }
 
@@ -222,30 +218,4 @@ private fun ContactRow(contact: Contact, onCall: () -> Unit) {
             )
         }
     }
-}
-
-private fun loadContacts(contentResolver: ContentResolver): List<Contact> {
-    val contacts = mutableListOf<Contact>()
-    val cursor = contentResolver.query(
-        ContactsContract.CommonDataKinds.Phone.CONTENT_URI,
-        arrayOf(
-            ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME,
-            ContactsContract.CommonDataKinds.Phone.NUMBER,
-        ),
-        null, null,
-        ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME + " ASC"
-    )
-
-    cursor?.use {
-        val nameIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.DISPLAY_NAME)
-        val numberIdx = it.getColumnIndex(ContactsContract.CommonDataKinds.Phone.NUMBER)
-
-        while (it.moveToNext()) {
-            val name = it.getString(nameIdx) ?: continue
-            val number = it.getString(numberIdx) ?: continue
-            contacts.add(Contact(name = name, phoneNumber = number))
-        }
-    }
-
-    return contacts.distinctBy { it.name + it.phoneNumber }
 }

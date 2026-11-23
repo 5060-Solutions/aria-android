@@ -73,6 +73,17 @@ object Fixtures {
         CallManager.showFixtureCalls(emptyList())
     }
 
+    /** The gateway connection a fixture [account] shows: registered, with its gateway. */
+    fun connectionState(account: FixtureAccount) = com.solutions5060.aria.service.ConnectionState(
+        status = if (account.registered) {
+            com.solutions5060.aria.service.ConnectionStatus.REGISTERED
+        } else {
+            com.solutions5060.aria.service.ConnectionStatus.ERROR
+        },
+        gatewayUrl = account.gatewayUrl,
+        deviceId = account.deviceId,
+    )
+
     /** Installs the fixture an intent asks for, if any. Returns whether one was installed. */
     fun installFrom(intent: Intent?): Boolean {
         if (!BuildConfig.DEBUG || intent == null) return false
@@ -122,6 +133,7 @@ data class FixtureAccount(
     val registered: Boolean = true,
     val deviceId: String? = null,
     val extensionId: String? = null,
+    val gatewayUrl: String? = null,
 )
 
 /** Everything a fixture run shows. Screens read the parts they need. */
@@ -178,22 +190,24 @@ object FixtureData {
         port = 5061,
         deviceId = "c0ffee42-5060-4a1e-9b7d-2f8e61d0a9b3",
         extensionId = "6f1d2c3b-aria-1042-8e7f-0a1b2c3d4e5f",
+        gatewayUrl = "https://push.ariaroute.com",
     )
 
     val contacts: List<Contact> = listOf(
-        Contact("Amelia Chen", "+1 (555) 201-4410"),
-        Contact("Ben Okafor", "+1 (555) 318-2290"),
-        Contact("Carla Mendes", "+1 (555) 402-7781"),
-        Contact("Daniel Weiss", "+1 (555) 610-3345"),
-        Contact("Front Desk", "1000"),
-        Contact("Grace Kim", "+1 (555) 742-1108"),
-        Contact("Hiro Tanaka", "+1 (555) 827-5562"),
-        Contact("Isabel Ortiz", "+1 (555) 913-0047"),
-        Contact("Jonas Berg", "+1 (555) 284-6619"),
-        Contact("Maya Patel", "1017"),
-        Contact("Noah Fischer", "+1 (555) 356-9921"),
-        Contact("Priya Shah", "+1 (555) 471-2083"),
-        Contact("Sam Lee", "1023"),
+        Contact("Amelia Chen", "+1 (555) 201-4410", "Mobile", starred = true, contactId = 1),
+        Contact("Amelia Chen", "+1 (555) 201-4499", "Work", starred = true, contactId = 1),
+        Contact("Ben Okafor", "+1 (555) 318-2290", "Mobile", starred = true, contactId = 2),
+        Contact("Carla Mendes", "+1 (555) 402-7781", "Mobile", contactId = 3),
+        Contact("Daniel Weiss", "+1 (555) 610-3345", "Work", contactId = 4),
+        Contact("Front Desk", "1000", "Work", contactId = 5),
+        Contact("Grace Kim", "+1 (555) 742-1108", "Mobile", contactId = 6),
+        Contact("Hiro Tanaka", "+1 (555) 827-5562", "Mobile", contactId = 7),
+        Contact("Isabel Ortiz", "+1 (555) 913-0047", "Mobile", contactId = 8),
+        Contact("Jonas Berg", "+1 (555) 284-6619", "Home", contactId = 9),
+        Contact("Maya Patel", "1017", "Work", starred = true, contactId = 10),
+        Contact("Noah Fischer", "+1 (555) 356-9921", "Mobile", contactId = 11),
+        Contact("Priya Shah", "+1 (555) 471-2083", "Mobile", contactId = 12),
+        Contact("Sam Lee", "1023", "Work", contactId = 13),
     )
 
     private const val HOUR = 3_600_000L

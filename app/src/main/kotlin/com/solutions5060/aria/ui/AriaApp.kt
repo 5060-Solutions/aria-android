@@ -50,6 +50,7 @@ import com.solutions5060.aria.service.GatewayConnection
 import com.solutions5060.aria.ui.connection.ConnectionViewModel
 import com.solutions5060.aria.pbx.SelfServiceState
 import com.solutions5060.aria.ui.forwarding.ForwardingScreen
+import com.solutions5060.aria.ui.forwarding.SelfServiceViewModel
 import com.solutions5060.aria.ui.settings.CallingSection
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.solutions5060.aria.ui.call.ManagedCallScreen
@@ -207,8 +208,13 @@ private fun MainApp(
     val context = LocalContext.current
     val fixture = Fixtures.current
     var callError by remember { mutableStateOf<String?>(null) }
-    val connection by viewModel<ConnectionViewModel>().state.collectAsState()
-    val engineReady = fixture?.account?.registered ?: (connection.status == ConnectionStatus.REGISTERED)
+    val connectionViewModel = viewModel<ConnectionViewModel>()
+    val liveConnection by connectionViewModel.state.collectAsState()
+    val connection = fixture?.account?.let { Fixtures.connectionState(it) } ?: liveConnection
+    // DND moon and forwarding arrow on the status chip.
+    val selfServiceViewModel = viewModel<SelfServiceViewModel>()
+    val selfService by selfServiceViewModel.state.collectAsState()
+    LaunchedEffect(Unit) { selfServiceViewModel.refresh() }
     val call by CallManager.state.collectAsState()
     val callSetupError by CallManager.error.collectAsState()
 
@@ -405,7 +411,11 @@ private fun MainApp(
                         displayName = fixture?.account?.displayName ?: prefs.getString(KEY_SIP_DISPLAY_NAME, "") ?: "",
                         extensionNumber = fixture?.account?.extension ?: prefs.getString(KEY_SIP_USERNAME, "") ?: "",
                         domain = fixture?.account?.domain ?: prefs.getString(KEY_SIP_DOMAIN, "") ?: "",
-                        isConnected = engineReady,
+                        connection = connection,
+                        transport = fixture?.account?.transport ?: prefs.getString(KEY_SIP_TRANSPORT, "") ?: "",
+                        onReconnect = { if (fixture == null) connectionViewModel.reconnect() },
+                        dnd = selfService.doNotDisturb == true,
+                        forwarding = selfService.forwardingOn,
                         prefill = prefill,
                         callError = callError ?: callSetupError,
                         onDismissError = {

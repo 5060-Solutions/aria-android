@@ -43,13 +43,14 @@ enum class RegistrationStatus(@StringRes val label: Int) {
     Registered(R.string.ui_status_registered),
     Connecting(R.string.ui_status_connecting),
     Error(R.string.ui_status_error),
-    Offline(R.string.ui_status_offline);
+    Offline(R.string.ui_status_offline),
+    SignedOut(R.string.ui_status_signed_out);
 
     fun color(colors: AriaExtendedColors): Color = when (this) {
         Registered -> colors.statusRegistered
         Connecting -> colors.statusConnecting
         Error -> colors.statusError
-        Offline -> colors.statusOffline
+        Offline, SignedOut -> colors.statusOffline
     }
 }
 
