@@ -71,7 +71,6 @@ export CXX_aarch64_linux_android="$TOOLCHAIN/aarch64-linux-android24-clang++"
 export CXX_armv7_linux_androideabi="$TOOLCHAIN/armv7a-linux-androideabi24-clang++"
 export CXX_x86_64_linux_android="$TOOLCHAIN/x86_64-linux-android24-clang++"
 export ANDROID_NDK="$ANDROID_NDK_HOME"
-export CMAKE_POLICY_VERSION_MINIMUM=3.5
 
 # ── On-device transcription ─────────────────────────────────────────────────
 #
