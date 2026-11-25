@@ -255,4 +255,6 @@
     <string name="ui_qr_unencrypted">This code uses unencrypted %1$s signalling.</string>
     <string name="ui_qr_sign_in">Sign in</string>
     <string name="ui_connection_last_error">Last error</string>
+    <string name="ui_settings_language">Language</string>
+    <string name="ui_settings_language_system">System default</string>
 </resources>

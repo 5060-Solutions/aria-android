@@ -227,4 +227,6 @@
         <item quantity="many">%d autres</item>
         <item quantity="other">%d autres</item>
     </plurals>
+    <string name="ui_settings_language">Langue</string>
+    <string name="ui_settings_language_system">Valeur par défaut du système</string>
 </resources>

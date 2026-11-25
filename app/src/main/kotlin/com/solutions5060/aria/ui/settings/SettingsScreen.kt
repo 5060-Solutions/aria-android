@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +17,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
@@ -37,6 +39,8 @@ import androidx.compose.ui.unit.dp
 import com.google.firebase.messaging.FirebaseMessaging
 import com.solutions5060.aria.BuildConfig
 import androidx.core.content.edit
+import com.solutions5060.aria.AppLanguage
+import com.solutions5060.aria.AriaApplication
 import com.solutions5060.aria.R
 import com.solutions5060.aria.provisioning.DEFAULT_SIP_TRANSPORT
 import com.solutions5060.aria.provisioning.defaultSipPort
@@ -369,6 +373,7 @@ fun SettingsScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
+                LanguagePicker()
                 if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                     AriaSwitchRow(
                         headline = stringResource(R.string.ui_settings_wallpaper_colors),
@@ -465,4 +470,50 @@ private fun CopyableIdRow(label: String, value: String, @DrawableRes icon: Int) 
         },
         onClickLabel = stringResource(R.string.ui_settings_copy),
     )
+}
+
+/** App language: System default first, then each language in its own name. */
+@Composable
+private fun LanguagePicker() {
+    val context = LocalContext.current
+    var open by remember { mutableStateOf(false) }
+    val systemDefault = stringResource(R.string.ui_settings_language_system)
+    val current = AppLanguage.current()
+    AriaListItem(
+        headline = stringResource(R.string.ui_settings_language),
+        supporting = current?.let { AppLanguage.nativeName(it) } ?: systemDefault,
+        onClick = { open = true },
+    )
+    if (open) {
+        AlertDialog(
+            onDismissRequest = { open = false },
+            title = { Text(stringResource(R.string.ui_settings_language)) },
+            text = {
+                Column {
+                    (listOf<String?>(null) + AppLanguage.TAGS).forEach { tag ->
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    open = false
+                                    AppLanguage.set(tag)
+                                    (context.applicationContext as? AriaApplication)?.createNotificationChannels()
+                                }
+                                .padding(vertical = Spacing.sm),
+                        ) {
+                            RadioButton(selected = tag == current, onClick = null)
+                            Text(
+                                tag?.let { AppLanguage.nativeName(it) } ?: systemDefault,
+                                modifier = Modifier.padding(start = Spacing.md),
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { open = false }) { Text(stringResource(R.string.action_cancel)) }
+            },
+        )
+    }
 }

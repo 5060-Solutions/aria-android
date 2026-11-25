@@ -19,6 +19,7 @@ object Txt {
 
     fun get(@StringRes id: Int, fallback: String, vararg args: Any): String {
         val c = context ?: return if (args.isEmpty()) fallback else String.format(java.util.Locale.ROOT, fallback, *args)
-        return if (args.isEmpty()) c.getString(id) else c.getString(id, *args)
+        val localized = AppLanguage.localized(c)
+        return if (args.isEmpty()) localized.getString(id) else localized.getString(id, *args)
     }
 }
