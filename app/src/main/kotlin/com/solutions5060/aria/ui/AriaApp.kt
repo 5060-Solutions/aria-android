@@ -66,6 +66,8 @@ import com.solutions5060.aria.ui.settings.TranscriptionScreen
 import com.solutions5060.aria.ui.setup.SetupScreen
 import com.solutions5060.aria.ui.transcripts.TranscriptsScreen
 import com.solutions5060.aria.ui.voicemail.VoicemailScreen
+import com.solutions5060.aria.ui.messages.MessagesScreen
+import com.solutions5060.aria.ui.messages.ThreadScreen
 
 private const val TAG = "AriaApp"
 
@@ -139,6 +141,8 @@ fun AriaApp() {
         // Recordings are this account's calls; they go with it.
         com.solutions5060.aria.recording.RecordingsRepository(context).deleteAll()
         com.solutions5060.aria.voicemail.VoicemailMonitor.clear(context)
+        com.solutions5060.aria.messaging.MessagesMonitor.clear(context)
+        com.solutions5060.aria.ui.messages.AttachmentCache.clear()
         SelfServiceState.clear()
     }
 
@@ -245,6 +249,23 @@ private fun MainApp(
         }
     }
     LaunchedEffect(Unit) { selfServiceViewModel.refresh() }
+    val messagesUnread by com.solutions5060.aria.messaging.MessagesMonitor.unread.collectAsState()
+    // Text messages: the unread count and the event socket, only while the app is in the foreground.
+    if (fixture == null) {
+        androidx.lifecycle.compose.LifecycleStartEffect(Unit) {
+            val job = com.solutions5060.aria.AppScope.scope.launch {
+                com.solutions5060.aria.messaging.MessagesMonitor.run(context)
+            }
+            onStopOrDispose { job.cancel() }
+        }
+    }
+    // A conversation named by a text-message notification.
+    (tabLink as? DeepLink.OpenThread)?.let { link ->
+        LaunchedEffect(link) {
+            navController.navigate("messages/thread/${link.didId}/${android.net.Uri.encode(link.number)}") { launchSingleTop = true }
+            DeepLinks.consume(link)
+        }
+    }
     val call by CallManager.state.collectAsState()
     val callSetupError by CallManager.error.collectAsState()
 
@@ -419,6 +440,8 @@ private fun MainApp(
         AriaShell(
             currentRoute = currentRoute,
             voicemailUnread = fixture?.voicemail?.count { !it.read } ?: voicemailUnread,
+            messagesUnread = messagesUnread,
+            showNavigation = currentRoute?.startsWith("messages/thread/") != true,
             onSelectTab = { tab ->
                 navController.navigate(tab.route) {
                     popUpTo(navController.graph.startDestinationId) { saveState = true }
@@ -458,6 +481,29 @@ private fun MainApp(
                 }
                 composable("voicemail") {
                     VoicemailScreen(onCall = { number -> placeCall(number) })
+                }
+                composable("messages") {
+                    MessagesScreen(
+                        onOpenThread = { did, number ->
+                            navController.navigate("messages/thread/$did/${android.net.Uri.encode(number)}")
+                        },
+                    )
+                }
+                composable(
+                    "messages/thread/{did}/{number}",
+                    arguments = listOf(
+                        androidx.navigation.navArgument("did") { type = androidx.navigation.NavType.StringType },
+                        androidx.navigation.navArgument("number") { type = androidx.navigation.NavType.StringType },
+                    ),
+                ) { entry ->
+                    val did = entry.arguments?.getString("did").orEmpty()
+                    val number = entry.arguments?.getString("number").orEmpty()
+                    ThreadScreen(
+                        didId = did,
+                        number = number,
+                        onBack = { navController.popBackStack() },
+                        onCall = { placeCall(it) },
+                    )
                 }
                 composable("settings") {
                     SettingsScreen(

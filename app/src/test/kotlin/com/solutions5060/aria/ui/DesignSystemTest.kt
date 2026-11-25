@@ -79,9 +79,10 @@ class DesignSystemTest {
 
     @Test
     fun tabsFollowTheDesignOrderAndSubScreensKeepSettingsSelected() {
-        assertEquals(listOf("dialer", "history", "contacts", "voicemail", "settings"), AriaTab.entries.map { it.route })
+        assertEquals(listOf("dialer", "history", "contacts", "voicemail", "messages", "settings"), AriaTab.entries.map { it.route })
         assertEquals(AriaTab.History, AriaTab.forRoute("history"))
         assertEquals(AriaTab.Settings, AriaTab.forRoute("transcription"))
+        assertEquals(AriaTab.Messages, AriaTab.forRoute("messages/thread/x/y"))
         assertNull(AriaTab.forRoute(null))
     }
 }

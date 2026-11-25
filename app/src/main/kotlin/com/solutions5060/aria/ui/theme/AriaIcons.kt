@@ -18,6 +18,8 @@ object AriaIcons {
     @DrawableRes val ContactsFill = R.drawable.ic_group_fill
     @DrawableRes val Voicemail = R.drawable.ic_voicemail
     @DrawableRes val VoicemailFill = R.drawable.ic_voicemail_fill
+    @DrawableRes val Messages = R.drawable.ic_chat
+    @DrawableRes val MessagesFill = R.drawable.ic_chat_fill
     @DrawableRes val Settings = R.drawable.ic_settings
     @DrawableRes val SettingsFill = R.drawable.ic_settings_fill
 
@@ -49,6 +51,9 @@ object AriaIcons {
     @DrawableRes val Outgoing = R.drawable.ic_call_made
     @DrawableRes val Incoming = R.drawable.ic_call_received
     @DrawableRes val Missed = R.drawable.ic_call_missed
+
+    @DrawableRes val Send = R.drawable.ic_send
+    @DrawableRes val Photo = R.drawable.ic_image
 
     // General
     @DrawableRes val Info = R.drawable.ic_info

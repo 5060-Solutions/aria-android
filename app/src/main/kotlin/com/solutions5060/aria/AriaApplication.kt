@@ -14,6 +14,7 @@ import com.solutions5060.aria.service.GatewayConnection
 import com.solutions5060.aria.service.EngineManager
 import com.solutions5060.aria.pbx.SelfServiceState
 import com.solutions5060.aria.voicemail.VoicemailMonitor
+import com.solutions5060.aria.messaging.MessagingNotifier
 import com.solutions5060.aria.service.NetworkMonitor
 import androidx.lifecycle.DefaultLifecycleObserver
 import androidx.lifecycle.LifecycleOwner
@@ -124,7 +125,16 @@ class AriaApplication : Application() {
             NotificationManager.IMPORTANCE_DEFAULT,
         )
 
+        val messagesChannel = NotificationChannel(
+            MessagingNotifier.CHANNEL,
+            getString(R.string.messages_channel_name),
+            NotificationManager.IMPORTANCE_HIGH,
+        ).apply {
+            description = getString(R.string.messages_channel_desc)
+        }
+
         manager.createNotificationChannel(voicemailChannel)
+        manager.createNotificationChannel(messagesChannel)
         manager.deleteNotificationChannel(LEGACY_CHANNEL_INCOMING_CALL)
         manager.createNotificationChannel(incomingChannel)
         manager.createNotificationChannel(activeChannel)

@@ -41,7 +41,7 @@ import com.solutions5060.aria.ui.components.AriaSnackbarHost
 import com.solutions5060.aria.ui.components.LocalSnackbarHostState
 import com.solutions5060.aria.ui.theme.AriaIcons
 
-/** The five tabs (DESIGN.md §5 order: Dialer · History · Contacts · Voicemail · Settings). */
+/** The six tabs: Dialer · History · Contacts · Voicemail · Messages · Settings. */
 enum class AriaTab(
     val route: String,
     @StringRes val label: Int,
@@ -52,12 +52,15 @@ enum class AriaTab(
     History("history", R.string.ui_tab_history, AriaIcons.History, AriaIcons.HistoryFill),
     Contacts("contacts", R.string.ui_tab_contacts, AriaIcons.Contacts, AriaIcons.ContactsFill),
     Voicemail("voicemail", R.string.ui_tab_voicemail, AriaIcons.Voicemail, AriaIcons.VoicemailFill),
+    Messages("messages", R.string.ui_tab_messages, AriaIcons.Messages, AriaIcons.MessagesFill),
     Settings("settings", R.string.ui_tab_settings, AriaIcons.Settings, AriaIcons.SettingsFill);
 
     companion object {
         /** The tab a route belongs to; sub-screens of Settings keep Settings selected. */
         fun forRoute(route: String?): AriaTab? =
-            entries.firstOrNull { it.route == route } ?: if (route != null) Settings.takeIf { route !in topLevelRoutes } else null
+            entries.firstOrNull { it.route == route }
+                ?: if (route != null && route.startsWith("messages/")) Messages
+                else if (route != null) Settings.takeIf { route !in topLevelRoutes } else null
 
         private val topLevelRoutes = entries.map { it.route }.toSet()
     }
@@ -79,6 +82,9 @@ fun AriaShell(
     onSelectTab: (AriaTab) -> Unit,
     modifier: Modifier = Modifier,
     voicemailUnread: Int = 0,
+    messagesUnread: Int = 0,
+    /** False on a full-screen route (a conversation), which brings its own composer above the keyboard. */
+    showNavigation: Boolean = true,
     content: @Composable (PaddingValues) -> Unit,
 ) {
     val selected = AriaTab.forRoute(currentRoute)
@@ -87,7 +93,7 @@ fun AriaShell(
         val wide = maxWidth >= RailBreakpoint
         if (wide) {
             Row(Modifier.fillMaxSize()) {
-                WideNavigationRail(
+                if (showNavigation) WideNavigationRail(
                     colors = androidx.compose.material3.WideNavigationRailDefaults.colors(
                         containerColor = MaterialTheme.colorScheme.surfaceContainer,
                     ),
@@ -96,7 +102,7 @@ fun AriaShell(
                         WideNavigationRailItem(
                             selected = tab == selected,
                             onClick = { onSelectTab(tab) },
-                            icon = { TabIcon(tab, tab == selected, voicemailUnread) },
+                            icon = { TabIcon(tab, tab == selected, voicemailUnread, messagesUnread) },
                             label = { TabLabel(tab) },
                             railExpanded = false,
                             colors = WideNavigationRailItemDefaults.colors(),
@@ -117,12 +123,12 @@ fun AriaShell(
                 contentWindowInsets = WindowInsets(0),
                 snackbarHost = { AriaSnackbarHost(snackbar) },
                 bottomBar = {
-                    ShortNavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
+                    if (showNavigation) ShortNavigationBar(containerColor = MaterialTheme.colorScheme.surfaceContainer) {
                         AriaTab.entries.forEach { tab ->
                             ShortNavigationBarItem(
                                 selected = tab == selected,
                                 onClick = { onSelectTab(tab) },
-                                icon = { TabIcon(tab, tab == selected, voicemailUnread) },
+                                icon = { TabIcon(tab, tab == selected, voicemailUnread, messagesUnread) },
                                 label = { TabLabel(tab) },
                                 colors = ShortNavigationBarItemDefaults.colors(
                                     selectedIndicatorColor = MaterialTheme.colorScheme.secondaryContainer,
@@ -141,7 +147,7 @@ fun AriaShell(
 }
 
 @Composable
-private fun TabIcon(tab: AriaTab, selected: Boolean, voicemailUnread: Int) {
+private fun TabIcon(tab: AriaTab, selected: Boolean, voicemailUnread: Int, messagesUnread: Int) {
     // Filled when selected: a short cross-fade, the Expressive label/indicator motion does the rest.
     val fade = MaterialTheme.motionScheme.fastEffectsSpec<Float>()
     val icon = @Composable {
@@ -162,6 +168,15 @@ private fun TabIcon(tab: AriaTab, selected: Boolean, voicemailUnread: Int) {
                 }
             },
         ) { icon() }
+    } else if (tab == AriaTab.Messages && messagesUnread > 0) {
+        val badgeDescription = stringResource(R.string.messages_unread_marker)
+        BadgedBox(
+            badge = {
+                Badge(Modifier.semantics { contentDescription = badgeDescription }) {
+                    Text(if (messagesUnread > 99) "99+" else messagesUnread.toString())
+                }
+            },
+        ) { icon() }
     } else {
         icon()
     }
@@ -171,7 +186,7 @@ private fun TabIcon(tab: AriaTab, selected: Boolean, voicemailUnread: Int) {
 @Composable
 private fun TabLabel(tab: AriaTab) {
     val style = MaterialTheme.typography.labelMedium
-    // Five labels share the width: grow with the font scale only so far, then shrink to fit.
+    // Six labels share the width: grow with the font scale only so far, then shrink to fit.
     com.solutions5060.aria.ui.components.CappedFontScale(max = 1.3f) {
         Text(
             stringResource(tab.label),

@@ -16,9 +16,12 @@ sealed interface DeepLink {
     /** Open a tab (from one of the app's own notifications). Only the known tabs. */
     data class OpenTab(val route: String) : DeepLink {
         companion object {
-            val ROUTES = setOf("dialer", "contacts", "history", "voicemail", "settings")
+            val ROUTES = setOf("dialer", "contacts", "history", "voicemail", "messages", "settings")
         }
     }
+
+    /** Open one conversation (from a text-message notification). Ids are validated before this is made. */
+    data class OpenThread(val didId: String, val number: String) : DeepLink
 }
 
 /**

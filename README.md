@@ -13,6 +13,7 @@ Native Android softphone built with Jetpack Compose, Android Telecom ConnectionS
 - **Contacts integration** -- search and call from Android contacts
 - **Call history** -- recorded when a call ends, including missed, declined and transferred calls
 - **Voicemail** -- list, play, mark read and delete messages through the Aria PBX API
+- **Messages** -- business SMS/MMS on the numbers assigned to the seat: conversations with unread state, threads with delivery status and the server's error, photos, a segment counter, tap-to-call numbers, live refresh over the PBX event socket, and an SMS push that opens the thread
 - **Provisioning** -- scan an `aria://provision` QR code; the endpoints are shown for confirmation before sign-in, and signalling defaults to TLS
 - **On-device transcription** -- opt-in, with transcripts encrypted at rest (arm64 builds with `AI=1`)
 - **Splash and icon** -- AndroidX Splash Screen API; adaptive icon with monochrome (themed) layer
