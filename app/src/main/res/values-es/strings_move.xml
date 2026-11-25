@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="move_banner">Llamada con %1$s en %2$s</string>
+    <string name="move_here">Mover aquí</string>
+    <string name="move_dismiss">Descartar</string>
+    <string name="move_continue_here">Continuar esta llamada aquí</string>
+    <string name="move_incoming_from">Moviendo llamada desde %1$s</string>
+    <string name="move_unknown_device">otro dispositivo</string>
+    <string name="move_to">Mover a…</string>
+    <string name="move_sheet_title">Mover esta llamada a</string>
+    <string name="move_no_devices">No hay otros dispositivos conectados.</string>
+    <string name="move_loading">Buscando tus dispositivos…</string>
+    <string name="move_moved_to">Movida a %1$s</string>
+    <string name="move_started_at">Iniciada a las %1$s</string>
+    <string name="move_err_not_found">Esa llamada ya no está en tu cuenta.</string>
+    <string name="move_err_not_movable">Esta llamada no se puede mover ahora. Inténtalo cuando esté contestada y no se esté transfiriendo.</string>
+    <string name="move_err_device_unavailable">Ese dispositivo no está disponible. Comprueba que esté conectado e inténtalo de nuevo.</string>
+    <string name="move_err_failed">No se pudo mover la llamada. Sigue donde estaba.</string>
+    <string name="handoff_title">Traspaso de llamadas</string>
+    <string name="handoff_summary">Sugerir mover llamadas a este teléfono</string>
+    <string name="handoff_desc">Cuando una llamada está en otro de tus dispositivos, este teléfono puede ofrecerse a asumirla.</string>
+    <string name="handoff_enabled">Sugerir este teléfono para llamadas</string>
+    <string name="handoff_network">Misma red</string>
+    <string name="handoff_network_desc">Comparte un hash del rango de direcciones de esta red Wi-Fi, nunca su nombre, para que la centralita sepa que tus dispositivos están juntos. No necesita permiso de ubicación.</string>
+    <string name="handoff_ble">Proximidad por Bluetooth</string>
+    <string name="handoff_ble_desc">Desactivado por defecto. Mientras la app está abierta, este teléfono emite y escucha un código corto que cambia a menudo, para saber cuándo tus dispositivos están cerca. Requiere permisos de Bluetooth en Android 12 o posterior.</string>
+    <string name="handoff_ble_unsupported">La proximidad por Bluetooth requiere Android 12 o posterior.</string>
+    <string name="handoff_ble_denied">No se concedió el permiso de Bluetooth, así que la proximidad sigue desactivada.</string>
+    <string name="handoff_ble_permission_title">¿Permitir Bluetooth para la proximidad?</string>
+    <string name="handoff_ble_permission_body">Aria solo emite, escanea y se conecta por Bluetooth mientras esto esté activado y la app esté abierta.</string>
+    <string name="handoff_load_failed">No se pudieron cargar los ajustes de traspaso.</string>
+    <string name="handoff_channel">Traspaso de llamadas</string>
+    <string name="handoff_channel_desc">Ofrece continuar una llamada desde otro de tus dispositivos.</string>
+    <string name="handoff_notification_text">Llamada con %1$s en %2$s</string>
+</resources>

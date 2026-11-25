@@ -76,6 +76,8 @@ class AriaApplication : Application() {
         networkMonitor = NetworkMonitor(this)
         networkMonitor?.start()
         Log.i(TAG, "Network monitor started")
+        // Reports which network this phone is on, and when it leaves one during another device's call.
+        com.solutions5060.aria.proximity.ProximityMonitor.start(this)
 
         // Back in the foreground: build the engine if there is none (started
         // offline, or a push-only process), or confirm the registration.
@@ -88,11 +90,14 @@ class AriaApplication : Application() {
                     SelfServiceState.refresh(this@AriaApplication)
                     // Checks now, then every minute until the app goes to the background.
                     VoicemailMonitor.startPolling(this@AriaApplication)
+                    // Calls on the user's other devices, and Bluetooth proximity if switched on.
+                    com.solutions5060.aria.move.CallMoveDriver.start(this@AriaApplication)
                 }
             }
 
             override fun onStop(owner: LifecycleOwner) {
                 VoicemailMonitor.stopPolling()
+                com.solutions5060.aria.move.CallMoveDriver.stop(this@AriaApplication)
             }
         })
     }
@@ -152,6 +157,7 @@ class AriaApplication : Application() {
             description = text.getString(R.string.messages_channel_desc)
         }
 
+        com.solutions5060.aria.proximity.HandoffNotifier.createChannel(this)
         manager.createNotificationChannel(voicemailChannel)
         manager.createNotificationChannel(messagesChannel)
         manager.deleteNotificationChannel(LEGACY_CHANNEL_INCOMING_CALL)

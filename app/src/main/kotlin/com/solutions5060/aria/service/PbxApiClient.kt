@@ -281,6 +281,57 @@ class PbxApiClient(private val baseUrl: String) {
     fun extensionCalls(jwt: String, extensionId: String, limit: Int = 100): String =
         send(jwt, "GET", "/api/v1/extensions/${encode(extensionId)}/cdrs?limit=${limit.coerceIn(1, 200)}")
 
+    // ── Call move (call-move contract, 2026-11-25) ──────────────────────
+
+    /** GET /api/v1/me/calls/active — the user's answered calls, on any device. */
+    fun activeCalls(jwt: String): String = send(jwt, "GET", "/api/v1/me/calls/active")
+
+    /** GET /api/v1/me/devices — the user's registered devices. */
+    fun devices(jwt: String): String = send(jwt, "GET", "/api/v1/me/devices")
+
+    /** GET /api/v1/me/devices/current?sip_instance= — this client's own device. 404 when none matches. */
+    fun currentDevice(jwt: String, sipInstance: String): String =
+        send(jwt, "GET", "/api/v1/me/devices/current?sip_instance=${encode(sipInstance)}")
+
+    /**
+     * POST /api/v1/me/calls/{id}/move `{"to_registration_id"}` — 202 `{"move_id"}`.
+     * 404 not the user's call, 409 not answered or in a transfer, 422 device unknown or offline.
+     */
+    fun moveCall(jwt: String, callId: String, toRegistrationId: String): String {
+        val body = JSONObject().put("to_registration_id", toRegistrationId)
+        return send(jwt, "POST", "/api/v1/me/calls/${encode(callId)}/move", body.toString().toRequestBody(JSON_MEDIA))
+    }
+
+    // ── Call handoff and proximity ──────────────────────────────────────
+    // The proximity section of the contract was not available when this was
+    // written; these routes and bodies are this app's assumption and live
+    // only here (see ProximityJson).
+
+    /** GET /api/v1/me/call-handoff */
+    fun callHandoff(jwt: String): String = send(jwt, "GET", "/api/v1/me/call-handoff")
+
+    /** PUT /api/v1/me/call-handoff */
+    fun setCallHandoff(jwt: String, json: String): String =
+        send(jwt, "PUT", "/api/v1/me/call-handoff", json.toRequestBody(JSON_MEDIA))
+
+    /** POST /api/v1/me/proximity/network `{"registration_id","network_hash"}` — where this device is, as a hash. */
+    fun reportNetwork(jwt: String, json: String) {
+        send(jwt, "POST", "/api/v1/me/proximity/network", json.toRequestBody(JSON_MEDIA))
+    }
+
+    /** POST /api/v1/me/proximity/events — `left_network` while another device has a call. */
+    fun postProximityEvent(jwt: String, json: String) {
+        send(jwt, "POST", "/api/v1/me/proximity/events", json.toRequestBody(JSON_MEDIA))
+    }
+
+    /** GET /api/v1/me/proximity/ble-token — the rotating token to advertise. */
+    fun bleToken(jwt: String): String = send(jwt, "GET", "/api/v1/me/proximity/ble-token")
+
+    /** POST /api/v1/me/proximity/ble-seen `{"registration_id","tokens":[…]}` — tokens heard nearby. */
+    fun reportBleSeen(jwt: String, json: String) {
+        send(jwt, "POST", "/api/v1/me/proximity/ble-seen", json.toRequestBody(JSON_MEDIA))
+    }
+
     // ── Messaging (SMS/MMS inboxes) ─────────────────────────────────────
 
     /** GET .../messaging/inboxes — the numbers this seat may read and reply on. */

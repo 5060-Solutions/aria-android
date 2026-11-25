@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="move_banner">Anruf mit %1$s auf %2$s</string>
+    <string name="move_here">Hierher verschieben</string>
+    <string name="move_dismiss">Schließen</string>
+    <string name="move_continue_here">Anruf hier fortsetzen</string>
+    <string name="move_incoming_from">Anruf wird von %1$s verschoben</string>
+    <string name="move_unknown_device">einem anderen Gerät</string>
+    <string name="move_to">Verschieben nach…</string>
+    <string name="move_sheet_title">Anruf verschieben auf</string>
+    <string name="move_no_devices">Kein anderes Gerät ist online.</string>
+    <string name="move_loading">Geräte werden gesucht…</string>
+    <string name="move_moved_to">Verschoben auf %1$s</string>
+    <string name="move_started_at">Begonnen um %1$s</string>
+    <string name="move_err_not_found">Dieser Anruf gehört nicht mehr zu Ihrem Konto.</string>
+    <string name="move_err_not_movable">Dieser Anruf lässt sich gerade nicht verschieben. Versuchen Sie es erneut, sobald er angenommen ist und nicht weitergeleitet wird.</string>
+    <string name="move_err_device_unavailable">Dieses Gerät ist nicht verfügbar. Prüfen Sie, ob es online ist, und versuchen Sie es erneut.</string>
+    <string name="move_err_failed">Der Anruf konnte nicht verschoben werden. Er bleibt, wo er war.</string>
+    <string name="handoff_title">Anrufübergabe</string>
+    <string name="handoff_summary">Anrufe auf dieses Telefon vorschlagen</string>
+    <string name="handoff_desc">Wenn ein Anruf auf einem anderen Ihrer Geräte läuft, kann dieses Telefon anbieten, ihn zu übernehmen.</string>
+    <string name="handoff_enabled">Dieses Telefon für Anrufe vorschlagen</string>
+    <string name="handoff_network">Gleiches Netzwerk</string>
+    <string name="handoff_network_desc">Teilt einen Hash des Adressbereichs dieses WLANs, nie dessen Namen, damit die Telefonanlage erkennt, dass Ihre Geräte zusammen sind. Benötigt keine Standortberechtigung.</string>
+    <string name="handoff_ble">Bluetooth-Nähe</string>
+    <string name="handoff_ble_desc">Standardmäßig aus. Solange die App geöffnet ist, sendet und empfängt dieses Telefon einen kurzen, sich oft ändernden Code, um zu erkennen, wenn Ihre Geräte nah beieinander sind. Benötigt Bluetooth-Berechtigungen ab Android 12.</string>
+    <string name="handoff_ble_unsupported">Bluetooth-Nähe erfordert Android 12 oder neuer.</string>
+    <string name="handoff_ble_denied">Die Bluetooth-Berechtigung wurde nicht erteilt, daher bleibt die Nähe aus.</string>
+    <string name="handoff_ble_permission_title">Bluetooth für die Nähe erlauben?</string>
+    <string name="handoff_ble_permission_body">Aria sendet, scannt und verbindet sich nur dann per Bluetooth, wenn dies eingeschaltet und die App geöffnet ist.</string>
+    <string name="handoff_load_failed">Die Einstellungen zur Anrufübergabe konnten nicht geladen werden.</string>
+    <string name="handoff_channel">Anrufübergabe</string>
+    <string name="handoff_channel_desc">Bietet an, einen Anruf von einem anderen Ihrer Geräte fortzusetzen.</string>
+    <string name="handoff_notification_text">Anruf mit %1$s auf %2$s</string>
+</resources>

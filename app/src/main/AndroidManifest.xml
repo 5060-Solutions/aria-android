@@ -15,6 +15,14 @@
     <uses-permission android:name="android.permission.USE_FULL_SCREEN_INTENT" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.CAMERA" />
+    <!-- Bluetooth proximity (Settings > Call handoff, off by default). Requested at runtime only when
+         the user turns it on. SCAN is declared never to derive location. Android 12+ only. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_ADVERTISE" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH_SCAN"
+        android:usesPermissionFlags="neverForLocation" />
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-feature android:name="android.hardware.bluetooth_le" android:required="false" />
 
     <!-- Large screens: no orientation lock anywhere; tablets and foldables are fully supported. -->
     <uses-feature android:name="android.hardware.screen.portrait" android:required="false" />
@@ -149,6 +157,10 @@
         <!-- Incoming-call notification's Decline action -->
         <receiver
             android:name=".call.CallActionReceiver"
+            android:exported="false" />
+
+        <receiver
+            android:name=".proximity.HandoffActionReceiver"
             android:exported="false" />
 
     </application>
