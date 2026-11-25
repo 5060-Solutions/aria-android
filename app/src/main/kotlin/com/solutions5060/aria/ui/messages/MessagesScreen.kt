@@ -1,5 +1,6 @@
 package com.solutions5060.aria.ui.messages
 
+import androidx.activity.compose.BackHandler
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -95,6 +96,8 @@ fun MessagesScreen(
     val twoPane = isWideWindow()
     var openNumber by rememberSaveable { mutableStateOf(initialThread?.second) }
     var openDid by rememberSaveable { mutableStateOf(initialThread?.first) }
+    // Back closes the open conversation before it leaves the tab.
+    BackHandler(enabled = twoPane && openNumber != null && initialThread == null) { openNumber = null; openDid = null }
     fun open(did: String, number: String) {
         if (twoPane) {
             openDid = did

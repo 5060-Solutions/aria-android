@@ -1,5 +1,6 @@
 package com.solutions5060.aria.ui.history
 
+import androidx.activity.compose.BackHandler
 import android.text.format.DateFormat
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
@@ -119,6 +120,8 @@ fun HistoryScreen(onCall: (String) -> Unit) {
     }
 
     val twoPane = isWideWindow()
+    // Back closes the open call before it leaves the tab.
+    BackHandler(enabled = twoPane && info != null) { info = null }
     info?.takeIf { !twoPane }?.let { entry ->
         CallInfoSheet(
             entry = entry,

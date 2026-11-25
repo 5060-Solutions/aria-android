@@ -1,5 +1,6 @@
 package com.solutions5060.aria.ui.voicemail
 
+import androidx.activity.compose.BackHandler
 import android.util.Log
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.expandVertically
@@ -114,6 +115,8 @@ fun VoicemailScreen(onCall: (String) -> Unit) {
     var confirmDelete by remember { mutableStateOf<VoicemailMessage?>(null) }
     val player = remember { VoicemailPlayer(context) }
     val twoPane = isWideWindow()
+    // Back closes the open message before it leaves the tab.
+    BackHandler(enabled = twoPane && expandedId != null) { expandedId = null }
     val contacts by androidx.compose.runtime.produceState(emptyList<com.solutions5060.aria.ui.contacts.Contact>()) {
         value = withContext(Dispatchers.IO) {
             runCatching { com.solutions5060.aria.ui.contacts.ContactsSource.load(context) }.getOrDefault(emptyList())
