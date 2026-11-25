@@ -227,4 +227,6 @@
         <item quantity="many">%d más</item>
         <item quantity="other">%d más</item>
     </plurals>
+    <string name="ui_settings_language">Idioma</string>
+    <string name="ui_settings_language_system">Predeterminado del sistema</string>
 </resources>

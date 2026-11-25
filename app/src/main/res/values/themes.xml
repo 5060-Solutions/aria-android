@@ -5,7 +5,7 @@
         everything; this only sets the window background and accent so there
         is no white flash before the first frame. values-night overrides it.
     -->
-    <style name="Theme.Aria" parent="android:Theme.Material.Light.NoActionBar">
+    <style name="Theme.Aria" parent="Theme.AppCompat.Light.NoActionBar">
         <item name="android:windowBackground">@color/aria_background</item>
         <item name="android:colorAccent">@color/aria_primary</item>
     </style>

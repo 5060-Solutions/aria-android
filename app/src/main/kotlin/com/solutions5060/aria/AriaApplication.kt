@@ -91,15 +91,22 @@ class AriaApplication : Application() {
         super.onTerminate()
     }
 
-    private fun createNotificationChannels() {
+    /** A language change (system or in-app) renames the channels; the same id updates in place. */
+    override fun onConfigurationChanged(newConfig: android.content.res.Configuration) {
+        super.onConfigurationChanged(newConfig)
+        createNotificationChannels()
+    }
+
+    fun createNotificationChannels() {
+        val text = AppLanguage.localized(this)
         val manager = getSystemService(NotificationManager::class.java)
 
         val incomingChannel = NotificationChannel(
             CHANNEL_INCOMING_CALL,
-            getString(R.string.channel_incoming_calls),
+            text.getString(R.string.channel_incoming_calls),
             NotificationManager.IMPORTANCE_HIGH
         ).apply {
-            description = getString(R.string.channel_incoming_calls_desc)
+            description = text.getString(R.string.channel_incoming_calls_desc)
             setSound(
                 RingtoneManager.getDefaultUri(RingtoneManager.TYPE_RINGTONE),
                 AudioAttributes.Builder()
@@ -113,24 +120,24 @@ class AriaApplication : Application() {
 
         val activeChannel = NotificationChannel(
             CHANNEL_ACTIVE_CALL,
-            getString(R.string.channel_active_calls),
+            text.getString(R.string.channel_active_calls),
             NotificationManager.IMPORTANCE_LOW
         ).apply {
-            description = getString(R.string.channel_active_calls_desc)
+            description = text.getString(R.string.channel_active_calls_desc)
         }
 
         val voicemailChannel = NotificationChannel(
             VoicemailMonitor.CHANNEL,
-            getString(R.string.voicemail_channel_name),
+            text.getString(R.string.voicemail_channel_name),
             NotificationManager.IMPORTANCE_DEFAULT,
         )
 
         val messagesChannel = NotificationChannel(
             MessagingNotifier.CHANNEL,
-            getString(R.string.messages_channel_name),
+            text.getString(R.string.messages_channel_name),
             NotificationManager.IMPORTANCE_HIGH,
         ).apply {
-            description = getString(R.string.messages_channel_desc)
+            description = text.getString(R.string.messages_channel_desc)
         }
 
         manager.createNotificationChannel(voicemailChannel)

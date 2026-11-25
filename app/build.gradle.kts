@@ -122,6 +122,8 @@ dependencies {
 
     // Activity & Navigation
     implementation(libs.activity.compose)
+    // AppCompatActivity + AppCompatDelegate.setApplicationLocales (per-app language, API < 33 too)
+    implementation(libs.appcompat)
     implementation("androidx.navigation:navigation-compose:2.10.2")
 
     // Lifecycle

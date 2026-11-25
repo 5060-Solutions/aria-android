@@ -5,7 +5,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import android.view.WindowManager
-import androidx.activity.ComponentActivity
+import androidx.appcompat.app.AppCompatActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.compose.foundation.layout.fillMaxSize
@@ -27,7 +27,7 @@ import com.solutions5060.aria.ui.theme.AriaTheme
  * and finishes when the call is gone, so nothing else in the app, settings
  * and account details included, is ever reachable without unlocking.
  */
-class CallActivity : ComponentActivity() {
+class CallActivity : AppCompatActivity() {
 
     companion object {
         private const val TAG = "CallActivity"
