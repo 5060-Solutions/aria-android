@@ -6,6 +6,7 @@ import android.app.NotificationManager
 import android.media.AudioAttributes
 import android.media.RingtoneManager
 import android.util.Log
+import com.solutions5060.aria.service.DiagLog
 import android.content.Context
 import com.solutions5060.aria.security.SecurePrefs
 import com.solutions5060.aria.call.CallManager
@@ -48,6 +49,17 @@ class AriaApplication : Application() {
             this,
             getSharedPreferences("aria_prefs", Context.MODE_PRIVATE),
         )
+
+        if (BuildConfig.DEBUG) {
+            val file = java.io.File(filesDir, "diag.log")
+            DiagLog.fileSink = { line ->
+                // Rotate while running: at 512 KB the file becomes diag.log.1.
+                if (file.length() > DiagLog.MAX_FILE_BYTES) {
+                    file.renameTo(java.io.File(filesDir, "diag.log.1"))
+                }
+                file.appendText(line + "\n")
+            }
+        }
 
         // Initialize the Rust runtime (via UniFFI)
         initRuntime()

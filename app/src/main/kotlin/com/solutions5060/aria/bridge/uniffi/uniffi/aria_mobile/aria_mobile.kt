@@ -910,6 +910,10 @@ internal open class UniffiVTableCallbackInterfacePlatformAudioBridge(
 
 
 
+
+
+
+
 // A JNA Library to expose the extern-C FFI definitions.
 // This is an implementation detail which will be called internally by the public API.
 
@@ -1011,6 +1015,8 @@ internal interface UniffiLib : Library {
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_set_codec_preferences(`ptr`: Pointer,`codecs`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_set_dns_servers(`ptr`: Pointer,`servers`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_set_event_handler(`ptr`: Pointer,`handler`: Long,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_set_gateway_token(`ptr`: Pointer,`token`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
@@ -1030,6 +1036,8 @@ internal interface UniffiLib : Library {
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_transfer_call(`ptr`: Pointer,`callId`: RustBuffer.ByValue,`target`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_unregister_device(`ptr`: Pointer,`deviceId`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
+    ): Unit
+    fun uniffi_aria_mobile_core_fn_method_ariamobileengine_update_alert_token(`ptr`: Pointer,`deviceId`: RustBuffer.ByValue,`alertToken`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
     fun uniffi_aria_mobile_core_fn_method_ariamobileengine_update_push_token(`ptr`: Pointer,`deviceId`: RustBuffer.ByValue,`newToken`: RustBuffer.ByValue,uniffi_out_err: UniffiRustCallStatus, 
     ): Unit
@@ -1247,6 +1255,8 @@ internal interface UniffiLib : Library {
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_codec_preferences(
     ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_dns_servers(
+    ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_event_handler(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_gateway_token(
@@ -1266,6 +1276,8 @@ internal interface UniffiLib : Library {
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_transfer_call(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_unregister_device(
+    ): Short
+    fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_update_alert_token(
     ): Short
     fun uniffi_aria_mobile_core_checksum_method_ariamobileengine_update_push_token(
     ): Short
@@ -1433,6 +1445,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_codec_preferences() != 17660.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_dns_servers() != 24936.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_set_event_handler() != 11057.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
@@ -1461,6 +1476,9 @@ private fun uniffiCheckApiChecksums(lib: UniffiLib) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_unregister_device() != 61754.toShort()) {
+        throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
+    }
+    if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_update_alert_token() != 60687.toShort()) {
         throw RuntimeException("UniFFI API checksum mismatch: try cleaning and rebuilding your project")
     }
     if (lib.uniffi_aria_mobile_core_checksum_method_ariamobileengine_update_push_token() != 2578.toShort()) {
@@ -2234,6 +2252,15 @@ public interface AriaMobileEngineInterface {
     fun `setCodecPreferences`(`codecs`: List<AudioCodec>)
     
     /**
+     * The DNS servers of the active network (Android: `LinkProperties
+     * .dnsServers`, as IP address strings). The core resolves SRV through
+     * exactly these, never a built-in public resolver; call it before
+     * `notify_network_change` whenever the network changes. An empty list
+     * falls back to the system configuration.
+     */
+    fun `setDnsServers`(`servers`: List<kotlin.String>)
+    
+    /**
      * Set the event handler for receiving callbacks.
      */
     fun `setEventHandler`(`handler`: MobileEventHandler)
@@ -2354,6 +2381,12 @@ public interface AriaMobileEngineInterface {
      * Unregister this device from the push gateway.
      */
     fun `unregisterDevice`(`deviceId`: kotlin.String)
+    
+    /**
+     * Re-register with a new (or no) APNs alert token, e.g. after iOS hands
+     * out a different one.
+     */
+    fun `updateAlertToken`(`deviceId`: kotlin.String, `alertToken`: kotlin.String?)
     
     /**
      * Update the push token (e.g., after token refresh).
@@ -3091,6 +3124,24 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
 
     
     /**
+     * The DNS servers of the active network (Android: `LinkProperties
+     * .dnsServers`, as IP address strings). The core resolves SRV through
+     * exactly these, never a built-in public resolver; call it before
+     * `notify_network_change` whenever the network changes. An empty list
+     * falls back to the system configuration.
+     */override fun `setDnsServers`(`servers`: List<kotlin.String>)
+        = 
+    callWithPointer {
+    uniffiRustCall() { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_set_dns_servers(
+        it, FfiConverterSequenceString.lower(`servers`),_status)
+}
+    }
+    
+    
+
+    
+    /**
      * Set the event handler for receiving callbacks.
      */override fun `setEventHandler`(`handler`: MobileEventHandler)
         = 
@@ -3305,6 +3356,22 @@ open class AriaMobileEngine: Disposable, AutoCloseable, AriaMobileEngineInterfac
     uniffiRustCallWithError(MobileException) { _status ->
     UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_unregister_device(
         it, FfiConverterString.lower(`deviceId`),_status)
+}
+    }
+    
+    
+
+    
+    /**
+     * Re-register with a new (or no) APNs alert token, e.g. after iOS hands
+     * out a different one.
+     */
+    @Throws(MobileException::class)override fun `updateAlertToken`(`deviceId`: kotlin.String, `alertToken`: kotlin.String?)
+        = 
+    callWithPointer {
+    uniffiRustCallWithError(MobileException) { _status ->
+    UniffiLib.INSTANCE.uniffi_aria_mobile_core_fn_method_ariamobileengine_update_alert_token(
+        it, FfiConverterString.lower(`deviceId`),FfiConverterOptionalString.lower(`alertToken`),_status)
 }
     }
     
@@ -3772,6 +3839,12 @@ data class DeviceRegistration (
     var `platform`: kotlin.String, 
     var `pushToken`: kotlin.String, 
     var `bundleId`: kotlin.String?, 
+    /**
+     * iOS only: the regular APNs device token (hex), distinct from the PushKit
+     * token in `push_token`. The gateway sends text-message alerts only to
+     * devices that registered one. Android's FCM `push_token` serves both.
+     */
+    var `alertToken`: kotlin.String? = null, 
     var `sip`: SipCredentials
 ) {
     
@@ -3787,6 +3860,7 @@ public object FfiConverterTypeDeviceRegistration: FfiConverterRustBuffer<DeviceR
             FfiConverterString.read(buf),
             FfiConverterString.read(buf),
             FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
             FfiConverterTypeSipCredentials.read(buf),
         )
     }
@@ -3795,6 +3869,7 @@ public object FfiConverterTypeDeviceRegistration: FfiConverterRustBuffer<DeviceR
             FfiConverterString.allocationSize(value.`platform`) +
             FfiConverterString.allocationSize(value.`pushToken`) +
             FfiConverterOptionalString.allocationSize(value.`bundleId`) +
+            FfiConverterOptionalString.allocationSize(value.`alertToken`) +
             FfiConverterTypeSipCredentials.allocationSize(value.`sip`)
     )
 
@@ -3802,6 +3877,7 @@ public object FfiConverterTypeDeviceRegistration: FfiConverterRustBuffer<DeviceR
             FfiConverterString.write(value.`platform`, buf)
             FfiConverterString.write(value.`pushToken`, buf)
             FfiConverterOptionalString.write(value.`bundleId`, buf)
+            FfiConverterOptionalString.write(value.`alertToken`, buf)
             FfiConverterTypeSipCredentials.write(value.`sip`, buf)
     }
 }
