@@ -232,4 +232,10 @@
     <string name="voicemail_play_error">No se pudo reproducir este mensaje.</string>
     <string name="conn_err_registration_failed">Error de registro</string>
     <string name="conn_err_no_gateway_credentials">Faltan las credenciales del gateway</string>
+    <string name="ui_pane_conversation_title">Elige una conversación</string>
+    <string name="ui_pane_conversation_body">Elige una conversación de la lista para leerla aquí.</string>
+    <string name="ui_pane_voicemail_title">Elige un mensaje de voz</string>
+    <string name="ui_pane_voicemail_body">Elige un mensaje de la lista para reproducirlo aquí.</string>
+    <string name="ui_pane_call_title">Elige una llamada</string>
+    <string name="ui_pane_call_body">Elige una llamada de la lista para ver aquí sus detalles.</string>
 </resources>

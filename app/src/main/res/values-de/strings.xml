@@ -230,4 +230,10 @@
     <string name="voicemail_play_error">Diese Nachricht konnte nicht abgespielt werden.</string>
     <string name="conn_err_registration_failed">Registrierung fehlgeschlagen</string>
     <string name="conn_err_no_gateway_credentials">Keine Gateway-Zugangsdaten</string>
+    <string name="ui_pane_conversation_title">Unterhaltung auswählen</string>
+    <string name="ui_pane_conversation_body">Wähle links eine Unterhaltung, um sie hier zu lesen.</string>
+    <string name="ui_pane_voicemail_title">Voicemail auswählen</string>
+    <string name="ui_pane_voicemail_body">Wähle links eine Nachricht, um sie hier abzuspielen.</string>
+    <string name="ui_pane_call_title">Anruf auswählen</string>
+    <string name="ui_pane_call_body">Wähle links einen Anruf, um hier die Details zu sehen.</string>
 </resources>

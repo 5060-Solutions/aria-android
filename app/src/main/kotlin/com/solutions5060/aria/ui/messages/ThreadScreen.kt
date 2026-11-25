@@ -97,7 +97,7 @@ private class PendingPhoto(val photo: PreparedPhoto, var uploadedId: String? = n
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun ThreadScreen(didId: String, number: String, onBack: () -> Unit, onCall: (String) -> Unit) {
+fun ThreadScreen(didId: String, number: String, onBack: (() -> Unit)?, onCall: (String) -> Unit) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val snackbar = LocalSnackbarHostState.current

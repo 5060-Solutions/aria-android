@@ -433,6 +433,7 @@ private fun MainApp(
         }
     }
 
+    val wide = com.solutions5060.aria.ui.adaptive.isWideWindow()
     val activeCall = call
     if (activeCall != null) {
         ManagedCallScreen(activeCall)
@@ -441,7 +442,7 @@ private fun MainApp(
             currentRoute = currentRoute,
             voicemailUnread = fixture?.voicemail?.count { !it.read } ?: voicemailUnread,
             messagesUnread = messagesUnread,
-            showNavigation = currentRoute?.startsWith("messages/thread/") != true,
+            showNavigation = wide || currentRoute?.startsWith("messages/thread/") != true,
             onSelectTab = { tab ->
                 navController.navigate(tab.route) {
                     popUpTo(navController.graph.startDestinationId) { saveState = true }
@@ -487,6 +488,7 @@ private fun MainApp(
                         onOpenThread = { did, number ->
                             navController.navigate("messages/thread/$did/${android.net.Uri.encode(number)}")
                         },
+                        onCall = { placeCall(it) },
                     )
                 }
                 composable(
@@ -498,7 +500,14 @@ private fun MainApp(
                 ) { entry ->
                     val did = entry.arguments?.getString("did").orEmpty()
                     val number = entry.arguments?.getString("number").orEmpty()
-                    ThreadScreen(
+                    if (wide) {
+                        // Wide windows show the thread beside the list.
+                        MessagesScreen(
+                            onOpenThread = { _, _ -> },
+                            onCall = { placeCall(it) },
+                            initialThread = did to number,
+                        )
+                    } else ThreadScreen(
                         didId = did,
                         number = number,
                         onBack = { navController.popBackStack() },

@@ -233,4 +233,10 @@
     <string name="voicemail_play_error">Impossible de lire ce message.</string>
     <string name="conn_err_registration_failed">Échec de l\'enregistrement</string>
     <string name="conn_err_no_gateway_credentials">Aucun identifiant de passerelle</string>
+    <string name="ui_pane_conversation_title">Choisissez une conversation</string>
+    <string name="ui_pane_conversation_body">Choisissez une conversation dans la liste pour la lire ici.</string>
+    <string name="ui_pane_voicemail_title">Choisissez un message vocal</string>
+    <string name="ui_pane_voicemail_body">Choisissez un message dans la liste pour l\'écouter ici.</string>
+    <string name="ui_pane_call_title">Choisissez un appel</string>
+    <string name="ui_pane_call_body">Choisissez un appel dans la liste pour en voir les détails ici.</string>
 </resources>

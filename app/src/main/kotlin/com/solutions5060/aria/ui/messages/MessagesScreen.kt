@@ -1,5 +1,6 @@
 package com.solutions5060.aria.ui.messages
 
+import androidx.activity.compose.BackHandler
 import android.util.Log
 import androidx.compose.foundation.background
 import androidx.compose.foundation.horizontalScroll
@@ -47,6 +48,8 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.solutions5060.aria.R
+import com.solutions5060.aria.ui.adaptive.ListDetail
+import com.solutions5060.aria.ui.adaptive.isWideWindow
 import com.solutions5060.aria.fixtures.Fixtures
 import com.solutions5060.aria.messaging.Conversation
 import com.solutions5060.aria.messaging.Inbox
@@ -83,7 +86,27 @@ private const val TAG = "MessagesScreen"
  */
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)
 @Composable
-fun MessagesScreen(onOpenThread: (didId: String, number: String) -> Unit) {
+fun MessagesScreen(
+    onOpenThread: (didId: String, number: String) -> Unit,
+    onCall: (String) -> Unit = {},
+    /** A conversation to show at once on a wide window (a notification's link). */
+    initialThread: Pair<String, String>? = null,
+) {
+    // Medium and expanded windows: the conversation opens beside the list.
+    val twoPane = isWideWindow()
+    var openNumber by rememberSaveable { mutableStateOf(initialThread?.second) }
+    var openDid by rememberSaveable { mutableStateOf(initialThread?.first) }
+    // Back closes the open conversation before it leaves the tab.
+    BackHandler(enabled = twoPane && openNumber != null && initialThread == null) { openNumber = null; openDid = null }
+    fun open(did: String, number: String) {
+        if (twoPane) {
+            openDid = did
+            openNumber = number
+        } else {
+            onOpenThread(did, number)
+        }
+    }
+
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val repository = remember { if (Fixtures.current == null) MessagingRepository.from(context) else null }
@@ -141,12 +164,12 @@ fun MessagesScreen(onOpenThread: (didId: String, number: String) -> Unit) {
             onDismiss = { newDialog = false },
             onStart = { number ->
                 newDialog = false
-                onOpenThread(inbox.didId, number)
+                open(inbox.didId, number)
             },
         )
     }
 
-    AriaScreen(
+    val listPane: @Composable () -> Unit = { AriaScreen(
         title = stringResource(R.string.ui_tab_messages),
         subtitle = inbox?.number?.let { PhoneFormat.display(it) },
         actions = {
@@ -225,7 +248,8 @@ fun MessagesScreen(onOpenThread: (didId: String, number: String) -> Unit) {
                                 conversation = c,
                                 name = ContactsSource.match(c.remoteNumber, contacts)?.name ?: PhoneFormat.display(c.remoteNumber),
                                 unread = c.remoteNumber in unread,
-                                onClick = { onOpenThread(inbox.didId, c.remoteNumber) },
+                                onClick = { open(inbox.didId, c.remoteNumber) },
+                                selected = twoPane && c.remoteNumber == openNumber,
                                 modifier = Modifier.animateItem(),
                             )
                         }
@@ -233,6 +257,32 @@ fun MessagesScreen(onOpenThread: (didId: String, number: String) -> Unit) {
                 }
             }
         }
+    }
+    }
+
+    if (twoPane) {
+        ListDetail(
+            list = listPane,
+            detail = {
+                val number = openNumber
+                val did = openDid ?: inbox?.didId
+                if (number != null && did != null) {
+                    androidx.compose.runtime.key(did, number) {
+                        ThreadScreen(didId = did, number = number, onBack = null, onCall = onCall)
+                    }
+                } else {
+                    Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        EmptyState(
+                            icon = AriaIcons.Messages,
+                            title = stringResource(R.string.ui_pane_conversation_title),
+                            body = stringResource(R.string.ui_pane_conversation_body),
+                        )
+                    }
+                }
+            },
+        )
+    } else {
+        listPane()
     }
 }
 
@@ -243,13 +293,18 @@ private fun ConversationRow(
     unread: Boolean,
     onClick: () -> Unit,
     modifier: Modifier = Modifier,
+    selected: Boolean = false,
 ) {
     val unreadLabel = stringResource(R.string.messages_unread_marker)
     val preview = conversation.lastBody.ifBlank {
         if (conversation.lastHasMedia) stringResource(R.string.messages_last_photo) else ""
     }
     AriaListItem(
-        modifier = modifier,
+        modifier = if (selected) {
+            modifier.background(MaterialTheme.colorScheme.secondaryContainer, AriaShapes.contentRow)
+        } else {
+            modifier
+        },
         headline = name,
         emphasized = unread,
         supporting = preview,

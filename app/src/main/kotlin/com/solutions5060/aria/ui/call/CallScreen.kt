@@ -297,16 +297,9 @@ fun CallScreen(
         // Short screens and accessibility font sizes: one scrolling column, so
         // hang-up stays below the controls instead of being pushed over them.
         val compact = maxHeight < CompactCallHeight || isAccessibilityFontScale()
+        val landscape = maxWidth > maxHeight && maxWidth >= LandscapeCallWidth
         AmbientBlobs(ringing = incoming || phase == CallPhase.RINGING || phase == CallPhase.CONNECTING)
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .then(if (compact) Modifier.verticalScroll(rememberScrollState()) else Modifier)
-                .statusBarsPadding()
-                .navigationBarsPadding()
-                .padding(horizontal = Spacing.screen),
-            horizontalAlignment = Alignment.CenterHorizontally,
-        ) {
+        val topRow: @Composable () -> Unit = {
             // Top: SRTP lock, overflow.
             TopRow(
                 call = call,
@@ -337,6 +330,8 @@ fun CallScreen(
                 )
             }
 
+        }
+        val otherCalls: @Composable () -> Unit = {
             // Other call / conference
             Column(verticalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                 context.otherCalls.forEach { other ->
@@ -352,10 +347,11 @@ fun CallScreen(
                 }
             }
 
+        }
+        val identity: @Composable (Modifier) -> Unit = { identityModifier ->
             // Middle: who and how long
             Column(
-                modifier = Modifier
-                    .then(if (compact) Modifier else Modifier.weight(1f).verticalScroll(rememberScrollState()))
+                modifier = identityModifier
                     .fillMaxWidth()
                     .semantics { isTraversalGroup = true; traversalIndex = -1f },
                 horizontalAlignment = Alignment.CenterHorizontally,
@@ -390,6 +386,8 @@ fun CallScreen(
                 Spacer(Modifier.height(Spacing.xl))
             }
 
+        }
+        val announce: @Composable () -> Unit = {
             // Spoken announcements only (invisible).
             Text(
                 announcement,
@@ -399,6 +397,8 @@ fun CallScreen(
                     .semantics { liveRegion = LiveRegionMode.Polite },
             )
 
+        }
+        val controls: @Composable () -> Unit = {
             // Controls
             AnimatedVisibility(
                 visible = active,
@@ -432,6 +432,8 @@ fun CallScreen(
                 }
             }
 
+        }
+        val bottom: @Composable () -> Unit = {
             // Bottom actions
             AnimatedContent(
                 targetState = when {
@@ -445,7 +447,51 @@ fun CallScreen(
             ) { mode ->
                 BottomActions(mode, actions)
             }
+        }
+        if (landscape) {
+            // Wide and short (a phone on its side, a tablet): who is calling on the left, the controls on the right.
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .navigationBarsPadding()
+                    .padding(horizontal = Spacing.screen),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xl),
+            ) {
+                Column(Modifier.weight(1f).fillMaxHeight(), horizontalAlignment = Alignment.CenterHorizontally) {
+                    topRow()
+                    otherCalls()
+                    identity(Modifier.weight(1f).verticalScroll(rememberScrollState()))
+                    announce()
+                }
+                Column(
+                    Modifier.weight(1f).fillMaxHeight().verticalScroll(rememberScrollState()),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.Center,
+                ) {
+                    controls()
+                    bottom()
+                    Spacer(Modifier.height(Spacing.lg))
+                }
+            }
+        } else {
+        Column(
+            modifier = Modifier
+                .fillMaxSize()
+                .then(if (compact) Modifier.verticalScroll(rememberScrollState()) else Modifier)
+                .statusBarsPadding()
+                .navigationBarsPadding()
+                .padding(horizontal = Spacing.screen),
+            horizontalAlignment = Alignment.CenterHorizontally,
+        ) {
+            topRow()
+            otherCalls()
+            identity(if (compact) Modifier else Modifier.weight(1f).verticalScroll(rememberScrollState()))
+            announce()
+            controls()
+            bottom()
             Spacer(Modifier.height(Spacing.xl))
+        }
         }
         AriaSnackbarHost(
             snackbar,
@@ -459,6 +505,9 @@ fun CallScreen(
 
 /** Below this height the call screen scrolls as one column (DESIGN.md §7: never clip primary actions). */
 private val CompactCallHeight = 720.dp
+
+/** From this width, a window wider than tall lays the call out in two columns. */
+private val LandscapeCallWidth = 560.dp
 
 private enum class BottomMode { Incoming, Waiting, HangUp, Ended }
 
