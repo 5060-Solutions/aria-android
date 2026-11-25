@@ -87,3 +87,27 @@ class ConnectionReducerTest {
         assertEquals(ConnectionStatus.SIGNED_OUT, s.then(ConnectionEvent.Online(false), ConnectionEvent.Online(true)).status)
     }
 }
+
+class ConnectRetryTest {
+    @org.junit.Test
+    fun backoffDoublesAndIsCapped() {
+        val waits = (1..10).map { ConnectRetry.delayMs(it) }
+        org.junit.Assert.assertEquals(listOf(5_000L, 10_000L, 20_000L, 40_000L, 80_000L, 160_000L), waits.take(6))
+        org.junit.Assert.assertTrue(waits.drop(6).all { it == ConnectRetry.MAX_MS })
+        org.junit.Assert.assertEquals(ConnectRetry.MAX_MS, ConnectRetry.delayMs(1000))
+    }
+
+    @org.junit.Test
+    fun aFailedCoreRecoveryShowsReconnectingNotAnError() {
+        val failed = ConnectionReducer.reduce(
+            ConnectionState(status = ConnectionStatus.REGISTERED),
+            ConnectionEvent.CoreRegistration("failed", "timeout"),
+        )
+        org.junit.Assert.assertEquals(ConnectionStatus.ERROR, failed.status)
+        val retry = ConnectionReducer.reduce(failed, ConnectionEvent.CoreRegistration("recovering", null))
+        org.junit.Assert.assertEquals(ConnectionStatus.CONNECTING, retry.status)
+        org.junit.Assert.assertTrue(retry.recovering)
+        val back = ConnectionReducer.reduce(retry, ConnectionEvent.CoreRegistration("registered", null, "d1"))
+        org.junit.Assert.assertEquals(ConnectionStatus.REGISTERED, back.status)
+    }
+}

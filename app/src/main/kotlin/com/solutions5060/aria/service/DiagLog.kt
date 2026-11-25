@@ -23,8 +23,22 @@ object DiagLog {
     @Volatile
     internal var clock: () -> LocalTime = { LocalTime.now() }
 
+    /**
+     * Debug builds append every line to a file as well (see [AriaApplication]):
+     * some devices drop an app's own logcat output, and the file can be read
+     * with `adb shell run-as <package> cat files/diag.log`.
+     */
+    @Volatile
+    var fileSink: ((String) -> Unit)? = null
+
     fun log(area: String, message: String) {
         val line = "${clock().format(time)} $area: $message"
+        try {
+            android.util.Log.i("AriaDiag", line)
+            fileSink?.invoke(line)
+        } catch (_: Exception) {
+            // Unit tests (no Android) and a full disk: the in-memory log is the record.
+        }
         synchronized(this) {
             val next = _lines.value + line
             _lines.value = if (next.size > MAX_LINES) next.takeLast(MAX_LINES) else next

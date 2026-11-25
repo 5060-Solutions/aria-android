@@ -10,6 +10,8 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.update
+import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 import java.util.concurrent.atomic.AtomicBoolean
 
@@ -102,6 +104,19 @@ object ConnectionReducer {
     }
 }
 
+/** Capped exponential backoff for rebuilding an engine that could not be built. */
+object ConnectRetry {
+    const val FIRST_MS = 5_000L
+    const val MAX_MS = 300_000L
+
+    /** The wait before retry number [attempt] (1 is the first retry). */
+    fun delayMs(attempt: Int): Long {
+        if (attempt < 1) return FIRST_MS
+        val shift = (attempt - 1).coerceAtMost(16)
+        return (FIRST_MS shl shift).coerceAtMost(MAX_MS)
+    }
+}
+
 /**
  * The app's connection to the push gateway, for the status chip and the
  * connection sheet, and the one place that (re)builds the engine:
@@ -125,8 +140,15 @@ object GatewayConnection {
 
     private val inFlight = AtomicBoolean(false)
 
+    @Volatile
+    private var retryJob: Job? = null
+
+    @Volatile
+    private var attempts = 0
+
     fun dispatch(event: ConnectionEvent) {
-        DiagLog.log("gateway", describe(event))
+        val line = describe(event)
+        DiagLog.log("gateway", line)
         _state.update { ConnectionReducer.reduce(it, event) }
     }
 
@@ -155,6 +177,7 @@ object GatewayConnection {
         AppScope.scope.launch {
             try {
                 if (EngineManager.savedCredentials(appContext) == null) {
+                    cancelRetry()
                     dispatch(ConnectionEvent.NotProvisioned)
                     return@launch
                 }
@@ -164,7 +187,9 @@ object GatewayConnection {
                 }
                 if (engine == null) {
                     dispatch(ConnectionEvent.Failed(Txt.get(R.string.conn_err_no_gateway_credentials, "No gateway credentials")))
+                    scheduleRetry(appContext)
                 } else {
+                    cancelRetry()
                     dispatch(
                         ConnectionEvent.Registered(
                             gatewayUrl = EngineManager.gatewayUrl(appContext),
@@ -176,10 +201,34 @@ object GatewayConnection {
             } catch (e: Exception) {
                 Log.w(TAG, "Connect failed: ${e.javaClass.simpleName}")
                 dispatch(ConnectionEvent.Failed(e.message ?: e.javaClass.simpleName))
+                scheduleRetry(appContext)
             } finally {
                 inFlight.set(false)
             }
         }
+    }
+
+    /**
+     * The engine could not be built (offline at launch, gateway down, login
+     * refused): try again by itself, 5 s, 10 s, ... up to 5 min, until it is
+     * built or the user signs out. Network changes and the foreground try
+     * at once as well.
+     */
+    private fun scheduleRetry(context: Context) {
+        retryJob?.cancel()
+        val attempt = ++attempts
+        val wait = ConnectRetry.delayMs(attempt)
+        DiagLog.log("gateway", "retrying in ${wait / 1000}s (attempt $attempt)")
+        retryJob = AppScope.scope.launch {
+            delay(wait)
+            if (SipEngineHolder.engine == null) connect(context)
+        }
+    }
+
+    private fun cancelRetry() {
+        retryJob?.cancel()
+        retryJob = null
+        attempts = 0
     }
 
     /** The user asked to reconnect: log in afresh and replace the engine. */
@@ -192,14 +241,16 @@ object GatewayConnection {
      */
     fun onForeground(context: Context) {
         val engine = SipEngineHolder.engine
-        if (engine == null) connect(context) else notifyCore(engine)
+        DiagLog.log("gateway", "foreground, engine ${if (engine == null) "absent" else "present"}")
+        if (engine == null) connect(context) else notifyCore(context, engine)
     }
 
     /** The default network changed (debounced by [NetworkChangeDetector]). */
     fun onNetworkChanged(context: Context) {
         val engine = SipEngineHolder.engine
+        DiagLog.log("gateway", "network changed, engine ${if (engine == null) "absent" else "present"}")
         // Started offline, or the last attempt failed: try now.
-        if (engine == null) connect(context) else notifyCore(engine)
+        if (engine == null) connect(context) else notifyCore(context, engine)
     }
 
     /**
@@ -207,8 +258,10 @@ object GatewayConnection {
      * by themselves and are never ended by it; progress arrives as
      * `recovering`, then `registered`, `failed` or `auth_required`.
      */
-    private fun notifyCore(engine: uniffi.aria_mobile.AriaMobileEngine) {
+    private fun notifyCore(context: Context, engine: uniffi.aria_mobile.AriaMobileEngine) {
         try {
+            // SRV lookups go to the DNS servers of the network now in use.
+            DnsServers.apply(context, engine)
             engine.notifyNetworkChange()
         } catch (e: Exception) {
             Log.w(TAG, "notifyNetworkChange failed: ${e.javaClass.simpleName}")
@@ -239,5 +292,8 @@ object GatewayConnection {
         dispatch(ConnectionEvent.CoreRegistration(status, error, deviceId, node))
     }
 
-    fun onSignedOut() = dispatch(ConnectionEvent.SignedOut)
+    fun onSignedOut() {
+        cancelRetry()
+        dispatch(ConnectionEvent.SignedOut)
+    }
 }
