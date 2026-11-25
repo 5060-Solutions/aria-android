@@ -19,8 +19,13 @@ object DnsServers {
         return format(props.dnsServers.mapNotNull { it.hostAddress })
     }
 
-    /** Drop a scope id ("fe80::1%wlan0"). */
-    fun format(addresses: List<String>): List<String> = addresses.map { it.substringBefore('%') }
+    /**
+     * Keep a link-local server's scope ("fe80::1%wlan0"): the core resolves
+     * the interface to a scope id, and drops link-local servers when others
+     * exist. Not covered: Private DNS strict mode (DNS over TLS), whose
+     * hostname the network's servers are used in spite of.
+     */
+    fun format(addresses: List<String>): List<String> = addresses
 
     fun apply(context: Context, engine: AriaMobileEngine) {
         val servers = try {

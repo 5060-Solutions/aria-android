@@ -52,8 +52,13 @@ class AriaApplication : Application() {
 
         if (BuildConfig.DEBUG) {
             val file = java.io.File(filesDir, "diag.log")
-            if (file.length() > 512 * 1024) file.delete()
-            DiagLog.fileSink = { line -> file.appendText(line + "\n") }
+            DiagLog.fileSink = { line ->
+                // Rotate while running: at 512 KB the file becomes diag.log.1.
+                if (file.length() > DiagLog.MAX_FILE_BYTES) {
+                    file.renameTo(java.io.File(filesDir, "diag.log.1"))
+                }
+                file.appendText(line + "\n")
+            }
         }
 
         // Initialize the Rust runtime (via UniFFI)
