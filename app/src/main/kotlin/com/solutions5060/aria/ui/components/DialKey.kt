@@ -29,6 +29,7 @@ import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.role
+import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.unit.Dp
 import com.solutions5060.aria.R
 import com.solutions5060.aria.ui.theme.AriaType
@@ -56,8 +57,10 @@ fun dialKeyDescription(digit: String, letters: String, star: String, pound: Stri
     }
 }
 
+private fun TextStyle.scaled(factor: Float) = copy(fontSize = fontSize * factor, lineHeight = lineHeight * factor)
+
 /**
- * A 76 dp dial key. On press it morphs from a circle to a rounded square at
+ * A dial key, 76 dp by default and sized by the dial pad's space. On press it morphs from a circle to a rounded square at
  * 90 % size (Expressive spatial spring). Letters drop at accessibility font
  * sizes; the digit grows with font scale up to the key's size.
  */
@@ -88,6 +91,10 @@ fun DialKey(
         label = "keyColor",
     )
     val showLetters = !isAccessibilityFontScale()
+    // The text grows with the key (in sp, so the font scale still applies on top).
+    val textScale = (size.value / Sizes.dialKey.value).coerceIn(0.9f, 1.6f)
+    val digitStyle = AriaType.dialDigit.scaled(textScale)
+    val lettersStyle = AriaType.dialLetters.scaled(textScale)
     val description = dialKeyDescription(
         digit,
         letters,
@@ -120,9 +127,9 @@ fun DialKey(
     ) {
         CappedFontScale(max = 1.3f) {
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Text(digit, style = AriaType.dialDigit, color = colors.onSurface)
+                Text(digit, style = digitStyle, color = colors.onSurface)
                 if (showLetters && letters.isNotEmpty()) {
-                    Text(letters, style = AriaType.dialLetters, color = colors.onSurfaceVariant)
+                    Text(letters, style = lettersStyle, color = colors.onSurfaceVariant)
                 }
             }
         }

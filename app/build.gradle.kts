@@ -117,6 +117,8 @@ dependencies {
     implementation(libs.compose.ui.graphics)
     implementation(libs.compose.ui.tooling.preview)
     implementation(libs.compose.material3)
+    // currentWindowAdaptiveInfo(): the window size class for the rail and list-detail layouts.
+    implementation(libs.compose.material3.adaptive)
     implementation(libs.compose.material.icons.extended)
     implementation(libs.graphics.shapes)
 

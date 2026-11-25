@@ -4,6 +4,8 @@ import android.text.format.DateFormat
 import androidx.compose.animation.animateColorAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -36,6 +38,8 @@ import androidx.compose.ui.semantics.customActions
 import androidx.compose.ui.semantics.heading
 import androidx.compose.ui.semantics.semantics
 import com.solutions5060.aria.R
+import com.solutions5060.aria.ui.adaptive.ListDetail
+import com.solutions5060.aria.ui.adaptive.isWideWindow
 import com.solutions5060.aria.fixtures.Fixtures
 import com.solutions5060.aria.history.CallHistoryEntry
 import com.solutions5060.aria.history.CallHistoryRecorder
@@ -114,7 +118,8 @@ fun HistoryScreen(onCall: (String) -> Unit) {
         }
     }
 
-    info?.let { entry ->
+    val twoPane = isWideWindow()
+    info?.takeIf { !twoPane }?.let { entry ->
         CallInfoSheet(
             entry = entry,
             calls = HistoryGrouping.callsWith(entry, history),
@@ -126,7 +131,7 @@ fun HistoryScreen(onCall: (String) -> Unit) {
         )
     }
 
-    AriaScreen(title = stringResource(R.string.ui_tab_history)) { padding ->
+    val listPane: @Composable (PaddingValues) -> Unit = { padding ->
         Column(
             Modifier
                 .fillMaxSize()
@@ -183,6 +188,35 @@ fun HistoryScreen(onCall: (String) -> Unit) {
                     }
                 }
             }
+        }
+    }
+    AriaScreen(title = stringResource(R.string.ui_tab_history)) { padding ->
+        if (twoPane) {
+            ListDetail(
+                list = { listPane(PaddingValues()) },
+                detail = {
+                    val shown = info?.let { chosen -> history.firstOrNull { it.id == chosen.id } }
+                    if (shown != null) {
+                        Column(
+                            Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.screen),
+                            verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+                        ) {
+                            CallInfoContent(shown, HistoryGrouping.callsWith(shown, history)) { onCall(shown.dialNumber) }
+                        }
+                    } else {
+                        Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            EmptyState(
+                                icon = AriaIcons.History,
+                                title = stringResource(R.string.ui_pane_call_title),
+                                body = stringResource(R.string.ui_pane_call_body),
+                            )
+                        }
+                    }
+                },
+                modifier = Modifier.padding(padding),
+            )
+        } else {
+            listPane(padding)
         }
     }
 }

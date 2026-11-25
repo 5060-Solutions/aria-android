@@ -11,9 +11,11 @@ import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -57,11 +59,13 @@ import androidx.compose.ui.semantics.onClick
 import androidx.compose.ui.semantics.onLongClick
 import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
 import com.solutions5060.aria.R
 import com.solutions5060.aria.fixtures.Fixtures
 import com.solutions5060.aria.service.ConnectionState
+import com.solutions5060.aria.ui.adaptive.KeypadMetrics
 import com.solutions5060.aria.ui.components.AriaIcon
 import com.solutions5060.aria.ui.components.CallActionButton
 import com.solutions5060.aria.ui.components.CallActionKind
@@ -183,161 +187,242 @@ fun DialerScreen(
         }, onDismiss = { showConnection = false })
     }
 
-    Column(
+    BoxWithConstraints(
         modifier = Modifier
             .fillMaxSize()
-            .statusBarsPadding()
-            .padding(horizontal = Spacing.screen),
-        horizontalAlignment = Alignment.CenterHorizontally,
+            .statusBarsPadding(),
+        contentAlignment = Alignment.TopCenter,
     ) {
-        Spacer(Modifier.height(Spacing.xs))
-        StatusChip(
-            accountName = displayName.ifBlank { extensionNumber },
-            status = connection.toRegistrationStatus(),
-            dnd = dnd,
-            forwarding = forwarding,
-            onClick = { showConnection = true },
-        )
-
-        // Number display: fills the space above the keypad, number at its foot.
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .weight(1f)
-                .combinedClickable(
-                    interactionSource = null,
-                    indication = null,
-                    onClick = {},
-                    onLongClick = { showPaste = true },
-                )
-                .semantics {
-                    contentDescription = numberLabel + if (number.isEmpty()) "" else ", " + number.toList().joinToString(" ")
-                    liveRegion = LiveRegionMode.Polite
-                    onLongClick(label = pasteLabel) { showPaste = true; true }
-                },
-            contentAlignment = Alignment.BottomCenter,
-        ) {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                // Always one display line, so the layout does not jump; a faint hint when empty.
-                BasicText(
-                    text = if (number.isEmpty()) stringResource(R.string.ui_dialer_hint) else formatForDisplay(number),
-                    style = AriaType.display.copy(
-                        color = if (number.isEmpty()) {
-                            MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
-                        } else {
-                            MaterialTheme.colorScheme.onSurface
-                        },
-                        textAlign = TextAlign.Center,
-                    ),
-                    maxLines = 1,
-                    autoSize = TextAutoSize.StepBased(minFontSize = 22.sp, maxFontSize = AriaType.display.fontSize),
-                    modifier = Modifier.fillMaxWidth(),
-                )
-                Text(
-                    text = match?.name ?: "",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.primary,
-                    maxLines = 1,
-                    modifier = Modifier.padding(top = Spacing.xxs),
-                )
-                DropdownMenu(expanded = showPaste, onDismissRequest = { showPaste = false }) {
-                    DropdownMenuItem(
-                        text = { Text(stringResource(R.string.ui_dialer_paste)) },
-                        leadingIcon = { AriaIcon(AriaIcons.Copy, null) },
-                        onClick = {
-                            showPaste = false
-                            scope.launch {
-                                val text = clipboard.getClipEntry()?.clipData?.takeIf { it.itemCount > 0 }
-                                    ?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
-                                val digits = text.filter { it.isDigit() || it in "+*#" }
-                                if (digits.isNotEmpty()) number = digits
-                            }
-                        },
-                    )
-                }
-            }
+        // A phone on its side has the height of a small window but the width of a tablet:
+        // keypad beside the number, rather than a keypad a thumb wide.
+        val sideBySide = maxWidth > maxHeight && maxHeight < SideBySideHeight
+        val padW = Spacing.screen * 2
+        val columnWidth = minOf(maxWidth - padW, MaxKeypadWidth)
+        val metrics = if (sideBySide) {
+            KeypadMetrics.forSpace(
+                width = minOf((maxWidth - padW) / 2, MaxKeypadWidth),
+                height = maxHeight - Spacing.xs * 2,
+                rowSpacing = 0.dp,
+                callRow = false,
+            )
+        } else {
+            KeypadMetrics.forSpace(
+                width = columnWidth,
+                height = maxHeight - ChipAndDisplay - Spacing.xl - Spacing.lg,
+                rowSpacing = Spacing.xl,
+            )
+        }
+        // The number grows with the keys, to a limit; auto-size still shrinks it for a long one.
+        val displayStyle = AriaType.display.let {
+            val f = metrics.textScale.coerceIn(1f, 1.5f)
+            it.copy(fontSize = it.fontSize * f, lineHeight = it.lineHeight * f)
         }
 
-        Spacer(Modifier.height(Spacing.xl))
+        val chip: @Composable () -> Unit = {
+            StatusChip(
+                accountName = displayName.ifBlank { extensionNumber },
+                status = connection.toRegistrationStatus(),
+                dnd = dnd,
+                forwarding = forwarding,
+                onClick = { showConnection = true },
+            )
+        }
 
-        // Keypad
-        Column(verticalArrangement = Arrangement.spacedBy(Sizes.dialKeyGapV)) {
-            KeyRows.forEach { row ->
-                Row(horizontalArrangement = Arrangement.spacedBy(Sizes.dialKeyGapH)) {
-                    row.forEach { digit ->
-                        DialKey(
-                            digit = digit,
-                            onClick = { type(digit) },
-                            onLongClick = if (digit == "0") {
-                                {
-                                    number += "+"
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                }
+        // Number display: fills the space above the keypad, number at its foot.
+        val display: @Composable (Modifier) -> Unit = { modifier ->
+            Box(
+                modifier = modifier
+                    .fillMaxWidth()
+                    .combinedClickable(
+                        interactionSource = null,
+                        indication = null,
+                        onClick = {},
+                        onLongClick = { showPaste = true },
+                    )
+                    .semantics {
+                        contentDescription = numberLabel + if (number.isEmpty()) "" else ", " + number.toList().joinToString(" ")
+                        liveRegion = LiveRegionMode.Polite
+                        onLongClick(label = pasteLabel) { showPaste = true; true }
+                    },
+                contentAlignment = Alignment.BottomCenter,
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    // Always one display line, so the layout does not jump; a faint hint when empty.
+                    BasicText(
+                        text = if (number.isEmpty()) stringResource(R.string.ui_dialer_hint) else formatForDisplay(number),
+                        style = displayStyle.copy(
+                            color = if (number.isEmpty()) {
+                                MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
                             } else {
-                                null
+                                MaterialTheme.colorScheme.onSurface
                             },
-                            onLongClickLabel = if (digit == "0") stringResource(R.string.ui_dialer_add_plus) else null,
+                            textAlign = TextAlign.Center,
+                        ),
+                        maxLines = 1,
+                        autoSize = TextAutoSize.StepBased(minFontSize = 22.sp, maxFontSize = displayStyle.fontSize),
+                        modifier = Modifier.fillMaxWidth(),
+                    )
+                    Text(
+                        text = match?.name ?: "",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        maxLines = 1,
+                        modifier = Modifier.padding(top = Spacing.xxs),
+                    )
+                    DropdownMenu(expanded = showPaste, onDismissRequest = { showPaste = false }) {
+                        DropdownMenuItem(
+                            text = { Text(stringResource(R.string.ui_dialer_paste)) },
+                            leadingIcon = { AriaIcon(AriaIcons.Copy, null) },
+                            onClick = {
+                                showPaste = false
+                                scope.launch {
+                                    val text = clipboard.getClipEntry()?.clipData?.takeIf { it.itemCount > 0 }
+                                        ?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
+                                    val digits = text.filter { it.isDigit() || it in "+*#" }
+                                    if (digits.isNotEmpty()) number = digits
+                                }
+                            },
                         )
                     }
                 }
             }
         }
 
-        Spacer(Modifier.height(Spacing.xl))
-
-        // Call row: empty slot · Call · backspace (only with digits)
-        Row(
-            horizontalArrangement = Arrangement.spacedBy(Sizes.dialKeyGapH),
-            verticalAlignment = Alignment.CenterVertically,
-        ) {
-            Spacer(Modifier.width(Sizes.dialKey))
-            Box(Modifier.width(Sizes.dialKey), contentAlignment = Alignment.Center) {
-                CallActionButton(
-                    kind = CallActionKind.Call,
-                    onClick = ::call,
-                    contentDescription = stringResource(
-                        if (number.isEmpty()) R.string.ui_dialer_redial else R.string.ui_dialer_call,
-                    ),
-                    modifier = Modifier.widthIn(max = Sizes.dialKey),
-                )
-            }
-            Box(Modifier.width(Sizes.dialKey), contentAlignment = Alignment.Center) {
-                androidx.compose.animation.AnimatedVisibility(
-                    visible = number.isNotEmpty(),
-                    enter = fadeIn() + scaleIn(initialScale = 0.6f),
-                    exit = fadeOut() + scaleOut(targetScale = 0.6f),
-                ) {
-                    val deleteLabel = stringResource(R.string.ui_dialer_delete)
-                    val clearLabel = stringResource(R.string.ui_dialer_clear)
-                    Box(
-                        modifier = Modifier
-                            .size(Sizes.iconButton)
-                            .clip(CircleShape)
-                            .combinedClickable(
-                                interactionSource = null,
-                                indication = ripple(),
-                                role = Role.Button,
-                                onClick = {
-                                    number = number.dropLast(1)
-                                    haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+        val keypad: @Composable () -> Unit = {
+            Column(verticalArrangement = Arrangement.spacedBy(metrics.gapV)) {
+                KeyRows.forEach { row ->
+                    Row(horizontalArrangement = Arrangement.spacedBy(metrics.gapH)) {
+                        row.forEach { digit ->
+                            DialKey(
+                                digit = digit,
+                                onClick = { type(digit) },
+                                onLongClick = if (digit == "0") {
+                                    {
+                                        number += "+"
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    }
+                                } else {
+                                    null
                                 },
-                                onLongClick = {
-                                    number = ""
-                                    haptic.performHapticFeedback(HapticFeedbackType.LongPress)
-                                },
+                                onLongClickLabel = if (digit == "0") stringResource(R.string.ui_dialer_add_plus) else null,
+                                size = metrics.key,
                             )
-                            .clearAndSetSemantics {
-                                contentDescription = deleteLabel
-                                onLongClick(label = clearLabel) { number = ""; true }
-                                onClick(label = deleteLabel) { number = number.dropLast(1); true }
-                            },
-                        contentAlignment = Alignment.Center,
-                    ) {
-                        AriaIcon(AriaIcons.Backspace, null, tint = MaterialTheme.colorScheme.onSurfaceVariant)
+                        }
                     }
                 }
             }
         }
-        Spacer(Modifier.height(Spacing.lg))
+
+        // Call row: empty slot · Call · backspace (only with digits)
+        val callRow: @Composable () -> Unit = {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(metrics.gapH),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Spacer(Modifier.width(metrics.key))
+                Box(Modifier.width(metrics.key), contentAlignment = Alignment.Center) {
+                    CallActionButton(
+                        kind = CallActionKind.Call,
+                        onClick = ::call,
+                        contentDescription = stringResource(
+                            if (number.isEmpty()) R.string.ui_dialer_redial else R.string.ui_dialer_call,
+                        ),
+                        modifier = Modifier.widthIn(max = metrics.key),
+                        size = metrics.callAction,
+                        iconSize = Sizes.callActionIcon * metrics.textScale,
+                    )
+                }
+                Box(Modifier.width(metrics.key), contentAlignment = Alignment.Center) {
+                    androidx.compose.animation.AnimatedVisibility(
+                        visible = number.isNotEmpty(),
+                        enter = fadeIn() + scaleIn(initialScale = 0.6f),
+                        exit = fadeOut() + scaleOut(targetScale = 0.6f),
+                    ) {
+                        val deleteLabel = stringResource(R.string.ui_dialer_delete)
+                        val clearLabel = stringResource(R.string.ui_dialer_clear)
+                        Box(
+                            modifier = Modifier
+                                .size(metrics.backspace)
+                                .clip(CircleShape)
+                                .combinedClickable(
+                                    interactionSource = null,
+                                    indication = ripple(),
+                                    role = Role.Button,
+                                    onClick = {
+                                        number = number.dropLast(1)
+                                        haptic.performHapticFeedback(HapticFeedbackType.KeyboardTap)
+                                    },
+                                    onLongClick = {
+                                        number = ""
+                                        haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                    },
+                                )
+                                .clearAndSetSemantics {
+                                    contentDescription = deleteLabel
+                                    onLongClick(label = clearLabel) { number = ""; true }
+                                    onClick(label = deleteLabel) { number = number.dropLast(1); true }
+                                },
+                            contentAlignment = Alignment.Center,
+                        ) {
+                            AriaIcon(
+                                AriaIcons.Backspace,
+                                null,
+                                size = Sizes.icon * metrics.textScale.coerceAtMost(1.3f),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            )
+                        }
+                    }
+                }
+            }
+        }
+
+        if (sideBySide) {
+            Row(
+                Modifier
+                    .fillMaxSize()
+                    .padding(horizontal = Spacing.screen, vertical = Spacing.xs),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.xl),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                Column(
+                    Modifier.weight(1f).fillMaxHeight(),
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                ) {
+                    chip()
+                    display(Modifier.weight(1f))
+                    Spacer(Modifier.height(Spacing.sm))
+                    callRow()
+                    Spacer(Modifier.height(Spacing.xs))
+                }
+                Box(Modifier.weight(1f), contentAlignment = Alignment.Center) { keypad() }
+            }
+        } else {
+            Column(
+                modifier = Modifier
+                    .fillMaxHeight()
+                    .widthIn(max = MaxKeypadWidth + padW)
+                    .fillMaxWidth()
+                    .padding(horizontal = Spacing.screen),
+                horizontalAlignment = Alignment.CenterHorizontally,
+            ) {
+                Spacer(Modifier.height(Spacing.xs))
+                chip()
+                display(Modifier.weight(1f))
+                Spacer(Modifier.height(Spacing.xl))
+                keypad()
+                Spacer(Modifier.height(Spacing.xl))
+                callRow()
+                Spacer(Modifier.height(Spacing.lg))
+            }
+        }
     }
 }
+
+/** The widest the keypad column gets: a tablet gets a phone-width pad, not a stretched one. */
+private val MaxKeypadWidth = 440.dp
+
+/** Below this window height, a landscape window puts the keypad beside the number. */
+private val SideBySideHeight = 480.dp
+
+/** The status chip plus the least the number display needs above the keys. */
+private val ChipAndDisplay = 56.dp + 96.dp

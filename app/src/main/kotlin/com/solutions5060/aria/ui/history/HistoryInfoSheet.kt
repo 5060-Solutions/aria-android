@@ -3,6 +3,7 @@ package com.solutions5060.aria.ui.history
 import android.text.format.DateFormat
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
@@ -32,9 +33,21 @@ internal fun CallInfoSheet(
     onCall: () -> Unit,
     onDismiss: () -> Unit,
 ) {
+    CallSheet(title = stringResource(R.string.ui_history_call_details), onDismiss = onDismiss) {
+        CallInfoContent(entry, calls, onCall)
+    }
+}
+
+/** Who, their number and every call with them: in the sheet on a phone, the detail pane on a wide window. */
+@Composable
+internal fun ColumnScope.CallInfoContent(
+    entry: CallHistoryEntry,
+    calls: List<CallHistoryEntry>,
+    onCall: () -> Unit,
+) {
     val context = LocalContext.current
     val name = entry.remoteName ?: com.solutions5060.aria.ui.components.PhoneFormat.display(entry.dialNumber)
-    CallSheet(title = stringResource(R.string.ui_history_call_details), onDismiss = onDismiss) {
+    run {
         Row(
             horizontalArrangement = Arrangement.spacedBy(Spacing.md),
             verticalAlignment = Alignment.CenterVertically,

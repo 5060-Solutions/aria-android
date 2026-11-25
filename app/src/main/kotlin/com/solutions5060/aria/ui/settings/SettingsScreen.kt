@@ -6,6 +6,9 @@ import androidx.annotation.DrawableRes
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
@@ -256,197 +259,200 @@ fun SettingsScreen(
     val appearance by UiPreferences.appearance(context).collectAsState()
 
     AriaScreen(title = stringResource(R.string.ui_tab_settings)) { padding ->
-        Column(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(padding)
-                .verticalScroll(rememberScrollState())
-                .padding(horizontal = Spacing.screen)
-                .padding(bottom = Spacing.xxl),
-            verticalArrangement = Arrangement.spacedBy(Spacing.sectionGap),
-        ) {
-            // 1. Account
-            RowGroup(title = stringResource(R.string.ui_settings_account)) {
-                SectionCard {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.md),
-                    ) {
-                        Avatar(sipDisplayName.ifBlank { null }, key = sipUsername, size = 56.dp)
-                        Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-                            Text(
-                                sipDisplayName.ifBlank { stringResource(R.string.ui_settings_no_account) },
-                                style = MaterialTheme.typography.titleMedium,
-                            )
-                            if (sipUsername.isNotEmpty()) {
+        Box(Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.TopCenter) {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .widthIn(max = 640.dp)
+                    .fillMaxHeight()
+                    .verticalScroll(rememberScrollState())
+                    .padding(horizontal = Spacing.screen)
+                    .padding(bottom = Spacing.xxl),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sectionGap),
+            ) {
+                // 1. Account
+                RowGroup(title = stringResource(R.string.ui_settings_account)) {
+                    SectionCard {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(Spacing.md),
+                        ) {
+                            Avatar(sipDisplayName.ifBlank { null }, key = sipUsername, size = 56.dp)
+                            Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
                                 Text(
-                                    stringResource(R.string.ui_settings_ext_domain, sipUsername, sipDomain),
-                                    style = MaterialTheme.typography.bodyMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    sipDisplayName.ifBlank { stringResource(R.string.ui_settings_no_account) },
+                                    style = MaterialTheme.typography.titleMedium,
                                 )
-                            }
-                            Row(
-                                verticalAlignment = Alignment.CenterVertically,
-                                horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                                modifier = Modifier.padding(top = Spacing.xxs),
-                            ) {
-                                StatusDot(status)
-                                Text(
-                                    stringResource(status.label),
-                                    style = MaterialTheme.typography.labelLarge,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                )
+                                if (sipUsername.isNotEmpty()) {
+                                    Text(
+                                        stringResource(R.string.ui_settings_ext_domain, sipUsername, sipDomain),
+                                        style = MaterialTheme.typography.bodyMedium,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                                    modifier = Modifier.padding(top = Spacing.xxs),
+                                ) {
+                                    StatusDot(status)
+                                    Text(
+                                        stringResource(status.label),
+                                        style = MaterialTheme.typography.labelLarge,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    )
+                                }
                             }
                         }
                     }
+                    errorMessage?.let { error ->
+                        AriaListItem(
+                            headline = stringResource(R.string.ui_connection_last_error),
+                            supporting = error,
+                            leading = {
+                                RowIcon(
+                                    AriaIcons.Error,
+                                    tint = MaterialTheme.colorScheme.onErrorContainer,
+                                    container = MaterialTheme.colorScheme.errorContainer,
+                                )
+                            },
+                        )
+                    }
+                    if (sipUsername.isNotEmpty()) {
+                        AriaListItem(
+                            headline = stringResource(R.string.ui_settings_server),
+                            supporting = sipRegistrar.ifEmpty { sipDomain },
+                            leading = { RowIcon(AriaIcons.Server) },
+                        )
+                        AriaListItem(
+                            headline = stringResource(R.string.ui_connection_transport),
+                            supporting = "${sipTransport.uppercase()} · $sipPort",
+                            leading = { RowIcon(AriaIcons.Secure) },
+                        )
+                    }
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
+                        modifier = Modifier.padding(top = Spacing.xs),
+                    ) {
+                        if (!isRegistered || errorMessage != null) {
+                            AriaButton(
+                                text = stringResource(if (isRegistered) R.string.ui_connection_reconnect else R.string.ui_settings_connect),
+                                onClick = { performLogin() },
+                                style = AriaButtonStyle.Standard,
+                                icon = AriaIcons.Sync,
+                                loading = isConnecting,
+                                enabled = sipUsername.isNotEmpty() && sipDomain.isNotEmpty(),
+                                modifier = Modifier.weight(1f),
+                            )
+                        }
+                        AriaButton(
+                            text = stringResource(if (sipUsername.isEmpty()) R.string.ui_settings_scan_qr else R.string.ui_settings_rescan_qr),
+                            onClick = { showQRScanner = true },
+                            style = AriaButtonStyle.Standard,
+                            icon = AriaIcons.QrScan,
+                            modifier = Modifier.weight(1f),
+                        )
+                    }
                 }
-                errorMessage?.let { error ->
+
+                // 2. Calling (PBX: DND, forwarding, …)
+                callingSection()
+
+                // 4. Appearance
+                RowGroup(title = stringResource(R.string.ui_settings_appearance)) {
+                    SectionCard {
+                        Text(
+                            stringResource(R.string.ui_settings_theme),
+                            style = MaterialTheme.typography.bodyLarge,
+                            modifier = Modifier.padding(bottom = Spacing.sm),
+                        )
+                        ConnectedToggleGroup(
+                            options = listOf(
+                                ToggleOption(stringResource(R.string.ui_settings_theme_system)),
+                                ToggleOption(stringResource(R.string.ui_settings_theme_light)),
+                                ToggleOption(stringResource(R.string.ui_settings_theme_dark)),
+                            ),
+                            selectedIndex = appearance.themeMode.ordinal,
+                            onSelect = { UiPreferences.setThemeMode(context, ThemeMode.entries[it]) },
+                            fill = true,
+                            modifier = Modifier.fillMaxWidth(),
+                        )
+                    }
+                    LanguagePicker()
+                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                        AriaSwitchRow(
+                            headline = stringResource(R.string.ui_settings_wallpaper_colors),
+                            supporting = stringResource(R.string.ui_settings_wallpaper_colors_desc),
+                            checked = appearance.dynamicColor,
+                            onCheckedChange = { UiPreferences.setDynamicColor(context, it) },
+                            leading = { RowIcon(AriaIcons.Palette) },
+                        )
+                    }
+                }
+
+                // 5. Transcription
+                RowGroup(title = stringResource(R.string.ui_settings_transcription)) {
                     AriaListItem(
-                        headline = stringResource(R.string.ui_connection_last_error),
-                        supporting = error,
+                        headline = stringResource(R.string.ui_settings_on_device),
+                        supporting = stringResource(R.string.ui_settings_on_device_desc),
+                        leading = { RowIcon(AriaIcons.Transcribe) },
+                        trailing = { AriaIcon(AriaIcons.ChevronRight, null) },
+                        onClick = onOpenTranscription,
+                        shape = RowShape.Pill,
+                    )
+                    AriaListItem(
+                        headline = stringResource(R.string.ui_settings_transcripts),
+                        supporting = stringResource(R.string.ui_settings_transcripts_desc),
+                        leading = { RowIcon(AriaIcons.Transcript) },
+                        trailing = { AriaIcon(AriaIcons.ChevronRight, null) },
+                        onClick = onOpenTranscripts,
+                        shape = RowShape.Pill,
+                    )
+                }
+
+                // 6. Diagnostics
+                if (deviceId != null || extensionId != null) {
+                    RowGroup(title = stringResource(R.string.ui_settings_device)) {
+                        deviceId?.let { id ->
+                            CopyableIdRow(stringResource(R.string.ui_settings_device_id), id, AriaIcons.Diagnostics)
+                        }
+                        extensionId?.let { id ->
+                            CopyableIdRow(stringResource(R.string.ui_settings_extension_id), id, AriaIcons.Person)
+                        }
+                    }
+                }
+
+                // 7. About
+                RowGroup(title = stringResource(R.string.ui_settings_about)) {
+                    AriaListItem(
+                        headline = stringResource(R.string.ui_settings_version),
+                        supporting = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
+                        leading = { RowIcon(AriaIcons.Info) },
+                    )
+                    AriaListItem(
+                        headline = stringResource(R.string.ui_settings_developer),
+                        supporting = "5060 Solutions",
                         leading = {
-                            RowIcon(
-                                AriaIcons.Error,
-                                tint = MaterialTheme.colorScheme.onErrorContainer,
-                                container = MaterialTheme.colorScheme.errorContainer,
+                            Image(
+                                painterResource(R.drawable.ic_aria_logo),
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .size(Sizes.avatar)
+                                    .clip(AriaShapes.chip),
                             )
                         },
                     )
                 }
+
                 if (sipUsername.isNotEmpty()) {
-                    AriaListItem(
-                        headline = stringResource(R.string.ui_settings_server),
-                        supporting = sipRegistrar.ifEmpty { sipDomain },
-                        leading = { RowIcon(AriaIcons.Server) },
-                    )
-                    AriaListItem(
-                        headline = stringResource(R.string.ui_connection_transport),
-                        supporting = "${sipTransport.uppercase()} · $sipPort",
-                        leading = { RowIcon(AriaIcons.Secure) },
-                    )
-                }
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
-                    modifier = Modifier.padding(top = Spacing.xs),
-                ) {
-                    if (!isRegistered || errorMessage != null) {
-                        AriaButton(
-                            text = stringResource(if (isRegistered) R.string.ui_connection_reconnect else R.string.ui_settings_connect),
-                            onClick = { performLogin() },
-                            style = AriaButtonStyle.Standard,
-                            icon = AriaIcons.Sync,
-                            loading = isConnecting,
-                            enabled = sipUsername.isNotEmpty() && sipDomain.isNotEmpty(),
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
                     AriaButton(
-                        text = stringResource(if (sipUsername.isEmpty()) R.string.ui_settings_scan_qr else R.string.ui_settings_rescan_qr),
-                        onClick = { showQRScanner = true },
-                        style = AriaButtonStyle.Standard,
-                        icon = AriaIcons.QrScan,
-                        modifier = Modifier.weight(1f),
-                    )
-                }
-            }
-
-            // 2. Calling (PBX: DND, forwarding, …)
-            callingSection()
-
-            // 4. Appearance
-            RowGroup(title = stringResource(R.string.ui_settings_appearance)) {
-                SectionCard {
-                    Text(
-                        stringResource(R.string.ui_settings_theme),
-                        style = MaterialTheme.typography.bodyLarge,
-                        modifier = Modifier.padding(bottom = Spacing.sm),
-                    )
-                    ConnectedToggleGroup(
-                        options = listOf(
-                            ToggleOption(stringResource(R.string.ui_settings_theme_system)),
-                            ToggleOption(stringResource(R.string.ui_settings_theme_light)),
-                            ToggleOption(stringResource(R.string.ui_settings_theme_dark)),
-                        ),
-                        selectedIndex = appearance.themeMode.ordinal,
-                        onSelect = { UiPreferences.setThemeMode(context, ThemeMode.entries[it]) },
-                        fill = true,
+                        text = stringResource(R.string.ui_settings_sign_out),
+                        onClick = { showSignOutDialog = true },
+                        style = AriaButtonStyle.Destructive,
+                        icon = AriaIcons.Logout,
                         modifier = Modifier.fillMaxWidth(),
                     )
                 }
-                LanguagePicker()
-                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                    AriaSwitchRow(
-                        headline = stringResource(R.string.ui_settings_wallpaper_colors),
-                        supporting = stringResource(R.string.ui_settings_wallpaper_colors_desc),
-                        checked = appearance.dynamicColor,
-                        onCheckedChange = { UiPreferences.setDynamicColor(context, it) },
-                        leading = { RowIcon(AriaIcons.Palette) },
-                    )
-                }
-            }
-
-            // 5. Transcription
-            RowGroup(title = stringResource(R.string.ui_settings_transcription)) {
-                AriaListItem(
-                    headline = stringResource(R.string.ui_settings_on_device),
-                    supporting = stringResource(R.string.ui_settings_on_device_desc),
-                    leading = { RowIcon(AriaIcons.Transcribe) },
-                    trailing = { AriaIcon(AriaIcons.ChevronRight, null) },
-                    onClick = onOpenTranscription,
-                    shape = RowShape.Pill,
-                )
-                AriaListItem(
-                    headline = stringResource(R.string.ui_settings_transcripts),
-                    supporting = stringResource(R.string.ui_settings_transcripts_desc),
-                    leading = { RowIcon(AriaIcons.Transcript) },
-                    trailing = { AriaIcon(AriaIcons.ChevronRight, null) },
-                    onClick = onOpenTranscripts,
-                    shape = RowShape.Pill,
-                )
-            }
-
-            // 6. Diagnostics
-            if (deviceId != null || extensionId != null) {
-                RowGroup(title = stringResource(R.string.ui_settings_device)) {
-                    deviceId?.let { id ->
-                        CopyableIdRow(stringResource(R.string.ui_settings_device_id), id, AriaIcons.Diagnostics)
-                    }
-                    extensionId?.let { id ->
-                        CopyableIdRow(stringResource(R.string.ui_settings_extension_id), id, AriaIcons.Person)
-                    }
-                }
-            }
-
-            // 7. About
-            RowGroup(title = stringResource(R.string.ui_settings_about)) {
-                AriaListItem(
-                    headline = stringResource(R.string.ui_settings_version),
-                    supporting = "${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
-                    leading = { RowIcon(AriaIcons.Info) },
-                )
-                AriaListItem(
-                    headline = stringResource(R.string.ui_settings_developer),
-                    supporting = "5060 Solutions",
-                    leading = {
-                        Image(
-                            painterResource(R.drawable.ic_aria_logo),
-                            contentDescription = null,
-                            modifier = Modifier
-                                .size(Sizes.avatar)
-                                .clip(AriaShapes.chip),
-                        )
-                    },
-                )
-            }
-
-            if (sipUsername.isNotEmpty()) {
-                AriaButton(
-                    text = stringResource(R.string.ui_settings_sign_out),
-                    onClick = { showSignOutDialog = true },
-                    style = AriaButtonStyle.Destructive,
-                    icon = AriaIcons.Logout,
-                    modifier = Modifier.fillMaxWidth(),
-                )
             }
         }
     }

@@ -256,4 +256,10 @@
     <string name="voicemail_play_error">Could not play this message.</string>
     <string name="conn_err_registration_failed">Registration failed</string>
     <string name="conn_err_no_gateway_credentials">No gateway credentials</string>
+    <string name="ui_pane_conversation_title">Select a conversation</string>
+    <string name="ui_pane_conversation_body">Choose a conversation from the list to read it here.</string>
+    <string name="ui_pane_voicemail_title">Select a voicemail</string>
+    <string name="ui_pane_voicemail_body">Choose a message from the list to play it here.</string>
+    <string name="ui_pane_call_title">Select a call</string>
+    <string name="ui_pane_call_body">Choose a call from the list to see its details here.</string>
 </resources>

@@ -8,6 +8,8 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -49,6 +51,8 @@ import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.semantics.stateDescription
 import androidx.compose.ui.unit.dp
 import com.solutions5060.aria.R
+import com.solutions5060.aria.ui.adaptive.ListDetail
+import com.solutions5060.aria.ui.adaptive.isWideWindow
 import com.solutions5060.aria.fixtures.Fixtures
 import com.solutions5060.aria.ui.SecureWindow
 import com.solutions5060.aria.ui.components.AriaButton
@@ -109,6 +113,7 @@ fun VoicemailScreen(onCall: (String) -> Unit) {
     var expandedId by rememberSaveable { mutableStateOf(fixture?.voicemailPlayingId) }
     var confirmDelete by remember { mutableStateOf<VoicemailMessage?>(null) }
     val player = remember { VoicemailPlayer(context) }
+    val twoPane = isWideWindow()
     val contacts by androidx.compose.runtime.produceState(emptyList<com.solutions5060.aria.ui.contacts.Contact>()) {
         value = withContext(Dispatchers.IO) {
             runCatching { com.solutions5060.aria.ui.contacts.ContactsSource.load(context) }.getOrDefault(emptyList())
@@ -225,11 +230,7 @@ fun VoicemailScreen(onCall: (String) -> Unit) {
             }
         },
     ) { padding ->
-        Box(
-            Modifier
-                .fillMaxSize()
-                .padding(padding),
-        ) {
+        val listContent: @Composable () -> Unit = {
             when {
                 loading && messages.isEmpty() -> LoadingIndicatorCentered()
                 messages.isEmpty() -> Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
@@ -259,9 +260,10 @@ fun VoicemailScreen(onCall: (String) -> Unit) {
                         VoicemailRow(
                             message = message,
                             caller = callerName(message, contacts),
-                            expanded = expandedId == message.id,
+                            expanded = expandedId == message.id && !twoPane,
+                            selected = expandedId == message.id && twoPane,
                             player = player,
-                            onToggle = { expandedId = if (expandedId == message.id) null else message.id },
+                            onToggle = { expandedId = if (expandedId == message.id && !twoPane) null else message.id },
                             onPlayPause = { playPause(message) },
                             onCallBack = { onCall(VoicemailJson.displayCaller(message.callerId)) },
                             onDelete = { confirmDelete = message },
@@ -269,6 +271,46 @@ fun VoicemailScreen(onCall: (String) -> Unit) {
                         )
                     }
                 }
+            }
+        }
+        Box(Modifier.fillMaxSize().padding(padding)) {
+            val selected = messages.firstOrNull { it.id == expandedId }
+            if (twoPane && messages.isNotEmpty()) {
+                ListDetail(
+                    list = listContent,
+                    detail = {
+                        if (selected != null) {
+                            Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(Spacing.screen)) {
+                                Text(
+                                    callerName(selected, contacts),
+                                    style = MaterialTheme.typography.headlineMedium,
+                                    modifier = Modifier.padding(bottom = Spacing.xxs),
+                                )
+                                Text(
+                                    "${VoicemailJson.displayDuration(selected.durationSecs)} · ${VoicemailJson.displayTime(selected.createdAt)}",
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.padding(bottom = Spacing.md),
+                                )
+                                VoicemailDetail(
+                                    selected, player, player.messageId == selected.id,
+                                    onCallBack = { onCall(VoicemailJson.displayCaller(selected.callerId)) },
+                                    onDelete = { confirmDelete = selected },
+                                )
+                            }
+                        } else {
+                            Box(Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                                EmptyState(
+                                    icon = AriaIcons.Voicemail,
+                                    title = stringResource(R.string.ui_pane_voicemail_title),
+                                    body = stringResource(R.string.ui_pane_voicemail_body),
+                                )
+                            }
+                        }
+                    },
+                )
+            } else {
+                listContent()
             }
         }
     }
@@ -286,6 +328,7 @@ private fun VoicemailRow(
     message: VoicemailMessage,
     caller: String,
     expanded: Boolean,
+    selected: Boolean,
     player: VoicemailPlayer,
     onToggle: () -> Unit,
     onPlayPause: () -> Unit,
@@ -298,7 +341,11 @@ private fun VoicemailRow(
     val preparing = loaded && player.preparing
     val unreadLabel = stringResource(R.string.ui_voicemail_unread_marker)
     AriaListItem(
-        modifier = modifier,
+        modifier = if (selected) {
+            modifier.background(MaterialTheme.colorScheme.secondaryContainer, AriaShapes.contentRow)
+        } else {
+            modifier
+        },
         headline = caller,
         emphasized = !message.read,
         supporting = "${VoicemailJson.displayDuration(message.durationSecs)} · ${VoicemailJson.displayTime(message.createdAt)}",
@@ -330,47 +377,63 @@ private fun VoicemailRow(
                 enter = fadeIn() + expandVertically(),
                 exit = fadeOut() + shrinkVertically(),
             ) {
-                Column(
+                VoicemailDetail(
+                    message, player, loaded, onCallBack, onDelete,
                     Modifier.padding(start = Spacing.md, end = Spacing.md, bottom = Spacing.md),
-                    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
-                ) {
-                    InlinePlayer(message, player, loaded)
-                    message.transcription?.let { text ->
-                        Surface(shape = AriaShapes.contentRow, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
-                            Column(Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
-                                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
-                                    AriaIcon(AriaIcons.Transcript, null, size = Sizes.iconSmall, tint = MaterialTheme.colorScheme.tertiary)
-                                    Text(
-                                        stringResource(R.string.ui_voicemail_transcription),
-                                        style = MaterialTheme.typography.labelLarge,
-                                        color = MaterialTheme.colorScheme.tertiary,
-                                    )
-                                }
-                                Text(text, style = MaterialTheme.typography.bodyLarge)
-                            }
-                        }
-                    }
-                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
-                        AriaButton(
-                            stringResource(R.string.ui_history_call_back),
-                            onCallBack,
-                            style = AriaButtonStyle.Standard,
-                            icon = AriaIcons.Call,
-                            modifier = Modifier.weight(1f),
-                        )
-                        AriaButton(
-                            stringResource(R.string.ui_delete),
-                            onDelete,
-                            style = AriaButtonStyle.Destructive,
-                            size = AriaButtonSize.Secondary,
-                            icon = AriaIcons.Delete,
-                            modifier = Modifier.weight(1f),
-                        )
-                    }
-                }
+                )
             }
         },
     )
+}
+
+/** The player, transcript and actions of one message: under its row on a phone, in the detail pane beside the list. */
+@Composable
+private fun VoicemailDetail(
+    message: VoicemailMessage,
+    player: VoicemailPlayer,
+    loaded: Boolean,
+    onCallBack: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    Column(
+        modifier,
+    verticalArrangement = Arrangement.spacedBy(Spacing.sm),
+) {
+    InlinePlayer(message, player, loaded)
+    message.transcription?.let { text ->
+        Surface(shape = AriaShapes.contentRow, color = MaterialTheme.colorScheme.surfaceContainerHigh) {
+            Column(Modifier.padding(Spacing.md), verticalArrangement = Arrangement.spacedBy(Spacing.xxs)) {
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs), verticalAlignment = Alignment.CenterVertically) {
+                    AriaIcon(AriaIcons.Transcript, null, size = Sizes.iconSmall, tint = MaterialTheme.colorScheme.tertiary)
+                    Text(
+                        stringResource(R.string.ui_voicemail_transcription),
+                        style = MaterialTheme.typography.labelLarge,
+                        color = MaterialTheme.colorScheme.tertiary,
+                    )
+                }
+                Text(text, style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+    }
+    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
+        AriaButton(
+            stringResource(R.string.ui_history_call_back),
+            onCallBack,
+            style = AriaButtonStyle.Standard,
+            icon = AriaIcons.Call,
+            modifier = Modifier.weight(1f),
+        )
+        AriaButton(
+            stringResource(R.string.ui_delete),
+            onDelete,
+            style = AriaButtonStyle.Destructive,
+            size = AriaButtonSize.Secondary,
+            icon = AriaIcons.Delete,
+            modifier = Modifier.weight(1f),
+        )
+    }
+}
 }
 
 @OptIn(ExperimentalMaterial3ExpressiveApi::class)

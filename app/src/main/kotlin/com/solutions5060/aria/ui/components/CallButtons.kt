@@ -174,6 +174,7 @@ fun CallActionButton(
     @DrawableRes icon: Int? = null,
     enabled: Boolean = true,
     size: Dp = Sizes.callAction,
+    iconSize: Dp = Sizes.callActionIcon,
 ) {
     val aria = LocalAriaColors.current
     val (container, content) = when (kind) {
@@ -218,7 +219,7 @@ fun CallActionButton(
                 },
             contentAlignment = Alignment.Center,
         ) {
-            AriaIcon(glyph, contentDescription = null, size = Sizes.callActionIcon, tint = content)
+            AriaIcon(glyph, contentDescription = null, size = iconSize, tint = content)
         }
         if (label != null) {
             Text(

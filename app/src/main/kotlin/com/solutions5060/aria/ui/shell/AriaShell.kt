@@ -7,7 +7,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.WindowInsets
@@ -36,6 +35,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.foundation.text.TextAutoSize
 import com.solutions5060.aria.R
+import com.solutions5060.aria.ui.adaptive.isWideWindow
 import com.solutions5060.aria.ui.components.AriaIcon
 import com.solutions5060.aria.ui.components.AriaSnackbarHost
 import com.solutions5060.aria.ui.components.LocalSnackbarHostState
@@ -66,9 +66,6 @@ enum class AriaTab(
     }
 }
 
-/** Width from which the rail replaces the bottom bar (Material window size class "medium"). */
-private val RailBreakpoint = 600.dp
-
 /**
  * The signed-in shell: an Expressive navigation bar (a rail on wide
  * screens) with an unread badge on Voicemail, the app snackbar host, and
@@ -89,8 +86,8 @@ fun AriaShell(
 ) {
     val selected = AriaTab.forRoute(currentRoute)
     val snackbar = LocalSnackbarHostState.current
-    BoxWithConstraints(modifier.fillMaxSize()) {
-        val wide = maxWidth >= RailBreakpoint
+    Box(modifier.fillMaxSize()) {
+        val wide = isWideWindow()
         if (wide) {
             Row(Modifier.fillMaxSize()) {
                 if (showNavigation) WideNavigationRail(
