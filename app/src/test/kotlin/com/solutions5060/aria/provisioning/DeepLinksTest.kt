@@ -70,7 +70,7 @@ class OpenTabTest {
     @org.junit.Test
     fun onlyKnownTabsAreRoutes() {
         org.junit.Assert.assertEquals(
-            setOf("dialer", "contacts", "history", "voicemail", "settings"),
+            setOf("dialer", "contacts", "history", "voicemail", "messages", "settings"),
             DeepLink.OpenTab.ROUTES,
         )
     }

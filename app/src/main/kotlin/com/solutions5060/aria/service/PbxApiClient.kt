@@ -281,25 +281,115 @@ class PbxApiClient(private val baseUrl: String) {
     fun extensionCalls(jwt: String, extensionId: String, limit: Int = 100): String =
         send(jwt, "GET", "/api/v1/extensions/${encode(extensionId)}/cdrs?limit=${limit.coerceIn(1, 200)}")
 
+    // ── Messaging (SMS/MMS inboxes) ─────────────────────────────────────
+
+    /** GET .../messaging/inboxes — the numbers this seat may read and reply on. */
+    fun messagingInboxes(jwt: String, tenantId: String): String =
+        send(jwt, "GET", "/api/v1/tenants/${encode(tenantId)}/messaging/inboxes")
+
+    /** GET .../inboxes/{did}/conversations — most recent first. */
+    fun messagingConversations(jwt: String, tenantId: String, didId: String, limit: Int = 100): String =
+        send(jwt, "GET", "${messagingPath(tenantId, didId)}/conversations?limit=${limit.coerceIn(1, 500)}")
+
+    /** GET .../inboxes/{did}/conversations/{number} — newest first. */
+    fun messagingThread(jwt: String, tenantId: String, didId: String, number: String, limit: Int = 100): String =
+        send(jwt, "GET", "${messagingPath(tenantId, didId)}/conversations/${encode(number)}?limit=${limit.coerceIn(1, 500)}")
+
+    /**
+     * POST .../inboxes/{did}/messages — 201 with the message, 200 for a retry
+     * of [idempotencyKey]. 422 names `to` or `body`; 502 is a carrier refusal
+     * (the message stays in the thread as failed).
+     */
+    fun sendMessage(
+        jwt: String,
+        tenantId: String,
+        didId: String,
+        to: String,
+        body: String,
+        attachmentIds: List<String>,
+        idempotencyKey: String,
+    ): String {
+        val json = JSONObject().put("to", to).put("body", body)
+        if (attachmentIds.isNotEmpty()) json.put("attachment_ids", org.json.JSONArray(attachmentIds))
+        return send(
+            jwt,
+            "POST",
+            "${messagingPath(tenantId, didId)}/messages",
+            json.toString().toRequestBody(JSON_MEDIA),
+            headers = mapOf("Idempotency-Key" to idempotencyKey),
+        )
+    }
+
+    /** POST .../messaging/attachments (multipart `file`) — an unsent upload to name in `attachment_ids`. */
+    fun uploadMessageAttachment(jwt: String, tenantId: String, bytes: ByteArray, contentType: String, fileName: String): String {
+        val form = okhttp3.MultipartBody.Builder()
+            .setType(okhttp3.MultipartBody.FORM)
+            .addFormDataPart("file", fileName, bytes.toRequestBody(contentType.toMediaType()))
+            .build()
+        return send(jwt, "POST", "/api/v1/tenants/${encode(tenantId)}/messaging/attachments", form)
+    }
+
+    /** GET .../messaging/attachments/{id} — the file's bytes. */
+    fun messageAttachmentBytes(jwt: String, tenantId: String, attachmentId: String): ByteArray {
+        val request = Request.Builder()
+            .url("$baseUrl/api/v1/tenants/${encode(tenantId)}/messaging/attachments/${encode(attachmentId)}")
+            .addHeader("Authorization", "Bearer $jwt")
+            .get()
+            .build()
+        client.newCall(request).execute().use { response ->
+            if (!response.isSuccessful) throw httpException(response.code, response.body?.string().orEmpty())
+            return response.body?.bytes() ?: ByteArray(0)
+        }
+    }
+
+    /** The event socket's URL (`wss://…/api/v1/ws`); the session goes in the Authorization header. */
+    fun eventSocketRequest(jwt: String): Request {
+        val http = baseUrl.trimEnd('/')
+        val ws = when {
+            http.startsWith("https://") -> "wss://" + http.removePrefix("https://")
+            http.startsWith("http://") -> "ws://" + http.removePrefix("http://")
+            else -> http
+        }
+        return Request.Builder().url("$ws/api/v1/ws").addHeader("Authorization", "Bearer $jwt").build()
+    }
+
+    /** The shared client, for the event socket (no read timeout, pings to keep it open). */
+    fun socketClient(): OkHttpClient = client.newBuilder()
+        .readTimeout(0, TimeUnit.MILLISECONDS)
+        .pingInterval(30, TimeUnit.SECONDS)
+        .build()
+
+    private fun messagingPath(tenantId: String, didId: String) =
+        "/api/v1/tenants/${encode(tenantId)}/messaging/inboxes/${encode(didId)}"
+
+    private fun httpException(code: Int, responseBody: String): HttpException {
+        val error = try {
+            JSONObject(responseBody)
+        } catch (_: Exception) {
+            null
+        }
+        val errorMsg = error?.optString("error", "")?.ifEmpty { null } ?: "HTTP $code"
+        return HttpException(code, errorMsg, field = error?.optString("field", "")?.ifEmpty { null })
+    }
+
     private fun encode(value: String): String = java.net.URLEncoder.encode(value, "UTF-8")
 
-    private fun send(jwt: String, method: String, path: String, body: okhttp3.RequestBody? = null): String {
+    private fun send(
+        jwt: String,
+        method: String,
+        path: String,
+        body: okhttp3.RequestBody? = null,
+        headers: Map<String, String> = emptyMap(),
+    ): String {
         val request = Request.Builder()
             .url("$baseUrl$path")
             .addHeader("Authorization", "Bearer $jwt")
+            .apply { headers.forEach { (k, v) -> addHeader(k, v) } }
             .method(method, body)
             .build()
         client.newCall(request).execute().use { response ->
             val responseBody = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                val error = try {
-                    JSONObject(responseBody)
-                } catch (_: Exception) {
-                    null
-                }
-                val errorMsg = error?.optString("error", "")?.ifEmpty { null } ?: "HTTP ${response.code}"
-                throw HttpException(response.code, errorMsg, field = error?.optString("field", "")?.ifEmpty { null })
-            }
+            if (!response.isSuccessful) throw httpException(response.code, responseBody)
             return responseBody
         }
     }

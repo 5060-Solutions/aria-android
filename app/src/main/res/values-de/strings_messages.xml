@@ -1,0 +1,49 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Messages tab (business SMS/MMS). -->
+<resources>
+    <string name="ui_tab_messages">Nachrichten</string>
+    <string name="messages_channel_name">Nachrichten</string>
+    <string name="messages_channel_desc">SMS und MMS auf Ihren Geschäftsnummern</string>
+    <string name="messages_notification_title">Neue Nachricht von %1$s</string>
+    <string name="messages_notification_body">Öffnen, um zu lesen und zu antworten</string>
+    <string name="messages_notification_public">Neue Nachricht</string>
+    <string name="messages_empty_title">Keine Unterhaltungen</string>
+    <string name="messages_empty_body">Nachrichten von und an Ihre Geschäftsnummern erscheinen hier.</string>
+    <string name="messages_no_inbox_title">Keine Nachrichtennummern</string>
+    <string name="messages_no_inbox_body">Bitten Sie einen Administrator, Ihnen eine Nachrichtennummer zuzuweisen.</string>
+    <string name="messages_unavailable">Nachrichten nicht verfügbar</string>
+    <string name="messages_new">Neue Nachricht</string>
+    <string name="messages_new_number_label">Telefonnummer</string>
+    <string name="messages_new_invalid">Geben Sie eine gültige Nummer ein, zum Beispiel +1 303 555 0100</string>
+    <string name="messages_new_start">Starten</string>
+    <string name="messages_inbox_picker">Senden von</string>
+    <string name="messages_inbox_off">Nachrichten sind für diese Nummer ausgeschaltet. Sie können den Verlauf lesen.</string>
+    <string name="messages_last_photo">Foto</string>
+    <string name="messages_unread_marker">Ungelesen</string>
+    <string name="messages_input_hint">Nachricht</string>
+    <string name="messages_send">Senden</string>
+    <string name="messages_attach_photo">Foto hinzufügen</string>
+    <string name="messages_remove_photo">Foto entfernen</string>
+    <string name="messages_photo_attached">Foto angehängt</string>
+    <string name="messages_one_photo">Ein Foto pro Nachricht</string>
+    <string name="messages_counter">%1$d/%2$d · %3$s</string>
+    <string name="messages_too_long">Zu lang: Eine Nachricht darf höchstens %1$d Segmente haben</string>
+    <string name="messages_status_pending">Wird gesendet …</string>
+    <string name="messages_status_sent">Gesendet</string>
+    <string name="messages_status_delivered">Zugestellt</string>
+    <string name="messages_status_failed">Nicht zugestellt</string>
+    <string name="messages_status_failed_with">Nicht zugestellt: %1$s</string>
+    <string name="messages_opted_out">Diese Person hat mit STOP geantwortet. Bis sie START antwortet, kann ihr nichts gesendet werden.</string>
+    <string name="messages_short_code">Dies ist eine Kurzwahlnummer. Antworten sind nicht möglich.</string>
+    <string name="messages_call">%1$s anrufen</string>
+    <string name="messages_send_failed">Nachricht nicht gesendet</string>
+    <string name="messages_load_failed">Nachrichten konnten nicht geladen werden</string>
+    <string name="messages_photo_too_large">Dieses Foto ist zu groß zum Senden</string>
+    <string name="messages_photo_failed">Das Foto konnte nicht gelesen werden</string>
+    <string name="messages_attachment_file">Anhang (%1$s)</string>
+    <string name="messages_photo_description">Foto in der Nachricht</string>
+    <plurals name="messages_segments">
+        <item quantity="one">%1$d Segment</item>
+        <item quantity="other">%1$d Segmente</item>
+    </plurals>
+</resources>

@@ -49,6 +49,9 @@ class AriaFirebaseMessagingService : FirebaseMessagingService() {
 
         val data = message.data
 
+        // A text message (`type: sms`): a notification that opens the thread.
+        if (com.solutions5060.aria.messaging.MessagingNotifier.handlePush(applicationContext, data)) return
+
         // Check if this is a VoIP call notification
         // Gateway sends camelCase keys
         val callToken = data["callToken"] ?: data["call_token"] ?: return
