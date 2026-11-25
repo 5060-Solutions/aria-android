@@ -64,7 +64,10 @@ object MessagingNotifier {
         if (EngineManager.savedCredentials(context) == null) return true
         val tenant = context.getSharedPreferences(EngineManager.PREFS_NAME, Context.MODE_PRIVATE)
             .getString("tenant_id", null)
-        if (!tenant.isNullOrEmpty() && !tenant.equals(push.tenantId, ignoreCase = true)) return true
+        if (!accepts(push, tenant, KnownInboxes.load(context))) {
+            Log.w(TAG, "SMS push for an unknown tenant or inbox ignored")
+            return true
+        }
         notify(context, push)
         return true
     }
@@ -109,10 +112,20 @@ object MessagingNotifier {
         }
     }
 
-    /** The thread a notification intent names, or null when either extra is missing or malformed. */
-    fun threadLink(didId: String?, number: String?): com.solutions5060.aria.provisioning.DeepLink.OpenThread? {
+    /**
+     * Fails closed: the push must carry the signed-in tenant (none stored
+     * means no match) and an inbox this seat has loaded from the PBX.
+     */
+    fun accepts(push: SmsPush, storedTenant: String?, knownInboxes: Set<String>): Boolean =
+        !storedTenant.isNullOrEmpty() &&
+            storedTenant.equals(push.tenantId, ignoreCase = true) &&
+            push.didId.lowercase() in knownInboxes
+
+    /** The thread a notification intent names, or null when an extra is missing, malformed or names no known inbox. */
+    fun threadLink(didId: String?, number: String?, knownInboxes: Set<String>): com.solutions5060.aria.provisioning.DeepLink.OpenThread? {
         if (didId == null || number == null) return null
         if (!SmsPush.isUuid(didId) || !MessageNumbers.isRemoteNumber(number)) return null
+        if (didId.lowercase() !in knownInboxes) return null
         return com.solutions5060.aria.provisioning.DeepLink.OpenThread(didId.lowercase(), number)
     }
 
@@ -120,4 +133,17 @@ object MessagingNotifier {
     fun cancel(context: Context, didId: String, number: String) {
         context.getSystemService(NotificationManager::class.java)?.cancel("$didId|$number".hashCode())
     }
+}
+
+/** The ids of the inboxes this seat last loaded from the PBX; what a push or an intent may name. */
+object KnownInboxes {
+    private const val KEY = "known_inboxes"
+
+    fun save(context: Context, ids: Collection<String>) {
+        context.getSharedPreferences("aria_messages", Context.MODE_PRIVATE).edit()
+            .putStringSet(KEY, ids.map { it.lowercase() }.toSet()).apply()
+    }
+
+    fun load(context: Context): Set<String> =
+        context.getSharedPreferences("aria_messages", Context.MODE_PRIVATE).getStringSet(KEY, emptySet()).orEmpty()
 }

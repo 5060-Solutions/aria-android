@@ -38,16 +38,26 @@ object MessagesMonitor {
         }
     }
 
-    /** Recounts the unread conversations across the seat's inboxes. */
+    private var counts: Map<String, Int> = emptyMap()
+
+    /** Recounts the unread conversations across the seat's inboxes; an inbox that fails keeps its last count. */
     suspend fun refresh(context: Context) {
         val app = context.applicationContext
         val total = withContext(Dispatchers.IO) {
             try {
                 val repository = MessagingRepository.from(app)
                 val tracker = UnreadTracker(PrefsUnreadStore(app))
-                repository.inboxes().filter { it.enabled }.sumOf { inbox ->
-                    tracker.observe(inbox.didId, repository.conversations(inbox.didId)).size
+                val enabled = repository.inboxes().filter { it.enabled }
+                val fresh = mutableMapOf<String, Int>()
+                enabled.forEach { inbox ->
+                    try {
+                        fresh[inbox.didId] = tracker.observe(inbox.didId, repository.conversations(inbox.didId)).size
+                    } catch (e: Exception) {
+                        Log.d(TAG, "Unread check failed for one inbox: ${e.javaClass.simpleName}")
+                    }
                 }
+                counts = UnreadCounts.merge(counts, enabled.map { it.didId }, fresh)
+                counts.values.sum()
             } catch (e: Exception) {
                 // Offline, no inbox, or a PBX without messaging: keep the last count.
                 Log.d(TAG, "Unread check failed: ${e.javaClass.simpleName}")
@@ -59,6 +69,7 @@ object MessagesMonitor {
 
     fun clear(context: Context) {
         _unread.value = 0
+        counts = emptyMap()
         context.getSharedPreferences("aria_messages", Context.MODE_PRIVATE).edit().clear().apply()
     }
 }

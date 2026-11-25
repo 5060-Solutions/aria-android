@@ -163,14 +163,64 @@ class MessagingTest {
     }
 
     @Test
-    fun `a notification names a thread only with a valid id and number`() {
+    fun `a notification names a thread only with a valid id, number and a known inbox`() {
+        val known = setOf(did)
         assertEquals(
             com.solutions5060.aria.provisioning.DeepLink.OpenThread(did, "+13035550111"),
-            MessagingNotifier.threadLink(did, "+13035550111"),
+            MessagingNotifier.threadLink(did, "+13035550111", known),
         )
-        assertNull(MessagingNotifier.threadLink("x", "+13035550111"))
-        assertNull(MessagingNotifier.threadLink(did, "a/b"))
-        assertNull(MessagingNotifier.threadLink(null, null))
+        assertNull(MessagingNotifier.threadLink(did, "+13035550111", emptySet()))
+        assertNull(MessagingNotifier.threadLink(did, "+13035550111", setOf(tenant)))
+        assertNull(MessagingNotifier.threadLink("x", "+13035550111", known))
+        assertNull(MessagingNotifier.threadLink(did, "a/b", known))
+        assertNull(MessagingNotifier.threadLink(null, null, known))
+    }
+
+    @Test
+    fun `a push fails closed without a stored tenant and for an unknown inbox`() {
+        val push = SmsPush(tenant, did, "+13035550111", message)
+        assertTrue(MessagingNotifier.accepts(push, tenant, setOf(did)))
+        assertFalse(MessagingNotifier.accepts(push, null, setOf(did)))
+        assertFalse(MessagingNotifier.accepts(push, "", setOf(did)))
+        assertFalse(MessagingNotifier.accepts(push, message, setOf(did)))
+        assertFalse(MessagingNotifier.accepts(push, tenant, emptySet()))
+    }
+
+    @Test
+    fun `only strict E164 is dialled`() {
+        assertTrue(MessageNumbers.isE164("+13035550111"))
+        assertFalse(MessageNumbers.isE164("12345"))
+        assertFalse(MessageNumbers.isE164("3035550111"))
+    }
+
+    @Test
+    fun `a draft keeps its key until a definite answer`() {
+        val store = object : UnreadTracker.Store {
+            val map = mutableMapOf<String, String>()
+            override fun get(key: String) = map[key]
+            override fun put(key: String, value: String) {
+                map[key] = value
+            }
+        }
+        var n = 0
+        val keys = DraftKeys(store) { "k${n++}" }
+        assertEquals("k0", keys.current(did, "+13035550111"))
+        // A new instance (process death, another screen) sees the same key.
+        assertEquals("k0", DraftKeys(store) { "other" }.current(did, "+13035550111"))
+        assertEquals("k1", keys.current(did, "+13035550222"))
+        keys.renew(did, "+13035550111")
+        assertEquals("k2", keys.current(did, "+13035550111"))
+        assertTrue(DraftKeys.isDefinite(201))
+        assertTrue(DraftKeys.isDefinite(422))
+        assertFalse(DraftKeys.isDefinite(502))
+        assertFalse(DraftKeys.isDefinite(500))
+        assertFalse(DraftKeys.isDefinite(null))
+    }
+
+    @Test
+    fun `an inbox that fails keeps its last unread count`() {
+        val merged = UnreadCounts.merge(mapOf("a" to 2, "b" to 3, "gone" to 9), listOf("a", "b", "c"), mapOf("a" to 1))
+        assertEquals(mapOf("a" to 1, "b" to 3, "c" to 0), merged)
     }
 
     @Test

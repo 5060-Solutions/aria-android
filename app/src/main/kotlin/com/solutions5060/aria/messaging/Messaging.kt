@@ -182,6 +182,9 @@ object MessageNumbers {
     private val E164 = Regex("^\\+[1-9][0-9]{7,14}$")
     private val SHORT_CODE = Regex("^[0-9]{3,7}$")
 
+    /** Strict E.164, the only form that is dialled from a thread. */
+    fun isE164(value: String): Boolean = E164.matches(value)
+
     /** A number that may be dialled or texted back from a push or link: E.164 or a short code. */
     fun isRemoteNumber(value: String): Boolean = E164.matches(value) || SHORT_CODE.matches(value)
 
@@ -296,4 +299,36 @@ object PhoneLinks {
         if (digits.length !in 7..15) return@mapNotNull null
         Match(m.range.first, m.range.last + 1, (if (m.value.startsWith("+")) "+" else "") + digits)
     }.toList()
+}
+
+/**
+ * The Idempotency-Key of the draft being sent in one thread. It lives in
+ * [store] (the app's preferences), so it survives leaving the screen,
+ * rotation and process death: a retry of a send that got no definite answer
+ * reuses it and the PBX does not send twice.
+ */
+class DraftKeys(private val store: UnreadTracker.Store, private val newKey: () -> String = { java.util.UUID.randomUUID().toString() }) {
+    private fun key(didId: String, number: String) = "idem|$didId|$number"
+
+    fun current(didId: String, number: String): String =
+        store.get(key(didId, number)) ?: newKey().also { store.put(key(didId, number), it) }
+
+    fun renew(didId: String, number: String) {
+        store.put(key(didId, number), newKey())
+    }
+
+    companion object {
+        /**
+         * Whether an answer ends the draft: the PBX took the message (2xx) or
+         * rejected it (4xx). A 5xx, or no answer at all ([code] null), may have
+         * been stored, so the key is kept for the retry.
+         */
+        fun isDefinite(code: Int?): Boolean = code != null && code in 200..499
+    }
+}
+
+/** The unread count across inboxes, where one inbox that fails to load keeps its last good count. */
+object UnreadCounts {
+    fun merge(previous: Map<String, Int>, inboxes: List<String>, fresh: Map<String, Int>): Map<String, Int> =
+        inboxes.associateWith { fresh[it] ?: previous[it] ?: 0 }
 }

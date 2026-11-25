@@ -57,6 +57,7 @@ import androidx.lifecycle.compose.LifecycleEventEffect
 import com.solutions5060.aria.R
 import com.solutions5060.aria.fixtures.Fixtures
 import com.solutions5060.aria.messaging.DeliveryStatus
+import com.solutions5060.aria.messaging.DraftKeys
 import com.solutions5060.aria.messaging.Inbox
 import com.solutions5060.aria.messaging.MessageNumbers
 import com.solutions5060.aria.messaging.MessagesMonitor
@@ -82,7 +83,6 @@ import com.solutions5060.aria.ui.theme.Spacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.UUID
 
 private const val TAG = "ThreadScreen"
 
@@ -115,7 +115,7 @@ fun ThreadScreen(didId: String, number: String, onBack: () -> Unit, onCall: (Str
     var photo by remember { mutableStateOf<PendingPhoto?>(null) }
     var sending by remember { mutableStateOf(false) }
     // The sender's own key: kept across a request that got no answer (so a retry is not sent twice), new after any answer.
-    var idempotencyKey by remember { mutableStateOf(UUID.randomUUID().toString()) }
+    val draftKeys = remember { DraftKeys(PrefsUnreadStore(context)) }
     val listState = rememberLazyListState()
 
     val contactName by produceState<String?>(null, number) {
@@ -164,7 +164,7 @@ fun ThreadScreen(didId: String, number: String, onBack: () -> Unit, onCall: (Str
     }
 
     val canSend = inbox?.enabled == true && thread?.optedOut != true && !MessageNumbers.isShortCode(number)
-    val count = SmsSegments.count(text)
+    val count = SmsSegments.count(text.trim())
 
     fun send() {
         if (repository == null || sending) return
@@ -177,16 +177,16 @@ fun ThreadScreen(didId: String, number: String, onBack: () -> Unit, onCall: (Str
                     if (pending != null && pending.uploadedId == null) {
                         pending.uploadedId = repository.upload(pending.photo.bytes, pending.photo.contentType, pending.photo.fileName).id
                     }
-                    repository.send(didId, number, body, listOfNotNull(pending?.uploadedId), idempotencyKey)
+                    repository.send(didId, number, body, listOfNotNull(pending?.uploadedId), draftKeys.current(didId, number))
                 }
-                idempotencyKey = UUID.randomUUID().toString()
+                draftKeys.renew(didId, number)
                 text = ""
                 photo = null
                 reload()
             } catch (e: Exception) {
                 if (e is PbxApiClient.HttpException) {
                     // The PBX answered: a failed send is kept in the thread with its reason, so show it, and the next send is a new one.
-                    idempotencyKey = UUID.randomUUID().toString()
+                    if (DraftKeys.isDefinite(e.code)) draftKeys.renew(didId, number)
                     Log.w(TAG, "Send refused: ${e.code}")
                     snackbar.showSnackbar(if (e.code == 413) photoTooLargeText else e.message ?: sendFailedText)
                     reload()
@@ -204,8 +204,10 @@ fun ThreadScreen(didId: String, number: String, onBack: () -> Unit, onCall: (Str
         subtitle = inbox?.number?.let { PhoneFormat.display(it) },
         onBack = onBack,
         actions = {
-            IconButton(onClick = { onCall(number) }) {
-                AriaIcon(AriaIcons.Call, stringResource(R.string.messages_call, PhoneFormat.display(number)))
+            if (MessageNumbers.isE164(number)) {
+                IconButton(onClick = { onCall(number) }) {
+                    AriaIcon(AriaIcons.Call, stringResource(R.string.messages_call, PhoneFormat.display(number)))
+                }
             }
         },
     ) { padding ->
@@ -250,7 +252,7 @@ fun ThreadScreen(didId: String, number: String, onBack: () -> Unit, onCall: (Str
                     onRemovePhoto = { photo = null },
                     count = count,
                     sending = sending,
-                    canSend = (text.isNotBlank() || photo != null) && !count.tooLong && text.length <= SmsSegments.MAX_BODY_CHARS,
+                    canSend = (text.isNotBlank() || photo != null) && !count.tooLong && text.trim().length <= SmsSegments.MAX_BODY_CHARS,
                     onSend = ::send,
                 )
             }
@@ -401,7 +403,7 @@ private fun linkified(body: String, color: androidx.compose.ui.graphics.Color, o
                 LinkAnnotation.Clickable(
                     tag = m.number,
                     styles = TextLinkStyles(SpanStyle(color = color, textDecoration = TextDecoration.Underline)),
-                    linkInteractionListener = { onCall(m.number) },
+                    linkInteractionListener = { MessageNumbers.toE164(m.number)?.let(onCall) },
                 ),
             ) { append(body.substring(m.start, m.end)) }
             at = m.end

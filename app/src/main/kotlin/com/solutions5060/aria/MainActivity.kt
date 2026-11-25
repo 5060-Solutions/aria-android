@@ -50,6 +50,7 @@ class MainActivity : ComponentActivity() {
         com.solutions5060.aria.messaging.MessagingNotifier.threadLink(
             intent?.getStringExtra(com.solutions5060.aria.messaging.MessagingNotifier.EXTRA_THREAD_DID),
             intent?.getStringExtra(com.solutions5060.aria.messaging.MessagingNotifier.EXTRA_THREAD_NUMBER),
+            com.solutions5060.aria.messaging.KnownInboxes.load(this),
         )?.let { return it }
         return intent?.getStringExtra(com.solutions5060.aria.voicemail.VoicemailMonitor.EXTRA_OPEN_TAB)
             ?.takeIf { it in com.solutions5060.aria.provisioning.DeepLink.OpenTab.ROUTES }

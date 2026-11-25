@@ -17,16 +17,21 @@ import com.solutions5060.aria.service.PbxApiClient
  * text, a carrier error) is an [PbxApiClient.HttpException] whose message is
  * the PBX's own text, to be shown as it is.
  */
-class MessagingRepository(private val api: PbxApiClient, private val auth: PbxAuth) {
+class MessagingRepository(
+    private val api: PbxApiClient,
+    private val auth: PbxAuth,
+    private val onInboxes: (List<Inbox>) -> Unit = {},
+) {
 
     companion object {
         fun from(context: Context): MessagingRepository {
             val auth = StoredPbxAuth(context)
-            return MessagingRepository(PbxApiClient(auth.apiUrl()), auth)
+            return MessagingRepository(PbxApiClient(auth.apiUrl()), auth) { KnownInboxes.save(context.applicationContext, it.map(Inbox::didId)) }
         }
     }
 
-    fun inboxes(): List<Inbox> = call { jwt, tenant -> MessagingJson.inboxes(api.messagingInboxes(jwt, tenant)) }
+    fun inboxes(): List<Inbox> =
+        call { jwt, tenant -> MessagingJson.inboxes(api.messagingInboxes(jwt, tenant)) }.also(onInboxes)
 
     fun conversations(didId: String): List<Conversation> =
         call { jwt, tenant -> MessagingJson.conversations(api.messagingConversations(jwt, tenant, didId)) }
