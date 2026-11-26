@@ -51,9 +51,9 @@ private fun animate(provider: SplashScreenViewProvider) {
             val t = a.animatedValue as Float
             // The target is read live: the header may lay out after the first frame.
             val box = SplashHandoff.headerMark
-            if (box != null) {
-                val endScale = box.width / tilePx
-                val s = 1f + (endScale - 1f) * t
+            val glide = box?.let { SplashHandoff.glideScale(it.width, tilePx, t) }
+            if (box != null && glide != null) {
+                val s = glide
                 icon.scaleX = s
                 icon.scaleY = s
                 icon.translationX = (box.center.x - startCx) * t

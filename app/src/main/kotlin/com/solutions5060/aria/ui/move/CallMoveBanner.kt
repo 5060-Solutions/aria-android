@@ -42,7 +42,10 @@ fun CallMoveBanner(modifier: Modifier = Modifier) {
     val suggested by CallMoveCoordinator.suggested.collectAsState()
     if (calls.isEmpty()) return
     Column(
-        modifier.fillMaxWidth().padding(horizontal = Spacing.screen, vertical = Spacing.xs),
+        // The status bar inset is applied by the shared banner column in AriaApp.
+        modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.screen, vertical = Spacing.xs),
         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         horizontalAlignment = Alignment.CenterHorizontally,
     ) {
