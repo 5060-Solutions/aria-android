@@ -163,6 +163,10 @@ dependencies {
     // JSON parsing
     implementation("org.json:json:20240303")
 
+    // Number formatting. The JVM artifact, not libphonenumber-android: it reads its
+    // metadata from the classpath, so the formatting logic is unit-tested on the JVM.
+    implementation(libs.libphonenumber)
+
     // Debug
     debugImplementation(libs.compose.ui.tooling)
 

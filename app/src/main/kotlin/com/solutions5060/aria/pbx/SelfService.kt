@@ -65,6 +65,10 @@ object SelfServiceJson {
         )
     }
 
+    /** The `country` of `GET .../calling/settings`; null when absent. */
+    fun callingCountry(body: String): String? =
+        JSONObject(body).optString("country").trim().ifEmpty { null }
+
     fun forward(j: JSONObject): CallForward? {
         val type = ForwardType.fromWire(j.optString("forward_type")) ?: return null
         return CallForward(
@@ -121,6 +125,12 @@ class SelfServiceRepository(private val api: PbxApiClient, private val auth: Pbx
     }
 
     fun features(): ExtensionFeatures = call { SelfServiceJson.features(api.features(it, auth.extensionId())) }
+
+    /** The company's calling country (ISO 3166-1 alpha-2); null when the seat has no tenant. */
+    fun callingCountry(): String? {
+        val tenant = auth.tenantId() ?: return null
+        return call { SelfServiceJson.callingCountry(api.callingSettings(it, tenant)) }
+    }
 
     fun setDoNotDisturb(on: Boolean) = call { api.setDoNotDisturb(it, auth.extensionId(), on) }
 

@@ -48,6 +48,12 @@ object SelfServiceState {
                 val features = repo.features()
                 val forwards = repo.forwards()
                 _state.update { it.copy(doNotDisturb = features.doNotDisturb, forwards = forwards, loading = false, error = null) }
+                // Number formatting only: a seat that may not read the settings (403) keeps the device's region.
+                try {
+                    DialCountry.setFromPbx(app, repo.callingCountry())
+                } catch (e: Exception) {
+                    Log.w(TAG, "Calling country unavailable: ${e.javaClass.simpleName}")
+                }
             } catch (e: Exception) {
                 Log.w(TAG, "Refresh failed: ${e.javaClass.simpleName}")
                 _state.update { it.copy(loading = false, error = e.message) }

@@ -194,6 +194,10 @@ class PbxApiClient(private val baseUrl: String) {
     /** GET /api/v1/me — who this credential is. */
     fun me(jwt: String): String = send(jwt, "GET", "/api/v1/me")
 
+    /** GET /api/v1/tenants/{tenant_id}/calling/settings — the company's calling country among them. */
+    fun callingSettings(jwt: String, tenantId: String): String =
+        send(jwt, "GET", "/api/v1/tenants/${encode(tenantId)}/calling/settings")
+
     /** GET /api/v1/extensions/{ext_id}/voicemail — the extension's box (without messages). */
     fun voicemailBox(jwt: String, extensionId: String): String =
         send(jwt, "GET", "/api/v1/extensions/${encode(extensionId)}/voicemail")

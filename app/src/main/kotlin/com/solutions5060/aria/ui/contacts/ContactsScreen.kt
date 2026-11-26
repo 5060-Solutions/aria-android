@@ -167,7 +167,7 @@ fun ContactsScreen(onCall: (String) -> Unit) {
                                 headline = person.name,
                                 supporting = listOfNotNull(
                                     person.numbers.first().label,
-                                    person.numbers.first().phoneNumber,
+                                    com.solutions5060.aria.ui.components.PhoneFormat.display(person.numbers.first().phoneNumber),
                                     if (person.numbers.size > 1) {
                                         pluralStringResource(R.plurals.ui_contacts_more_numbers, person.numbers.size - 1, person.numbers.size - 1)
                                     } else {
@@ -277,7 +277,7 @@ private fun ContactSheet(person: ContactPerson, onCall: (String) -> Unit, onDism
         Column(verticalArrangement = Arrangement.spacedBy(Spacing.rowGap)) {
             person.numbers.forEach { number ->
                 AriaListItem(
-                    headline = number.phoneNumber,
+                    headline = com.solutions5060.aria.ui.components.PhoneFormat.display(number.phoneNumber),
                     supporting = number.label,
                     trailing = {
                         FilledTonalIconButton(onClick = { onCall(number.phoneNumber) }) {
