@@ -12,6 +12,7 @@ import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import com.solutions5060.aria.fixtures.Fixtures
 import com.solutions5060.aria.provisioning.DeepLinks
 import com.solutions5060.aria.ui.AriaApp
+import com.solutions5060.aria.ui.splash.installBrandExit
 import com.solutions5060.aria.ui.theme.AriaTheme
 
 class MainActivity : AppCompatActivity() {
@@ -19,7 +20,10 @@ class MainActivity : AppCompatActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         // The system splash (Theme.Aria.Starting) is the only splash; it hands
         // over to Theme.Aria as soon as the first Compose frame is drawn.
-        installSplashScreen()
+        // The icon animates (Android 12+) and then glides into the dialer's
+        // header; the exit never delays the app and is skipped with
+        // "remove animations" (ui/splash).
+        installSplashScreen().installBrandExit(this)
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         // Debug builds only: `--es aria.fixture <scene>` shows sample data (see Fixtures).

@@ -10,10 +10,16 @@
         <item name="android:colorAccent">@color/aria_primary</item>
     </style>
 
-    <!-- Launch theme for the AndroidX Splash Screen API (core-splashscreen). -->
+    <!--
+        Launch theme for the AndroidX Splash Screen API (core-splashscreen).
+        Brand background and icon background follow light and dark through
+        the colour resources; below Android 12 the icon is the static mark.
+    -->
     <style name="Theme.Aria.Starting" parent="Theme.SplashScreen">
         <item name="windowSplashScreenBackground">@color/aria_background</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/ic_splash_logo</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/aria_splash_icon_background</item>
+        <item name="windowSplashScreenAnimationDuration">900</item>
         <item name="postSplashScreenTheme">@style/Theme.Aria</item>
     </style>
 </resources>
