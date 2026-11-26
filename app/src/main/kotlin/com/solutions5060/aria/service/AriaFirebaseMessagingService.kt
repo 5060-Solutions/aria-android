@@ -72,6 +72,12 @@ class AriaFirebaseMessagingService : FirebaseMessagingService() {
         // Ring first; building the engine below can take a network round-trip.
         // A repeated push for a call already handled is dropped entirely.
         if (!CallManager.reportIncomingCall(applicationContext, callToken, callerUri, callerName, holdReturn.id, holdReturn.name)) return
+        // The far party is back: the wait's transcript and state come from the socket and REST, which may not be running.
+        if (holdReturn.id != null) {
+            com.solutions5060.aria.AppScope.scope.launch {
+                com.solutions5060.aria.hold.HoldForMeCoordinator.ensureListening(applicationContext)
+            }
+        }
 
         // Fetch the offer so the engine knows the call: it is what lets the
         // engine report a caller who hangs up before we answer. This runs on

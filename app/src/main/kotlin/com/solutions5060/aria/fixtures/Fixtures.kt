@@ -15,6 +15,7 @@ import com.solutions5060.aria.hold.HoldForMeCoordinator
 import com.solutions5060.aria.hold.HoldGreeting
 import com.solutions5060.aria.hold.HoldSettings
 import com.solutions5060.aria.hold.HoldWait
+import com.solutions5060.aria.hold.TranscriptLine
 import com.solutions5060.aria.move.ActiveCall
 import com.solutions5060.aria.move.CallMoveCoordinator
 import com.solutions5060.aria.move.MoveEvent
@@ -80,7 +81,16 @@ object Fixtures {
         HoldForMeCoordinator.installFixture(
             FakeHoldApi,
             set.holdForMe,
-            if (set.scene == FixtureScene.HOLD_WAITING) listOf(FakeHoldApi.waiting(System.currentTimeMillis() - 754_000L)) else emptyList(),
+            when (set.scene) {
+                FixtureScene.HOLD_WAITING -> listOf(FakeHoldApi.waiting(System.currentTimeMillis() - 754_000L))
+                FixtureScene.INCOMING_HOLD_RETURN -> listOf(FakeHoldApi.returning())
+                else -> emptyList()
+            },
+            if (set.scene == FixtureScene.INCOMING_HOLD_RETURN) {
+                mapOf(FakeHoldApi.RETURN_CALL_ID to FixtureData.holdReturnTranscript)
+            } else {
+                emptyMap()
+            },
         )
         if (set.scene == FixtureScene.IN_CALL_HOLD_FOR_ME) {
             // The PBX's own record of the call on screen, so the button can resolve its id.
@@ -121,7 +131,7 @@ object Fixtures {
                 voicemailPlaying = intent.getBooleanExtra(EXTRA_PLAYING, false),
                 sheet = intent.getStringExtra(EXTRA_SHEET),
                 holdForMe = !intent.getBooleanExtra(EXTRA_NO_HOLD_FOR_ME, false) &&
-                    (scene == FixtureScene.IN_CALL_HOLD_FOR_ME || scene == FixtureScene.HOLD_WAITING),
+                    (scene == FixtureScene.IN_CALL_HOLD_FOR_ME || scene == FixtureScene.HOLD_WAITING || scene == FixtureScene.INCOMING_HOLD_RETURN),
             ),
         )
         return true
@@ -156,6 +166,9 @@ enum class FixtureScene(val id: String) {
 
     /** No call: the tabs, with one Hold for me wait that started 12:34 ago. */
     HOLD_WAITING("hold-waiting"),
+
+    /** A call ringing in because the business ("Acme Bank") is back, with the assistant's transcript. */
+    INCOMING_HOLD_RETURN("incoming-hold-return"),
 }
 
 data class FixtureAccount(
@@ -195,7 +208,8 @@ data class FixtureSet(
             dialNumber: String? = null,
             voicemailPlaying: Boolean = false,
             sheet: String? = null,
-            holdForMe: Boolean = scene == FixtureScene.IN_CALL_HOLD_FOR_ME || scene == FixtureScene.HOLD_WAITING,
+            holdForMe: Boolean = scene == FixtureScene.IN_CALL_HOLD_FOR_ME || scene == FixtureScene.HOLD_WAITING ||
+                scene == FixtureScene.INCOMING_HOLD_RETURN,
             nowMillis: Long = System.currentTimeMillis(),
             nowElapsed: Long = SystemClock.elapsedRealtime(),
         ): FixtureSet {
@@ -340,6 +354,12 @@ object FixtureData {
         currentId = "earpiece",
     )
 
+    /** What the assistant heard from the business, for the `incoming-hold-return` scene. */
+    val holdReturnTranscript = listOf(
+        TranscriptLine("assistant", "I'm an automated assistant for Sam."),
+        TranscriptLine("caller", "Hi, this is Dana from Acme."),
+    )
+
     fun calls(scene: FixtureScene, nowElapsed: Long): List<CallUiState> {
         val amelia = CallUiState(
             key = "fixture-a",
@@ -366,6 +386,15 @@ object FixtureData {
         return when (scene) {
             FixtureScene.ONBOARDING, FixtureScene.MAIN, FixtureScene.HOLD_WAITING -> emptyList()
             FixtureScene.INCOMING -> listOf(ben)
+            FixtureScene.INCOMING_HOLD_RETURN -> listOf(
+                ben.copy(
+                    key = "fixture-hold-return",
+                    remoteName = "Acme Bank",
+                    remoteUri = "sip:+18005550100@acme.ariaroute.com",
+                    holdReturnId = FakeHoldApi.RETURN_WAIT_ID,
+                    holdReturnName = "Acme Bank",
+                ),
+            )
             FixtureScene.IN_CALL, FixtureScene.IN_CALL_HOLD_FOR_ME -> listOf(amelia)
             FixtureScene.IN_CALL_UNENCRYPTED -> listOf(amelia.copy(encrypted = false))
             FixtureScene.TWO_CALLS -> listOf(
@@ -394,6 +423,13 @@ object FakeHoldApi : HoldApi {
         refuseNextStart = null
     }
 
+    const val RETURN_WAIT_ID = "fixture-return-wait"
+    const val RETURN_CALL_ID = "fixture-return-call"
+
+    /** The wait behind the `incoming-hold-return` scene: a person is on the line, ringing this phone. */
+    fun returning() = wait(RETURN_CALL_ID, "ringing", id = RETURN_WAIT_ID, ringReason = "human")
+        .copy(remoteName = "Acme Bank")
+
     /** The wait the `hold-waiting` scene opens with. */
     fun waiting(startedAtMillis: Long) = wait("fixture-call", "waiting", startedAt = startedAtMillis)
 
@@ -403,8 +439,10 @@ object FakeHoldApi : HoldApi {
         greeting: HoldGreeting = HoldGreeting.LINE,
         ended: String? = null,
         startedAt: Long? = null,
+        id: String = "fixture-wait",
+        ringReason: String? = null,
     ) = HoldWait(
-        holdWaitId = "fixture-wait",
+        holdWaitId = id,
         callId = callId,
         state = state,
         greeting = greeting,
@@ -414,7 +452,7 @@ object FakeHoldApi : HoldApi {
         falseAlarms = 0,
         remoteNumber = "+15552014410",
         remoteName = "Amelia Chen",
-        ringReason = null,
+        ringReason = ringReason,
         endedReason = ended,
     )
 

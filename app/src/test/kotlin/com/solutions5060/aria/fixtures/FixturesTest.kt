@@ -100,4 +100,16 @@ class FixturesTest {
         assertTrue(s.calls.isEmpty())
         assertTrue(s.holdForMe)
     }
+
+    @Test
+    fun holdReturnSceneIsARingingHoldReturnWithAFlagAndATranscript() {
+        val s = set(FixtureScene.INCOMING_HOLD_RETURN)
+        assertEquals("incoming-hold-return", FixtureScene.INCOMING_HOLD_RETURN.id)
+        assertEquals(1, s.calls.size)
+        assertEquals(CallPhase.INCOMING, s.calls[0].phase)
+        assertEquals("Acme Bank", s.calls[0].holdReturnName)
+        assertEquals(com.solutions5060.aria.fixtures.FakeHoldApi.RETURN_WAIT_ID, s.calls[0].holdReturnId)
+        assertTrue(s.holdForMe)
+        assertEquals(2, FixtureData.holdReturnTranscript.size)
+    }
 }

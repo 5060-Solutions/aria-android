@@ -256,4 +256,12 @@
     <string name="ui_hold_rejoin_now">Revenir maintenant</string>
     <string name="ui_hold_hang_up">Raccrocher</string>
     <string name="ui_hold_channel_name">Attendre pour moi</string>
+    <string name="ui_hold_theyre_back">Ils sont de retour — %1$s</string>
+    <string name="ui_hold_tap_to_rejoin">Touchez pour revenir</string>
+    <string name="ui_hold_still_waiting_hours">Toujours en attente après %1$d heures. Revenir ou raccrocher ?</string>
+    <string name="ui_hold_still_on_hold">Toujours en attente</string>
+    <string name="ui_hold_announce_back">Ils sont de retour, %1$s</string>
+    <string name="ui_hold_transcript_title">Ce qui a été dit</string>
+    <string name="ui_hold_speaker_assistant">Assistant</string>
+    <string name="ui_hold_speaker_caller">Interlocuteur</string>
 </resources>

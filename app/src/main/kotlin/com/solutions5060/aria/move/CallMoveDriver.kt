@@ -25,6 +25,9 @@ object CallMoveDriver {
     private var report: Job? = null
 
     @Synchronized
+    fun isRunning(): Boolean = events != null
+
+    @Synchronized
     fun start(context: Context) {
         val app = context.applicationContext
         if (poll == null) poll = AppScope.scope.launch { CallMoveCoordinator.pollWhile() }

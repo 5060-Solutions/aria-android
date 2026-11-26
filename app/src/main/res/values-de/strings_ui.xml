@@ -254,4 +254,12 @@
     <string name="ui_hold_rejoin_now">Jetzt zurückkehren</string>
     <string name="ui_hold_hang_up">Auflegen</string>
     <string name="ui_hold_channel_name">Für mich warten</string>
+    <string name="ui_hold_theyre_back">Sie sind zurück — %1$s</string>
+    <string name="ui_hold_tap_to_rejoin">Tippen, um zurückzukehren</string>
+    <string name="ui_hold_still_waiting_hours">Nach %1$d Stunden wird noch gewartet. Zurückkehren oder auflegen?</string>
+    <string name="ui_hold_still_on_hold">Noch in der Warteschleife</string>
+    <string name="ui_hold_announce_back">Sie sind zurück, %1$s</string>
+    <string name="ui_hold_transcript_title">Was gesagt wurde</string>
+    <string name="ui_hold_speaker_assistant">Assistent</string>
+    <string name="ui_hold_speaker_caller">Gegenüber</string>
 </resources>

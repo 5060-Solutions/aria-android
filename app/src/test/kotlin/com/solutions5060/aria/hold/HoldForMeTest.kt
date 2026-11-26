@@ -323,4 +323,100 @@ class HoldForMeTest {
             HoldForMeCoordinator.clearFixture()
         }
     }
+
+    // ── "They're back" (Task D4) ───────────────────────────────────────
+
+    private fun hold(id: String?, name: String?, phase: CallPhase = CallPhase.INCOMING, joined: Long? = null) =
+        CallUiState(
+            "k", "c", "sip:+18005550100@acme", null, CallDirection.INBOUND, phase,
+            holdReturnId = id, holdReturnName = name, joinedAtMillis = joined,
+        )
+
+    @Test
+    fun fcmHoldReturnLabelsTheIncomingCallBeforeTheOffer() {
+        // The push alone (no offer, no socket yet) already names who is back.
+        val fromPush = hold("hw-1", "Acme Bank")
+        assertEquals("They're back — Acme Bank", HoldReturn.label("They're back — %1\$s", fromPush))
+        assertEquals("They're back, Acme Bank", HoldReturn.announcement("They're back, %1\$s", fromPush))
+        // No name in the push: the call's own display name.
+        assertEquals("They're back — bank", HoldReturn.label("They're back — %1\$s", hold("hw-1", null).copy(remoteUri = "sip:bank@acme")))
+        // An ordinary call has no label.
+        assertNull(HoldReturn.label("They're back — %1\$s", hold(null, null)))
+        assertNull(HoldReturn.announcement("x %1\$s", hold(null, null)))
+    }
+
+    @Test
+    fun stillOnHoldHidesAfterTenSeconds() {
+        // Ringing: always offered.
+        assertTrue(stillOnHoldVisible(hold("hw-1", "Acme"), 99_999_999L))
+        // Connected: for 10 s after joining.
+        val joined = hold("hw-1", "Acme", CallPhase.ACTIVE, joined = 100_000L)
+        assertTrue(stillOnHoldVisible(joined, 100_000L))
+        assertTrue(stillOnHoldVisible(joined, 109_999L))
+        assertFalse(stillOnHoldVisible(joined, 110_000L))
+        assertFalse(stillOnHoldVisible(joined, 500_000L))
+        // Not a hold return, not joined yet, or over.
+        assertFalse(stillOnHoldVisible(hold(null, null, CallPhase.ACTIVE, joined = 100_000L), 100_001L))
+        assertFalse(stillOnHoldVisible(hold("hw-1", "Acme", CallPhase.ACTIVE, joined = null), 100_001L))
+        assertFalse(stillOnHoldVisible(hold("hw-1", "Acme", CallPhase.ENDED), 100_001L))
+        // The screen recomposes when the window closes.
+        assertEquals(110_000L, stillOnHoldDeadline(joined))
+        assertNull(stillOnHoldDeadline(hold("hw-1", "Acme")))
+    }
+
+    private class RecordingApi(var open: List<HoldWait> = emptyList()) : HoldApi {
+        val still = mutableListOf<String>()
+        override suspend fun start(callId: String, greeting: HoldGreeting?, displayName: String?) = error("unused")
+        override suspend fun cancel(callId: String, action: String) = error("unused")
+        override suspend fun stillOnHold(callId: String): HoldWait {
+            still.add(callId)
+            return open.first { it.callId == callId }
+        }
+        override suspend fun openWaits() = open
+        override suspend fun settings() = error("unused")
+        override suspend fun setGreeting(g: HoldGreeting) = error("unused")
+    }
+
+    @Test
+    fun aHoldReturnFindsItsWaitByHoldWaitId() {
+        val api = RecordingApi()
+        HoldForMeCoordinator.installFixture(api, available = false)
+        try {
+            assertNull(HoldForMeCoordinator.waitForHoldReturn("w-1"))
+            HoldForMeCoordinator.onEvent(HoldEvent.State(wait("w-1", "ringing", callId = "pbx-9"), emptyList()))
+            assertEquals("pbx-9", HoldForMeCoordinator.waitForHoldReturn("w-1")?.callId)
+            assertNull(HoldForMeCoordinator.waitForHoldReturn("w-2"))
+        } finally {
+            HoldForMeCoordinator.clearFixture()
+        }
+    }
+
+    @Test
+    fun stillOnHoldForAReturnUsesTheWaitsCallIdAndReadsTheWaitsIfUnknown() {
+        val api = RecordingApi(listOf(wait("w-1", "ringing", callId = "pbx-9")))
+        HoldForMeCoordinator.installFixture(api, available = true)
+        try {
+            // The push beat the socket: no wait known yet; one read finds it.
+            assertTrue(kotlinx.coroutines.runBlocking { HoldForMeCoordinator.stillOnHoldForReturn("w-1") })
+            assertEquals(listOf("pbx-9"), api.still)
+            // Unresolvable even after reading: a no-op, never an error.
+            assertFalse(kotlinx.coroutines.runBlocking { HoldForMeCoordinator.stillOnHoldForReturn("w-404") })
+            assertEquals(listOf("pbx-9"), api.still)
+        } finally {
+            HoldForMeCoordinator.clearFixture()
+        }
+    }
+
+    @Test
+    fun theTranscriptIsFoundThroughTheWaitAndAbsentUntilThereIsOne() {
+        HoldForMeCoordinator.installFixture(RecordingApi(), available = true)
+        try {
+            assertTrue(HoldForMeCoordinator.transcriptForHoldReturn("w-1").isEmpty())
+            val lines = listOf(TranscriptLine("caller", "Hi, this is Dana"))
+            HoldForMeCoordinator.onEvent(HoldEvent.State(wait("w-1", "ringing", callId = "pbx-9"), lines))
+            assertEquals(lines, HoldForMeCoordinator.transcriptForHoldReturn("w-1"))
+        } finally {
+            HoldForMeCoordinator.clearFixture()
+        }
+    }
 }

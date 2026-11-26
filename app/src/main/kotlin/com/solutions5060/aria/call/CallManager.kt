@@ -827,6 +827,10 @@ object CallManager {
         // the user is already on the phone.
         val waiting = liveRecords().any { it !== rec }
         val label = rec.movingFrom?.let { Txt.get(R.string.move_incoming_from, "Moving call from %1\$s", it) }
+            // The far party of a Hold for me wait is back; the push alone says so.
+            ?: rec.holdReturnId?.let {
+                com.solutions5060.aria.hold.HoldReturn.label(Txt.get(R.string.ui_hold_theyre_back, "They're back — %1\$s"), rec.toUiState())
+            }
         IncomingCallNotifier.show(appContext, rec.key, label ?: rec.displayName(), rec.callToken ?: "", waiting)
     }
 

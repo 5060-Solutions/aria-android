@@ -71,11 +71,16 @@ object HoldForMeCoordinator {
     fun service(): HoldApi? = api ?: appContext?.let { LiveHoldApi(StoredPbxAuth(it)) }
 
     /** Debug fixtures only: use [fake] and set the flag without asking the PBX. */
-    fun installFixture(fake: HoldApi, available: Boolean, waits: List<HoldWait> = emptyList()) {
+    fun installFixture(
+        fake: HoldApi,
+        available: Boolean,
+        waits: List<HoldWait> = emptyList(),
+        transcripts: Map<String, List<TranscriptLine>> = emptyMap(),
+    ) {
         api = fake
         _available.value = available
         _waits.value = waits.associateBy { it.callId }
-        _transcripts.value = emptyMap()
+        _transcripts.value = transcripts
         _refusal.value = null
         publish()
     }
@@ -204,6 +209,43 @@ object HoldForMeCoordinator {
         } finally {
             stillInFlight.remove(id)
         }
+    }
+
+    /**
+     * The wait a hold-return call is for: the call's `holdReturnId` is the
+     * wait's `hold_wait_id`. Null while no wait is known (the push can beat the
+     * socket and REST).
+     */
+    fun waitForHoldReturn(holdReturnId: String): HoldWait? =
+        _waits.value.values.firstOrNull { it.holdWaitId == holdReturnId }
+
+    /** The assistant's transcript for a hold return; empty until the wait is known and has one. */
+    fun transcriptForHoldReturn(holdReturnId: String): List<TranscriptLine> =
+        waitForHoldReturn(holdReturnId)?.let { _transcripts.value[it.callId] }.orEmpty()
+
+    /**
+     * "Still on hold" for a hold-return call. When its wait is not known yet,
+     * read the open waits once. Returns false (and does nothing) when it still
+     * cannot be resolved.
+     */
+    suspend fun stillOnHoldForReturn(holdReturnId: String): Boolean {
+        val wait = waitForHoldReturn(holdReturnId)
+            ?: run { reconcile(); waitForHoldReturn(holdReturnId) }
+            ?: return false
+        stillOnHold(wait.callId)
+        return true
+    }
+
+    /**
+     * A hold-return push woke the app, possibly from the background: read the
+     * open waits once (the transcript follows over the socket) and make sure
+     * the foreground driver, which carries that socket, is running.
+     */
+    suspend fun ensureListening(context: Context) {
+        if (!com.solutions5060.aria.move.CallMoveDriver.isRunning()) {
+            com.solutions5060.aria.move.CallMoveDriver.start(context)
+        }
+        reconcile()
     }
 
     /** Fire-and-forget [start] for the call screen. */

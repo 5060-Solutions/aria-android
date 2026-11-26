@@ -312,6 +312,22 @@ class AriaUiTest {
     }
 
     @Test
+    fun theyreBackShowsTheTranscriptAndStillOnHold() {
+        launch("incoming-hold-return")
+        compose.onNodeWithText(str(R.string.ui_hold_theyre_back, "Acme Bank")).assertIsDisplayed()
+        compose.onNodeWithTag(HoldTags.TRANSCRIPT).assertIsDisplayed()
+        compose.onNodeWithText(str(R.string.ui_hold_transcript_title)).assertIsDisplayed()
+        compose.onNodeWithText("Hi, this is Dana from Acme.").assertIsDisplayed()
+        compose.onNodeWithText(str(R.string.ui_hold_speaker_caller)).assertIsDisplayed()
+        // The fixed Decline and Answer stay, with Still on hold above them.
+        compose.onNodeWithContentDescription(str(R.string.ui_call_decline)).assertIsDisplayed()
+        compose.onNodeWithContentDescription(str(R.string.ui_call_answer)).assertIsDisplayed()
+        compose.onNodeWithTag(HoldTags.STILL_ON_HOLD).assertIsDisplayed().performClick()
+        compose.waitUntil(5_000) { FakeHoldApi.calls.isNotEmpty() }
+        assertEquals(listOf("still"), FakeHoldApi.calls)
+    }
+
+    @Test
     fun holdForMeIsHiddenWithoutTheFlag() {
         launch("in-call-hold-for-me", noHoldForMe = true)
         compose.onNodeWithContentDescription(str(R.string.ui_call_more)).performClick()
@@ -341,7 +357,7 @@ class AriaUiTest {
 
     @Test
     fun noSceneRaisesAPermissionDialogAtLaunch() {
-        for (scene in listOf("onboarding", "main", "incoming", "in-call", "in-call-unencrypted", "two-calls", "call-waiting", "in-call-hold-for-me")) {
+        for (scene in listOf("onboarding", "main", "incoming", "in-call", "in-call-unencrypted", "two-calls", "call-waiting", "in-call-hold-for-me", "incoming-hold-return")) {
             launch(scene)
             scenario?.close()
         }

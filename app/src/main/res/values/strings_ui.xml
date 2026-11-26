@@ -284,4 +284,12 @@
     <string name="ui_hold_rejoin_now">Rejoin now</string>
     <string name="ui_hold_hang_up">Hang up</string>
     <string name="ui_hold_channel_name">Hold for me</string>
+    <string name="ui_hold_theyre_back">They\'re back — %1$s</string>
+    <string name="ui_hold_tap_to_rejoin">Tap to rejoin</string>
+    <string name="ui_hold_still_waiting_hours">Still waiting after %1$d hours. Rejoin or hang up?</string>
+    <string name="ui_hold_still_on_hold">Still on hold</string>
+    <string name="ui_hold_announce_back">They\'re back, %1$s</string>
+    <string name="ui_hold_transcript_title">What they said</string>
+    <string name="ui_hold_speaker_assistant">Assistant</string>
+    <string name="ui_hold_speaker_caller">Them</string>
 </resources>

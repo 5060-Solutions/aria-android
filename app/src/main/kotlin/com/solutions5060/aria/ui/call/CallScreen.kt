@@ -98,6 +98,10 @@ import com.solutions5060.aria.call.Conference
 import com.solutions5060.aria.fixtures.Fixtures
 import com.solutions5060.aria.ui.SecureWindow
 import com.solutions5060.aria.ui.components.AriaButton
+import com.solutions5060.aria.ui.components.AriaButtonStyle
+import com.solutions5060.aria.hold.HoldReturn
+import com.solutions5060.aria.hold.stillOnHoldDeadline
+import com.solutions5060.aria.hold.stillOnHoldVisible
 import com.solutions5060.aria.ui.components.AriaIcon
 import com.solutions5060.aria.ui.components.AriaSnackbarHost
 import com.solutions5060.aria.ui.components.LocalSnackbarHostState
@@ -152,6 +156,8 @@ data class CallActions(
     val loadHoldSettings: suspend () -> com.solutions5060.aria.hold.HoldSettings = { com.solutions5060.aria.hold.HoldSettings.Fallback },
     /** Start Hold for me on this call with the chosen greeting. */
     val onHoldForMe: (com.solutions5060.aria.hold.HoldGreeting) -> Unit = {},
+    /** "Still on hold" on a hold-return call: tell the PBX, then (while ringing) reject the ring. */
+    val onStillOnHold: () -> Unit = {},
 )
 
 /** What else is going on around the call on screen. */
@@ -169,6 +175,10 @@ data class CallContext(
     val errors: List<String> = emptyList(),
     /** Hold for me is on for this account and this call can use it (an outgoing, connected call, not in a conference). */
     val holdForMeAvailable: Boolean = false,
+    /** What the assistant heard, for a hold-return call; empty until there is a transcript. */
+    val holdTranscript: List<com.solutions5060.aria.hold.TranscriptLine> = emptyList(),
+    /** Hours of the final "max wait" ring ("Still waiting after N hours"), else null. */
+    val holdMaxWaitHours: Int? = null,
 )
 
 /**
@@ -232,6 +242,23 @@ fun CallScreen(
 
     // Spoken state changes (DESIGN.md §7): "Call connected", "Call on hold", "Recording started".
     val announcement = announcementFor(call)
+    // A hold return: the label stands in for the name, and the status line says what to do.
+    val holdLabel = if (incoming) HoldReturn.label(stringResource(R.string.ui_hold_theyre_back), call) else null
+    val holdStatus = if (holdLabel != null) {
+        context.holdMaxWaitHours?.let { stringResource(R.string.ui_hold_still_waiting_hours, it) }
+            ?: stringResource(R.string.ui_hold_tap_to_rejoin)
+    } else {
+        null
+    }
+    // "Still on hold" shows while ringing and for 10 s after joining; recompose when the window closes.
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(call.holdReturnId, call.joinedAtMillis, phase) {
+        val deadline = stillOnHoldDeadline(call) ?: return@LaunchedEffect
+        nowMillis = System.currentTimeMillis()
+        delay((deadline - nowMillis).coerceAtLeast(0L))
+        nowMillis = System.currentTimeMillis()
+    }
+    val stillOnHold = stillOnHoldVisible(call, nowMillis)
 
     // An unencrypted call is called out once per call: when it connects
     // unencrypted, or the first time it drops to unencrypted later. The
@@ -437,7 +464,11 @@ fun CallScreen(
                 CallerAvatar(call, animate = incoming)
                 Spacer(Modifier.height(Spacing.lg))
                 Text(
-                    if (call.inConference) stringResource(R.string.ui_call_conference) else call.displayName.ifEmpty { stringResource(R.string.ui_call_unknown) },
+                    if (call.inConference) {
+                        stringResource(R.string.ui_call_conference)
+                    } else {
+                        holdLabel ?: call.displayName.ifEmpty { stringResource(R.string.ui_call_unknown) }
+                    },
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
@@ -455,7 +486,11 @@ fun CallScreen(
                     )
                 }
                 Spacer(Modifier.height(Spacing.sm))
-                StateLine(call, elapsed)
+                StateLine(call, elapsed, holdStatus)
+                HoldReturnTranscript(
+                    context.holdTranscript,
+                    Modifier.padding(top = Spacing.md),
+                )
                 call.originalStartMillis?.takeIf { call.phase == CallPhase.ACTIVE || call.phase == CallPhase.HELD }?.let { start ->
                     Text(
                         stringResource(
@@ -529,6 +564,16 @@ fun CallScreen(
         }
         val bottom: @Composable () -> Unit = {
             // Bottom actions
+            if (stillOnHold) {
+                AriaButton(
+                    text = stringResource(R.string.ui_hold_still_on_hold),
+                    onClick = actions.onStillOnHold,
+                    style = AriaButtonStyle.Standard,
+                    modifier = Modifier
+                        .padding(bottom = Spacing.md)
+                        .testTag(HoldTags.STILL_ON_HOLD),
+                )
+            }
             AnimatedContent(
                 targetState = when {
                     incoming && context.otherCalls.isNotEmpty() -> BottomMode.Waiting
@@ -611,7 +656,9 @@ private fun announcementFor(call: CallUiState): String {
     val held = stringResource(R.string.ui_call_announce_held)
     val ended = stringResource(R.string.ui_call_announce_ended)
     val recording = stringResource(R.string.ui_call_announce_recording)
+    val back = HoldReturn.announcement(stringResource(R.string.ui_hold_announce_back), call)
     return when {
+        call.phase == CallPhase.INCOMING && back != null -> back
         call.recording -> recording
         call.phase == CallPhase.HELD -> held
         call.phase == CallPhase.ACTIVE -> connected
@@ -699,9 +746,9 @@ private fun CallerAvatar(call: CallUiState, animate: Boolean) {
 }
 
 @Composable
-private fun StateLine(call: CallUiState, elapsed: Long) {
+private fun StateLine(call: CallUiState, elapsed: Long, incomingOverride: String? = null) {
     val text = when (call.phase) {
-        CallPhase.INCOMING -> stringResource(R.string.ui_call_incoming)
+        CallPhase.INCOMING -> incomingOverride ?: stringResource(R.string.ui_call_incoming)
         CallPhase.CONNECTING -> stringResource(R.string.ui_call_calling)
         CallPhase.RINGING -> stringResource(R.string.ui_call_ringing)
         CallPhase.HELD -> stringResource(R.string.ui_call_on_hold)
@@ -1296,6 +1343,15 @@ fun ManagedCallScreen(call: CallUiState) {
             }
         }
     }
+    // A hold return's wait arrives over the socket or REST, maybe after the ring: absent until then.
+    val holdWaits by com.solutions5060.aria.hold.HoldForMeCoordinator.waits.collectAsState()
+    val holdTranscripts by com.solutions5060.aria.hold.HoldForMeCoordinator.transcripts.collectAsState()
+    val holdWait = remember(holdWaits, call.holdReturnId) {
+        call.holdReturnId?.let { com.solutions5060.aria.hold.HoldForMeCoordinator.waitForHoldReturn(it) }
+    }
+    val holdTranscript = remember(holdWait, holdTranscripts) {
+        holdWait?.let { holdTranscripts[it.callId] }.orEmpty()
+    }
     CallScreen(
         call = call,
         context = CallContext(
@@ -1309,6 +1365,9 @@ fun ManagedCallScreen(call: CallUiState) {
             errors = listOfNotNull(callError, actionError),
             quality = quality,
             holdForMeAvailable = holdForMe,
+            holdTranscript = holdTranscript,
+            holdMaxWaitHours = holdWait?.takeIf { it.ringReason == "max_wait" }
+                ?.let { com.solutions5060.aria.hold.HoldReturn.hours(it.maxWaitSecs) },
         ),
         onDismissError = { message ->
             if (message == callError) CallManager.clearError()
@@ -1339,6 +1398,16 @@ fun ManagedCallScreen(call: CallUiState) {
             onMoveTo = { com.solutions5060.aria.move.CallMoveCoordinator.moveTo(call.remoteUri, it) },
             loadHoldSettings = { com.solutions5060.aria.hold.HoldForMeCoordinator.service()?.settings() ?: com.solutions5060.aria.hold.HoldSettings.Fallback },
             onHoldForMe = { com.solutions5060.aria.hold.HoldForMeCoordinator.startAsync(call, it) },
+            onStillOnHold = {
+                call.holdReturnId?.let { holdId ->
+                    val ringing = call.phase == CallPhase.INCOMING
+                    com.solutions5060.aria.AppScope.scope.launch {
+                        com.solutions5060.aria.hold.HoldForMeCoordinator.stillOnHoldForReturn(holdId)
+                        // The PBX keeps waiting: this ring is not wanted, whether or not the request got through.
+                        if (ringing) CallManager.rejectByKey(key)
+                    }
+                }
+            },
         ),
     )
 }
