@@ -7,6 +7,11 @@ import android.content.Intent
 import android.net.Uri
 import androidx.annotation.StringRes
 import androidx.compose.ui.test.SemanticsMatcher
+import androidx.compose.ui.test.assertContentDescriptionContains
+import androidx.compose.ui.test.assertCountEquals
+import androidx.compose.ui.test.assertIsDisplayed
+import androidx.compose.ui.test.onAllNodesWithTag
+import androidx.compose.ui.test.onAllNodesWithText
 import androidx.compose.ui.test.assertIsOff
 import androidx.compose.ui.test.assertIsOn
 import androidx.compose.ui.test.assertIsSelected
@@ -39,6 +44,7 @@ import com.solutions5060.aria.fixtures.Fixtures
 import com.solutions5060.aria.pbx.ForwardType
 import com.solutions5060.aria.pbx.SelfServiceState
 import com.solutions5060.aria.provisioning.DeepLinks
+import com.solutions5060.aria.ui.call.CallScreenTags
 import com.solutions5060.aria.ui.forwarding.ForwardingTags
 import com.solutions5060.aria.ui.settings.CallingSectionTags
 import com.solutions5060.aria.ui.setup.ManualSetupTags
@@ -234,11 +240,51 @@ class AriaUiTest {
         assertTrue(!newer.onHold)
     }
 
+    // ── Call encryption callout ──────────────────────────────────────
+
+    private fun noticeShowing(): Boolean =
+        compose.onAllNodesWithText(str(R.string.ui_call_unencrypted_notice)).fetchSemanticsNodes().isNotEmpty()
+
+    @Test
+    fun anUnencryptedCallIsCalledOut() {
+        launch("in-call-unencrypted")
+        // The amber capsule, read as "Call not encrypted", never the encrypted one.
+        compose.onNodeWithTag(CallScreenTags.NOT_ENCRYPTED)
+            .assertIsDisplayed()
+            .assertContentDescriptionContains(str(R.string.ui_call_not_encrypted_description), substring = true)
+        compose.onAllNodesWithTag(CallScreenTags.ENCRYPTED).assertCountEquals(0)
+
+        // The one-time notice comes up by itself.
+        compose.waitUntil(5_000) { noticeShowing() }
+
+        // Dismissed, it does not come back on its own.
+        compose.onNode(hasContentDescription("Dismiss") and hasClickAction()).performClick()
+        compose.waitUntil(5_000) { !noticeShowing() }
+        Thread.sleep(2_000)
+        compose.waitForIdle()
+        assertTrue("the notice is once per call", !noticeShowing())
+
+        // Tapping the capsule explains it again.
+        compose.onNodeWithTag(CallScreenTags.NOT_ENCRYPTED).performClick()
+        compose.waitUntil(5_000) { noticeShowing() }
+    }
+
+    @Test
+    fun anEncryptedCallShowsNoWarning() {
+        launch("in-call")
+        compose.onNodeWithTag(CallScreenTags.ENCRYPTED)
+            .assertIsDisplayed()
+            .assertContentDescriptionContains(str(R.string.ui_call_encrypted), substring = true)
+        compose.onAllNodesWithTag(CallScreenTags.NOT_ENCRYPTED).assertCountEquals(0)
+        compose.waitForIdle()
+        assertTrue("no notice for an encrypted call", !noticeShowing())
+    }
+
     // ── Launch permissions ───────────────────────────────────────────
 
     @Test
     fun noSceneRaisesAPermissionDialogAtLaunch() {
-        for (scene in listOf("onboarding", "main", "incoming", "in-call", "two-calls", "call-waiting")) {
+        for (scene in listOf("onboarding", "main", "incoming", "in-call", "in-call-unencrypted", "two-calls", "call-waiting")) {
             launch(scene)
             scenario?.close()
         }

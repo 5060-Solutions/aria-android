@@ -116,6 +116,9 @@ enum class FixtureScene(val id: String) {
     /** One connected call. */
     IN_CALL("in-call"),
 
+    /** One connected call whose media is not encrypted: the phone system declined SRTP. */
+    IN_CALL_UNENCRYPTED("in-call-unencrypted"),
+
     /** A connected call plus a second one on hold. */
     TWO_CALLS("two-calls"),
 
@@ -315,6 +318,7 @@ object FixtureData {
             FixtureScene.ONBOARDING, FixtureScene.MAIN -> emptyList()
             FixtureScene.INCOMING -> listOf(ben)
             FixtureScene.IN_CALL -> listOf(amelia)
+            FixtureScene.IN_CALL_UNENCRYPTED -> listOf(amelia.copy(encrypted = false))
             FixtureScene.TWO_CALLS -> listOf(
                 amelia.copy(phase = CallPhase.HELD, onHold = true),
                 ben.copy(phase = CallPhase.ACTIVE, connectedAtElapsed = nowElapsed - 83_000L, encrypted = true, codec = "PCMU"),

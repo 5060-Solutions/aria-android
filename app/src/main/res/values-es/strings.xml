@@ -102,7 +102,6 @@
     <string name="diag_codec">Códec</string>
     <string name="diag_srtp">Cifrado (SRTP)</string>
     <string name="diag_srtp_on">Cifrada</string>
-    <string name="diag_srtp_off">Sin cifrar</string>
     <string name="diag_packets">Paquetes</string>
     <string name="diag_packets_value">Enviados: %1$d · Recibidos: %2$d · Perdidos: %3$d</string>
     <string name="diag_jitter_rtt">Jitter / ida y vuelta</string>

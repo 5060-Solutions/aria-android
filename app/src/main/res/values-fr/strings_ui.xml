@@ -41,6 +41,9 @@
     <string name="ui_call_in_conference">En conférence</string>
     <string name="ui_call_encrypted">Chiffré</string>
     <string name="ui_call_not_encrypted">Non chiffré</string>
+    <string name="ui_call_not_encrypted_description">Appel non chiffré</string>
+    <string name="ui_call_unencrypted_notice">Cet appel n\'est pas chiffré. Le standard n\'a pas accepté de connexion sécurisée.</string>
+    <string name="ui_call_unencrypted_explain">Expliquer</string>
     <string name="ui_call_more">Plus d\'options d\'appel</string>
     <string name="ui_call_mute">Muet</string>
     <string name="ui_call_keypad">Clavier</string>
@@ -87,7 +90,7 @@
     <string name="ui_connection_account">Compte</string>
     <string name="ui_connection_codec">Codec</string>
     <string name="ui_connection_encryption">Chiffrement de l\'appel</string>
-    <string name="ui_connection_encryption_none">Aucun</string>
+    <string name="ui_connection_encryption_none">Aucun (non chiffré)</string>
     <string name="ui_connection_media">Audio</string>
     <string name="ui_connection_media_value">Perte %1$d · gigue %2$d ms · RTT %3$d ms</string>
     <string name="ui_connection_network">Réseau</string>
