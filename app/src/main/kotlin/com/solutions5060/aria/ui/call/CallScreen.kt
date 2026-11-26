@@ -1402,9 +1402,14 @@ fun ManagedCallScreen(call: CallUiState) {
                 call.holdReturnId?.let { holdId ->
                     val ringing = call.phase == CallPhase.INCOMING
                     com.solutions5060.aria.AppScope.scope.launch {
-                        com.solutions5060.aria.hold.HoldForMeCoordinator.stillOnHoldForReturn(holdId)
-                        // The PBX keeps waiting: this ring is not wanted, whether or not the request got through.
-                        if (ringing) CallManager.rejectByKey(key)
+                        if (ringing) {
+                            // Tell the PBX first (bounded), then drop this ring whether or not it got through.
+                            if (com.solutions5060.aria.hold.HoldForMeCoordinator.stillOnHoldThenProceed(holdId)) {
+                                CallManager.rejectByKey(key)
+                            }
+                        } else {
+                            com.solutions5060.aria.hold.HoldForMeCoordinator.stillOnHoldForReturn(holdId)
+                        }
                     }
                 }
             },

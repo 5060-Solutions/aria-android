@@ -23,6 +23,18 @@ object HoldReturn {
     fun hours(maxWaitSecs: Int): Int = (maxWaitSecs / 3600).coerceAtLeast(1)
 }
 
+/** When a hold-return push, not the foreground app, runs the socket driver, and when it lets go. */
+object PushListener {
+    /** How long a push-started driver may run if the call never reports its end. */
+    const val MAX_MS = 5 * 60_000L
+
+    /** Start it for the push only when nothing is running (not foreground, not an earlier push). */
+    fun shouldStart(alreadyRunning: Boolean): Boolean = !alreadyRunning
+
+    /** Stop it only if this push started it and the app has not come to the foreground (which owns it then). */
+    fun shouldStop(startedByPush: Boolean, foreground: Boolean): Boolean = startedByPush && !foreground
+}
+
 /** Whether "Still on hold" is offered: while a hold return rings, and for 10 s after joining one. */
 fun stillOnHoldVisible(state: CallUiState, nowMillis: Long): Boolean {
     if (state.holdReturnId == null) return false

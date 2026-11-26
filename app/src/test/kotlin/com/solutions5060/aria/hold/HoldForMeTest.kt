@@ -20,6 +20,7 @@ import com.solutions5060.aria.call.CallUiState
 import com.solutions5060.aria.service.PbxApiClient
 import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
+import kotlinx.coroutines.async
 import org.json.JSONObject
 import uniffi.aria_mobile.CallDirection
 import uniffi.aria_mobile.EndReason as CoreEndReason
@@ -415,6 +416,52 @@ class HoldForMeTest {
             val lines = listOf(TranscriptLine("caller", "Hi, this is Dana"))
             HoldForMeCoordinator.onEvent(HoldEvent.State(wait("w-1", "ringing", callId = "pbx-9"), lines))
             assertEquals(lines, HoldForMeCoordinator.transcriptForHoldReturn("w-1"))
+        } finally {
+            HoldForMeCoordinator.clearFixture()
+        }
+    }
+
+    @Test
+    fun aPushStartedListenerStopsOnlyWhenNothingElseOwnsIt() {
+        // Nothing running: the push starts it. Already running: leave it alone.
+        assertTrue(PushListener.shouldStart(alreadyRunning = false))
+        assertFalse(PushListener.shouldStart(alreadyRunning = true))
+        // Stop it in the background once this push's call is over...
+        assertTrue(PushListener.shouldStop(startedByPush = true, foreground = false))
+        // ...never while the app is in the foreground, nor if the push did not start it.
+        assertFalse(PushListener.shouldStop(startedByPush = true, foreground = true))
+        assertFalse(PushListener.shouldStop(startedByPush = false, foreground = false))
+        assertTrue(PushListener.MAX_MS > 0)
+    }
+
+    private class SlowApi(val delayMs: Long, open: List<HoldWait>) : HoldApi {
+        val api = RecordingApi(open)
+        override suspend fun start(callId: String, greeting: HoldGreeting?, displayName: String?) = error("unused")
+        override suspend fun cancel(callId: String, action: String) = error("unused")
+        override suspend fun stillOnHold(callId: String): HoldWait {
+            kotlinx.coroutines.delay(delayMs)
+            return api.stillOnHold(callId)
+        }
+        override suspend fun openWaits() = api.open
+        override suspend fun settings() = error("unused")
+        override suspend fun setGreeting(g: HoldGreeting) = error("unused")
+    }
+
+    @Test
+    fun stillOnHoldDoesNotHangTheRingOnASlowNetworkAndIgnoresRepeatTaps() {
+        val api = SlowApi(5_000L, listOf(wait("w-1", "ringing", callId = "pbx-9")))
+        HoldForMeCoordinator.installFixture(api, available = true)
+        try {
+            kotlinx.coroutines.runBlocking {
+                // A slow PBX: give up after the bound and let the caller reject the ring.
+                val first = this.async { HoldForMeCoordinator.stillOnHoldThenProceed("w-1", timeoutMs = 300L) }
+                kotlinx.coroutines.delay(100L)
+                // A second tap while the first is in flight is ignored.
+                assertFalse(HoldForMeCoordinator.stillOnHoldThenProceed("w-1", timeoutMs = 300L))
+                assertTrue(first.await())
+                // Once finished, a later tap works again.
+                assertTrue(HoldForMeCoordinator.stillOnHoldThenProceed("w-1", timeoutMs = 300L))
+            }
         } finally {
             HoldForMeCoordinator.clearFixture()
         }

@@ -233,6 +233,8 @@ object CallManager {
         var holdReturnId: String? = null
         var holdReturnName: String? = null
         var joinedAtMillis: Long? = null
+        /** The incoming-call notification has been posted for this record. */
+        var incomingShown = false
         var heldForYou = false
         var awaitingMoveOffer = false
         var moveAutoAnswer = false
@@ -391,9 +393,16 @@ object CallManager {
                 }
                 offerHoldReturns[offer.callToken]?.let { hr ->
                     // The offer is the gateway's word; the push may have been first.
+                    val wasHoldReturn = rec.holdReturnId != null
                     hr.id?.let { rec.holdReturnId = it }
                     hr.name?.let { rec.holdReturnName = it }
                     publishAll()
+                    // Only the offer knew: the heads-up already up must now read "They're back".
+                    if (!wasHoldReturn && rec.holdReturnId != null && rec.incomingShown &&
+                        rec.phase == CallPhase.INCOMING && !rec.finished
+                    ) {
+                        showIncoming(rec)
+                    }
                 }
                 applyMoveDecision(rec)
             }
@@ -823,6 +832,7 @@ object CallManager {
     }
 
     private fun showIncoming(rec: CallRecord) {
+        rec.incomingShown = true
         // Next to another call this is call waiting: a quieter alert, since
         // the user is already on the phone.
         val waiting = liveRecords().any { it !== rec }
@@ -1402,6 +1412,7 @@ object CallManager {
 
         cancelRingTimeout(rec)
         syncIncomingNotifier()
+        if (rec.holdReturnId != null) com.solutions5060.aria.hold.HoldForMeCoordinator.releasePushListener(appContext)
         val remaining = liveRecords()
         // Only a call still ringing here is left: nothing needs the audio.
         val onlyRinging = CallWaiting.onlyRingingLeft(remaining.map { it.toUiState() })

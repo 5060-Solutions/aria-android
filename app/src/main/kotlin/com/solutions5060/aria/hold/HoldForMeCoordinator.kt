@@ -242,10 +242,53 @@ object HoldForMeCoordinator {
      * the foreground driver, which carries that socket, is running.
      */
     suspend fun ensureListening(context: Context) {
-        if (!com.solutions5060.aria.move.CallMoveDriver.isRunning()) {
-            com.solutions5060.aria.move.CallMoveDriver.start(context)
+        val driver = com.solutions5060.aria.move.CallMoveDriver
+        if (PushListener.shouldStart(driver.isRunning())) {
+            driver.start(context)
+            pushStartedDriver = true
+            // The foreground owns the driver from here; otherwise let go when the call ends or after a bound.
+            pushListenerTimeout?.cancel()
+            pushListenerTimeout = AppScope.scope.launch {
+                kotlinx.coroutines.delay(PushListener.MAX_MS)
+                releasePushListener(context)
+            }
         }
         reconcile()
+    }
+
+    @Volatile
+    private var pushStartedDriver = false
+    private var pushListenerTimeout: kotlinx.coroutines.Job? = null
+
+    private fun inForeground(): Boolean = androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle
+        .currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
+
+    /** The hold-return call ended: stop the driver a push started, unless the app is in the foreground. */
+    fun releasePushListener(context: Context) {
+        if (!pushStartedDriver) return
+        val stop = PushListener.shouldStop(pushStartedDriver, inForeground())
+        pushStartedDriver = false
+        pushListenerTimeout?.cancel()
+        pushListenerTimeout = null
+        if (stop) com.solutions5060.aria.move.CallMoveDriver.stop(context)
+    }
+
+    private val stillTaps = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
+    /**
+     * The tap on "Still on hold" for a ringing hold return: tell the PBX first,
+     * but never hold the ring up on a slow network. Returns false when an
+     * earlier tap is still in flight (ignore this one); true when the caller
+     * should now reject the local ring.
+     */
+    suspend fun stillOnHoldThenProceed(holdReturnId: String, timeoutMs: Long = 3_000L): Boolean {
+        if (!stillTaps.add(holdReturnId)) return false
+        try {
+            kotlinx.coroutines.withTimeoutOrNull(timeoutMs) { stillOnHoldForReturn(holdReturnId) }
+        } finally {
+            stillTaps.remove(holdReturnId)
+        }
+        return true
     }
 
     /** Fire-and-forget [start] for the call screen. */
