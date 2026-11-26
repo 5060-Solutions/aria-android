@@ -31,6 +31,9 @@ object HoldTags {
     const val START = "hold.start"
     fun greeting(g: HoldGreeting) = "hold.greeting.${g.wire}"
     const val CARD = "hold.card"
+    const val CANCEL = "hold.cancel"
+    const val REJOIN = "hold.rejoin"
+    const val HANG_UP = "hold.hangUp"
     const val STILL_ON_HOLD = "hold.stillOnHold"
     const val TRANSCRIPT = "hold.transcript"
 }

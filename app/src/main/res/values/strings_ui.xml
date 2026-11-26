@@ -276,4 +276,12 @@
     <string name="ui_hold_error_emergency">Not available on emergency calls.</string>
     <string name="ui_hold_error_busy">Not available while a transfer or merge is in progress.</string>
     <string name="ui_hold_error_already">Already holding this call.</string>
+    <string name="ui_hold_waiting">Waiting on hold · %1$s</string>
+    <string name="ui_hold_someone_answered">Someone answered</string>
+    <string name="ui_hold_ringing_you">Ringing you…</string>
+    <string name="ui_hold_cancel">Cancel</string>
+    <string name="ui_hold_stop_title">Stop holding?</string>
+    <string name="ui_hold_rejoin_now">Rejoin now</string>
+    <string name="ui_hold_hang_up">Hang up</string>
+    <string name="ui_hold_channel_name">Hold for me</string>
 </resources>

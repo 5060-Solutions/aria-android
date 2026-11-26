@@ -53,6 +53,12 @@ object HoldForMeCoordinator {
     /** Why the last start was refused, until [clearRefusal]. */
     val refusal: StateFlow<HoldRefusal?> = _refusal.asStateFlow()
 
+    /** Keeps the ongoing notifications in step with [waits]; nothing is shown while the feature is off. */
+    private fun publish() {
+        val open = if (_available.value) _waits.value.values.toList() else emptyList()
+        HoldWaitNotifier.sync(appContext, open)
+    }
+
     fun init(context: Context) {
         appContext = context.applicationContext
     }
@@ -65,12 +71,13 @@ object HoldForMeCoordinator {
     fun service(): HoldApi? = api ?: appContext?.let { LiveHoldApi(StoredPbxAuth(it)) }
 
     /** Debug fixtures only: use [fake] and set the flag without asking the PBX. */
-    fun installFixture(fake: HoldApi, available: Boolean) {
+    fun installFixture(fake: HoldApi, available: Boolean, waits: List<HoldWait> = emptyList()) {
         api = fake
         _available.value = available
-        _waits.value = emptyMap()
+        _waits.value = waits.associateBy { it.callId }
         _transcripts.value = emptyMap()
         _refusal.value = null
+        publish()
     }
 
     fun clearFixture() {
@@ -84,6 +91,7 @@ object HoldForMeCoordinator {
         _waits.value = emptyMap()
         _transcripts.value = emptyMap()
         _refusal.value = null
+        publish()
     }
 
     /** The PBX's id for this app's own call, or null while unknown. */
@@ -102,6 +110,7 @@ object HoldForMeCoordinator {
                 val auth = StoredPbxAuth(context)
                 val body = withContext(Dispatchers.IO) { auth.withAuth { PbxApiClient(auth.apiUrl()).me(it) } }
                 _available.value = SelfServiceJson.meFeatures(body).holdForMe
+                publish()
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -120,6 +129,7 @@ object HoldForMeCoordinator {
             val open = service.openWaits().filter { it.isOpen }.associateBy { it.callId }
             _waits.value = open
             _transcripts.update { t -> t.filterKeys { it in open } }
+            publish()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -133,6 +143,7 @@ object HoldForMeCoordinator {
             is HoldEvent.State -> {
                 _waits.update { it + (e.wait.callId to e.wait) }
                 _transcripts.update { it + (e.wait.callId to e.transcript) }
+                publish()
             }
         }
     }
@@ -150,6 +161,7 @@ object HoldForMeCoordinator {
         try {
             val wait = service.start(id, greeting, HoldForMePolicy.displayName(call))
             _waits.update { it + (id to wait) }
+            publish()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -164,6 +176,7 @@ object HoldForMeCoordinator {
         val service = service() ?: return
         try {
             _waits.update { it + (id to service.cancel(id, if (rejoin) "rejoin" else "hang_up")) }
+            publish()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {
@@ -183,6 +196,7 @@ object HoldForMeCoordinator {
         if (!stillInFlight.add(id)) return
         try {
             _waits.update { it + (id to service.stillOnHold(id)) }
+            publish()
         } catch (e: CancellationException) {
             throw e
         } catch (e: Exception) {

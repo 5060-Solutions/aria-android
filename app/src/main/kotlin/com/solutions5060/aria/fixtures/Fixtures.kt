@@ -77,7 +77,11 @@ object Fixtures {
         current = set
         CallManager.showFixtureCalls(set.calls)
         FakeHoldApi.reset()
-        HoldForMeCoordinator.installFixture(FakeHoldApi, set.holdForMe)
+        HoldForMeCoordinator.installFixture(
+            FakeHoldApi,
+            set.holdForMe,
+            if (set.scene == FixtureScene.HOLD_WAITING) listOf(FakeHoldApi.waiting(System.currentTimeMillis() - 754_000L)) else emptyList(),
+        )
         if (set.scene == FixtureScene.IN_CALL_HOLD_FOR_ME) {
             // The PBX's own record of the call on screen, so the button can resolve its id.
             CallMoveCoordinator.onEvent(MoveEvent.CallActiveElsewhere(FixtureData.pbxCall))
@@ -116,7 +120,8 @@ object Fixtures {
                 dialNumber = intent.getStringExtra(EXTRA_NUMBER),
                 voicemailPlaying = intent.getBooleanExtra(EXTRA_PLAYING, false),
                 sheet = intent.getStringExtra(EXTRA_SHEET),
-                holdForMe = !intent.getBooleanExtra(EXTRA_NO_HOLD_FOR_ME, false) && scene == FixtureScene.IN_CALL_HOLD_FOR_ME,
+                holdForMe = !intent.getBooleanExtra(EXTRA_NO_HOLD_FOR_ME, false) &&
+                    (scene == FixtureScene.IN_CALL_HOLD_FOR_ME || scene == FixtureScene.HOLD_WAITING),
             ),
         )
         return true
@@ -148,6 +153,9 @@ enum class FixtureScene(val id: String) {
 
     /** A connected outgoing call on an account whose PBX offers Hold for me. */
     IN_CALL_HOLD_FOR_ME("in-call-hold-for-me"),
+
+    /** No call: the tabs, with one Hold for me wait that started 12:34 ago. */
+    HOLD_WAITING("hold-waiting"),
 }
 
 data class FixtureAccount(
@@ -187,7 +195,7 @@ data class FixtureSet(
             dialNumber: String? = null,
             voicemailPlaying: Boolean = false,
             sheet: String? = null,
-            holdForMe: Boolean = scene == FixtureScene.IN_CALL_HOLD_FOR_ME,
+            holdForMe: Boolean = scene == FixtureScene.IN_CALL_HOLD_FOR_ME || scene == FixtureScene.HOLD_WAITING,
             nowMillis: Long = System.currentTimeMillis(),
             nowElapsed: Long = SystemClock.elapsedRealtime(),
         ): FixtureSet {
@@ -356,7 +364,7 @@ object FixtureData {
             audio = audio,
         )
         return when (scene) {
-            FixtureScene.ONBOARDING, FixtureScene.MAIN -> emptyList()
+            FixtureScene.ONBOARDING, FixtureScene.MAIN, FixtureScene.HOLD_WAITING -> emptyList()
             FixtureScene.INCOMING -> listOf(ben)
             FixtureScene.IN_CALL, FixtureScene.IN_CALL_HOLD_FOR_ME -> listOf(amelia)
             FixtureScene.IN_CALL_UNENCRYPTED -> listOf(amelia.copy(encrypted = false))
@@ -386,12 +394,21 @@ object FakeHoldApi : HoldApi {
         refuseNextStart = null
     }
 
-    private fun wait(callId: String, state: String, greeting: HoldGreeting = HoldGreeting.LINE, ended: String? = null) = HoldWait(
+    /** The wait the `hold-waiting` scene opens with. */
+    fun waiting(startedAtMillis: Long) = wait("fixture-call", "waiting", startedAt = startedAtMillis)
+
+    private fun wait(
+        callId: String,
+        state: String,
+        greeting: HoldGreeting = HoldGreeting.LINE,
+        ended: String? = null,
+        startedAt: Long? = null,
+    ) = HoldWait(
         holdWaitId = "fixture-wait",
         callId = callId,
         state = state,
         greeting = greeting,
-        startedAtMillis = null,
+        startedAtMillis = startedAt,
         stateSinceMillis = null,
         maxWaitSecs = 10_800,
         falseAlarms = 0,

@@ -248,4 +248,12 @@
     <string name="ui_hold_error_emergency">No disponible en llamadas de emergencia.</string>
     <string name="ui_hold_error_busy">No disponible durante una transferencia o fusión.</string>
     <string name="ui_hold_error_already">Ya se está esperando en esta llamada.</string>
+    <string name="ui_hold_waiting">En espera · %1$s</string>
+    <string name="ui_hold_someone_answered">Alguien contestó</string>
+    <string name="ui_hold_ringing_you">Te estamos llamando…</string>
+    <string name="ui_hold_cancel">Cancelar</string>
+    <string name="ui_hold_stop_title">¿Dejar de esperar?</string>
+    <string name="ui_hold_rejoin_now">Volver ahora</string>
+    <string name="ui_hold_hang_up">Colgar</string>
+    <string name="ui_hold_channel_name">Esperar por mí</string>
 </resources>

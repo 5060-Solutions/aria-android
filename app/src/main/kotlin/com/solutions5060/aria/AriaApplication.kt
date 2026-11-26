@@ -159,6 +159,7 @@ class AriaApplication : Application() {
         }
 
         com.solutions5060.aria.proximity.HandoffNotifier.createChannel(this)
+        com.solutions5060.aria.hold.HoldWaitNotifier.createChannel(this)
         manager.createNotificationChannel(voicemailChannel)
         manager.createNotificationChannel(messagesChannel)
         manager.deleteNotificationChannel(LEGACY_CHANNEL_INCOMING_CALL)

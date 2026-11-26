@@ -246,4 +246,12 @@
     <string name="ui_hold_error_emergency">Bei Notrufen nicht verfügbar.</string>
     <string name="ui_hold_error_busy">Während einer Weiterleitung oder Zusammenführung nicht verfügbar.</string>
     <string name="ui_hold_error_already">Für diesen Anruf wird bereits gewartet.</string>
+    <string name="ui_hold_waiting">In der Warteschleife · %1$s</string>
+    <string name="ui_hold_someone_answered">Jemand hat abgenommen</string>
+    <string name="ui_hold_ringing_you">Wir rufen Sie an…</string>
+    <string name="ui_hold_cancel">Abbrechen</string>
+    <string name="ui_hold_stop_title">Warten beenden?</string>
+    <string name="ui_hold_rejoin_now">Jetzt zurückkehren</string>
+    <string name="ui_hold_hang_up">Auflegen</string>
+    <string name="ui_hold_channel_name">Für mich warten</string>
 </resources>

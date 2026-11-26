@@ -228,4 +228,99 @@ class HoldForMeTest {
         assertNull(HoldForMePolicy.displayName(outgoing().copy(remoteName = null)))
         assertEquals("a".repeat(64), HoldForMePolicy.displayName(outgoing().copy(remoteName = "a".repeat(80))))
     }
+
+    // ── Ongoing notification (Task D3) ─────────────────────────────────
+
+    private class FakeNotifications : HoldNotifications {
+        val shown = linkedMapOf<String, HoldWait>()
+        val log = mutableListOf<String>()
+        override fun post(wait: HoldWait) {
+            log.add("post:${wait.holdWaitId}:${wait.state}")
+            shown[wait.holdWaitId] = wait
+        }
+        override fun cancel(holdWaitId: String) {
+            log.add("cancel:$holdWaitId")
+            shown.remove(holdWaitId)
+        }
+        override fun activeIds(): Set<String> = shown.keys.toSet()
+    }
+
+    private fun wait(id: String, state: String = "waiting", callId: String = "call-$id") =
+        HoldJson.wait(waitJson.replace("w-1", id).replace("call-1", callId).replace("\"waiting\"", "\"$state\""))
+
+    @Test
+    fun notifierSyncPostsUpdatesAndCancels() {
+        val fake = FakeNotifications()
+        HoldWaitNotifier.override = fake
+        try {
+            HoldWaitNotifier.sync(null, listOf(wait("a"), wait("b")))
+            assertEquals(setOf("a", "b"), fake.shown.keys)
+            // A state change updates the same notification.
+            HoldWaitNotifier.sync(null, listOf(wait("a", "ringing"), wait("b")))
+            assertEquals("ringing", fake.shown.getValue("a").state)
+            assertEquals(2, fake.shown.size)
+            // A closed wait, and one that is missing from the model, are cancelled.
+            fake.shown["orphan"] = wait("orphan")
+            HoldWaitNotifier.sync(null, listOf(wait("a", "ended"), wait("b")))
+            assertEquals(setOf("b"), fake.shown.keys)
+            HoldWaitNotifier.sync(null, emptyList())
+            assertTrue(fake.shown.isEmpty())
+        } finally {
+            HoldWaitNotifier.override = null
+        }
+    }
+
+    @Test
+    fun notificationIdsStayInTheBlockAndAreStablePerWait() {
+        val id = HoldWaitNotifier.notificationId("some-uuid")
+        assertEquals(id, HoldWaitNotifier.notificationId("some-uuid"))
+        assertTrue(id in 7320..(7320 + 255))
+    }
+
+    private class StaleApi(var open: List<HoldWait>) : HoldApi {
+        override suspend fun start(callId: String, greeting: HoldGreeting?, displayName: String?) = error("unused")
+        override suspend fun cancel(callId: String, action: String) = error("unused")
+        override suspend fun stillOnHold(callId: String) = error("unused")
+        override suspend fun openWaits() = open
+        override suspend fun settings() = error("unused")
+        override suspend fun setGreeting(g: HoldGreeting) = error("unused")
+    }
+
+    @Test
+    fun aStaleNotificationIsClearedOnForeground() {
+        val fake = FakeNotifications()
+        HoldWaitNotifier.override = fake
+        val api = StaleApi(listOf(wait("w-1")))
+        HoldForMeCoordinator.installFixture(api, available = true)
+        try {
+            kotlinx.coroutines.runBlocking { HoldForMeCoordinator.reconcile() }
+            assertEquals(setOf("w-1"), fake.shown.keys)
+            // The wait ended while the app was away: the PBX no longer lists it.
+            api.open = emptyList()
+            kotlinx.coroutines.runBlocking { HoldForMeCoordinator.reconcile() }
+            assertTrue(fake.shown.isEmpty())
+            // A notification left by a dead process, for a wait the model never saw.
+            fake.shown["ghost"] = wait("ghost")
+            kotlinx.coroutines.runBlocking { HoldForMeCoordinator.reconcile() }
+            assertTrue(fake.shown.isEmpty())
+        } finally {
+            HoldWaitNotifier.override = null
+            HoldForMeCoordinator.clearFixture()
+        }
+    }
+
+    @Test
+    fun nothingIsShownWhenTheFeatureIsOff() {
+        val fake = FakeNotifications()
+        HoldWaitNotifier.override = fake
+        val api = StaleApi(listOf(wait("w-1")))
+        HoldForMeCoordinator.installFixture(api, available = false)
+        try {
+            HoldForMeCoordinator.onEvent(HoldEvent.State(wait("w-1"), emptyList()))
+            assertTrue(fake.shown.isEmpty())
+        } finally {
+            HoldWaitNotifier.override = null
+            HoldForMeCoordinator.clearFixture()
+        }
+    }
 }

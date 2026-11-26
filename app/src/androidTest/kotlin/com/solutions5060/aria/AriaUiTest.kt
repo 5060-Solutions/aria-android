@@ -319,6 +319,24 @@ class AriaUiTest {
         compose.onNodeWithTag(HoldTags.OVERFLOW).assertDoesNotExist()
     }
 
+    @Test
+    fun theWaitingCardShowsElapsedAndCancelOffersRejoinOrHangUp() {
+        launch("hold-waiting")
+        compose.onNodeWithTag(HoldTags.CARD).assertIsDisplayed()
+        compose.onNode(hasText("12:3", substring = true) and hasAnyAncestor(hasTestTag(HoldTags.CARD))).assertExists()
+        compose.onNodeWithTag(HoldTags.CANCEL).performClick()
+        compose.onNodeWithText(str(R.string.ui_hold_stop_title)).assertIsDisplayed()
+        compose.onNodeWithTag(HoldTags.REJOIN).performClick()
+        compose.waitUntil(5_000) { FakeHoldApi.calls.isNotEmpty() }
+        assertEquals("cancel:rejoin", FakeHoldApi.calls.last())
+    }
+
+    @Test
+    fun noWaitingCardWithoutTheFlag() {
+        launch("hold-waiting", noHoldForMe = true)
+        compose.onNodeWithTag(HoldTags.CARD).assertDoesNotExist()
+    }
+
     // ── Launch permissions ───────────────────────────────────────────
 
     @Test

@@ -92,4 +92,12 @@ class FixturesTest {
         assertEquals(false, FixtureSet.standard(scene = FixtureScene.IN_CALL_HOLD_FOR_ME, holdForMe = false, nowMillis = 1L, nowElapsed = 1L).holdForMe)
         assertEquals(false, set(FixtureScene.IN_CALL).holdForMe)
     }
+
+    @Test
+    fun holdWaitingSceneHasNoCallAndTheFlagOn() {
+        val s = set(FixtureScene.HOLD_WAITING)
+        assertEquals("hold-waiting", FixtureScene.HOLD_WAITING.id)
+        assertTrue(s.calls.isEmpty())
+        assertTrue(s.holdForMe)
+    }
 }
