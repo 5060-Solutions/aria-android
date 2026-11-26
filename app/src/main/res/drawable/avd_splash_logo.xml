@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    The animated splash icon (Android 12+ SplashScreen API): the waveform grows
+    outward from the centre bar. The longest animator ends at 240 + 440 = 680 ms,
+    inside windowSplashScreenAnimationDuration (900 ms; the platform limit is 1000).
+-->
+<animated-vector xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:aapt="http://schemas.android.com/aapt"
+    android:drawable="@drawable/ic_splash_logo_bars">
+    <target android:name="bar0">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="440"
+                android:interpolator="@android:interpolator/overshoot"
+                android:propertyName="scaleY"
+                android:startOffset="0"
+                android:valueFrom="0.15"
+                android:valueTo="1"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="bar1">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="440"
+                android:interpolator="@android:interpolator/overshoot"
+                android:propertyName="scaleY"
+                android:startOffset="93"
+                android:valueFrom="0.15"
+                android:valueTo="1"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="bar2">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="440"
+                android:interpolator="@android:interpolator/overshoot"
+                android:propertyName="scaleY"
+                android:startOffset="173"
+                android:valueFrom="0.15"
+                android:valueTo="1"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="bar3">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="440"
+                android:interpolator="@android:interpolator/overshoot"
+                android:propertyName="scaleY"
+                android:startOffset="240"
+                android:valueFrom="0.15"
+                android:valueTo="1"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="bar4">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="440"
+                android:interpolator="@android:interpolator/overshoot"
+                android:propertyName="scaleY"
+                android:startOffset="93"
+                android:valueFrom="0.15"
+                android:valueTo="1"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="bar5">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="440"
+                android:interpolator="@android:interpolator/overshoot"
+                android:propertyName="scaleY"
+                android:startOffset="173"
+                android:valueFrom="0.15"
+                android:valueTo="1"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+    <target android:name="bar6">
+        <aapt:attr name="android:animation">
+            <objectAnimator
+                android:duration="440"
+                android:interpolator="@android:interpolator/overshoot"
+                android:propertyName="scaleY"
+                android:startOffset="240"
+                android:valueFrom="0.15"
+                android:valueTo="1"
+                android:valueType="floatType" />
+        </aapt:attr>
+    </target>
+</animated-vector>

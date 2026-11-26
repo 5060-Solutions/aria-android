@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- Android 12+: the animated mark (a waveform growing from the centre, 680 ms). -->
+    <style name="Theme.Aria.Starting" parent="Theme.SplashScreen">
+        <item name="windowSplashScreenBackground">@color/aria_background</item>
+        <item name="windowSplashScreenAnimatedIcon">@drawable/avd_splash_logo</item>
+        <item name="windowSplashScreenIconBackgroundColor">@color/aria_splash_icon_background</item>
+        <item name="windowSplashScreenAnimationDuration">900</item>
+        <item name="postSplashScreenTheme">@style/Theme.Aria</item>
+    </style>
+</resources>

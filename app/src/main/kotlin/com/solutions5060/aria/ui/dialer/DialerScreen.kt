@@ -74,6 +74,7 @@ import com.solutions5060.aria.ui.components.DialKey
 import com.solutions5060.aria.ui.components.PhoneFormat
 import com.solutions5060.aria.ui.components.LocalSnackbarHostState
 import com.solutions5060.aria.ui.components.StatusChip
+import com.solutions5060.aria.ui.splash.HeaderMark
 import com.solutions5060.aria.ui.connection.ConnectionSheet
 import com.solutions5060.aria.ui.connection.toRegistrationStatus
 import com.solutions5060.aria.ui.contacts.ContactsSource
@@ -218,13 +219,17 @@ fun DialerScreen(
         }
 
         val chip: @Composable () -> Unit = {
-            StatusChip(
-                accountName = displayName.ifBlank { extensionNumber },
-                status = connection.toRegistrationStatus(),
-                dnd = dnd,
-                forwarding = forwarding,
-                onClick = { showConnection = true },
-            )
+            // The brand mark at the leading edge is where the splash icon lands.
+            Box(Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                HeaderMark(Modifier.align(Alignment.CenterStart))
+                StatusChip(
+                    accountName = displayName.ifBlank { extensionNumber },
+                    status = connection.toRegistrationStatus(),
+                    dnd = dnd,
+                    forwarding = forwarding,
+                    onClick = { showConnection = true },
+                )
+            }
         }
 
         // Number display: fills the space above the keypad, number at its foot.
