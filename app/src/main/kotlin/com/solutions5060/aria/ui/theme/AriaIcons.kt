@@ -37,6 +37,7 @@ object AriaIcons {
     @DrawableRes val Merge = R.drawable.ic_call_merge
     @DrawableRes val Split = R.drawable.ic_call_split
     @DrawableRes val Swap = R.drawable.ic_swap_calls
+    @DrawableRes val Hourglass = R.drawable.ic_hourglass
     @DrawableRes val Record = R.drawable.ic_radio_button_checked_fill
     @DrawableRes val StopRecord = R.drawable.ic_stop_circle_fill
     @DrawableRes val Secure = R.drawable.ic_lock_fill

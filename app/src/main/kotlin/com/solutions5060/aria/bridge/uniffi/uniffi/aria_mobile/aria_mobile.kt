@@ -3812,7 +3812,15 @@ data class CallOffer (
     /**
      * The INVITE's X-Aria-Move value when the PBX is moving a call here.
      */
-    var `moveId`: kotlin.String?
+    var `moveId`: kotlin.String?, 
+    /**
+     * The INVITE's X-Aria-Hold-Return value: the PBX is ringing this device because the far party of a Hold for me wait is back.
+     */
+    var `holdReturnId`: kotlin.String?, 
+    /**
+     * The INVITE's X-Aria-Hold-Return-Name value: who is back.
+     */
+    var `holdReturnName`: kotlin.String?
 ) {
     
     companion object
@@ -3829,6 +3837,8 @@ public object FfiConverterTypeCallOffer: FfiConverterRustBuffer<CallOffer> {
             FfiConverterOptionalString.read(buf),
             FfiConverterString.read(buf),
             FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
+            FfiConverterOptionalString.read(buf),
         )
     }
 
@@ -3837,7 +3847,9 @@ public object FfiConverterTypeCallOffer: FfiConverterRustBuffer<CallOffer> {
             FfiConverterString.allocationSize(value.`callerUri`) +
             FfiConverterOptionalString.allocationSize(value.`callerName`) +
             FfiConverterString.allocationSize(value.`sdpOffer`) +
-            FfiConverterOptionalString.allocationSize(value.`moveId`)
+            FfiConverterOptionalString.allocationSize(value.`moveId`) +
+            FfiConverterOptionalString.allocationSize(value.`holdReturnId`) +
+            FfiConverterOptionalString.allocationSize(value.`holdReturnName`)
     )
 
     override fun write(value: CallOffer, buf: ByteBuffer) {
@@ -3846,6 +3858,8 @@ public object FfiConverterTypeCallOffer: FfiConverterRustBuffer<CallOffer> {
             FfiConverterOptionalString.write(value.`callerName`, buf)
             FfiConverterString.write(value.`sdpOffer`, buf)
             FfiConverterOptionalString.write(value.`moveId`, buf)
+            FfiConverterOptionalString.write(value.`holdReturnId`, buf)
+            FfiConverterOptionalString.write(value.`holdReturnName`, buf)
     }
 }
 
@@ -4435,7 +4449,11 @@ enum class EndReason {
     /**
      * An outgoing call was hung up before it was answered.
      */
-    CANCELLED;
+    CANCELLED,
+    /**
+     * The PBX released this handset into a Hold for me wait; the far party is still on the line.
+     */
+    HELD_FOR_YOU;
     companion object
 }
 

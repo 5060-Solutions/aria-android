@@ -201,6 +201,35 @@ object CallMoveCoordinator {
         return list
     }
 
+    /**
+     * The PBX's record of this app's own call to [localRemoteUri] for Hold for
+     * me, as last read (no network): matched by number, so with two calls on
+     * this phone the right one is picked, or none.
+     */
+    fun holdCallFor(localRemoteUri: String): ActiveCall? =
+        CallMovePolicy.holdCall(_calls.value, ownRegistrationId, localRemoteUri)
+
+    /**
+     * Read this device's registration and the active calls now, and wait for
+     * them (Hold for me reads them just before it starts). Failures leave the
+     * last list as it was.
+     */
+    suspend fun refreshNow() {
+        if (!::appContext.isInitialized) return
+        withContext(Dispatchers.IO) {
+            try {
+                resolveOwnRegistration()
+                val auth = StoredPbxAuth(appContext)
+                _calls.value = MoveJson.activeCalls(auth.withAuth { PbxApiClient(auth.apiUrl()).activeCalls(it) })
+                recompute()
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.i(TAG, "Active calls not read: ${e.javaClass.simpleName}")
+            }
+        }
+    }
+
     /** The label of the device named [registrationId], if devices were read. */
     fun deviceLabel(registrationId: String): String? = deviceNames[registrationId]
 

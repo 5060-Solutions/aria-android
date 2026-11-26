@@ -25,6 +25,9 @@ enum class CallPhase {
 
 /** Why a call ended. Decides the Telecom disconnect cause and the history entry. */
 enum class EndReason {
+    /** The PBX released this handset into a Hold for me wait; the far party is still on the line. Not a dropped call. */
+    HELD_FOR_YOU,
+
     /** This user hung up (or cancelled an outgoing call). */
     LOCAL_HANGUP,
 
@@ -127,6 +130,7 @@ object CallStateMapping {
         EndReason.FAILED -> DisconnectCause.ERROR
         EndReason.TRANSFERRED -> DisconnectCause.OTHER
         EndReason.ANSWERED_ELSEWHERE -> DisconnectCause.ANSWERED_ELSEWHERE
+        EndReason.HELD_FOR_YOU -> DisconnectCause.REMOTE
     }
 
     /**
@@ -143,6 +147,7 @@ object CallStateMapping {
         CoreEndReason.REJECTED -> EndReason.REJECTED
         CoreEndReason.TRANSFERRED -> EndReason.TRANSFERRED
         CoreEndReason.FAILED -> EndReason.FAILED
+        CoreEndReason.HELD_FOR_YOU -> EndReason.HELD_FOR_YOU
     }
 
     /**

@@ -1,13 +1,14 @@
 package com.solutions5060.aria.ui
 
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import android.Manifest
 import android.content.Context
 import android.os.Build
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.layout.consumeWindowInsets
-import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dialpad
@@ -146,6 +147,8 @@ fun AriaApp() {
         com.solutions5060.aria.messaging.MessagesMonitor.clear(context)
         com.solutions5060.aria.ui.messages.AttachmentCache.clear()
         SelfServiceState.clear()
+        // The mirrored Hold for me default is the account's too.
+        com.solutions5060.aria.hold.PrefsGreetingMirror(context).clear()
     }
 
     var manualSetup by rememberSaveable { mutableStateOf(false) }
@@ -207,6 +210,7 @@ fun AriaApp() {
                     }
                     clearAccount()
                     com.solutions5060.aria.move.CallMoveCoordinator.reset()
+                    com.solutions5060.aria.hold.HoldForMeCoordinator.reset()
                     phase = AppPhase.SETUP
                 },
             )
@@ -455,7 +459,21 @@ private fun MainApp(
             },
         ) { innerPadding ->
             androidx.compose.foundation.layout.Column(Modifier.padding(innerPadding)) {
-            com.solutions5060.aria.ui.move.CallMoveBanner()
+            // The banners sit above the tab content, which has no top inset of its own; when any shows, they
+            // clear the status bar and the screens below skip that inset (so a top bar does not pad twice).
+            val moveShown by com.solutions5060.aria.move.CallMoveCoordinator.banner.collectAsState()
+            val holdAvailable by com.solutions5060.aria.hold.HoldForMeCoordinator.available.collectAsState()
+            val holdWaits by com.solutions5060.aria.hold.HoldForMeCoordinator.waits.collectAsState()
+            val holdNotice by com.solutions5060.aria.hold.HoldForMeCoordinator.notice.collectAsState()
+            val bannersShown = moveShown.isNotEmpty() ||
+                (holdAvailable && holdWaits.values.any { it.isOpen }) || holdNotice != null
+            androidx.compose.foundation.layout.Column(
+                if (bannersShown) Modifier.statusBarsPadding() else Modifier,
+            ) {
+                com.solutions5060.aria.ui.move.CallMoveBanner()
+                com.solutions5060.aria.ui.hold.HoldWaitCards()
+                com.solutions5060.aria.ui.hold.HoldNoticeBanner(onCallAgain = { placeCall(it) })
+            }
             val moveMessage by com.solutions5060.aria.move.CallMoveCoordinator.message.collectAsState()
             val moveText = moveMessage?.let { stringResource(moveMessageRes(it)) }
             val moveSnackbar = com.solutions5060.aria.ui.components.LocalSnackbarHostState.current
@@ -465,20 +483,11 @@ private fun MainApp(
                     com.solutions5060.aria.move.CallMoveCoordinator.clearMessage()
                 }
             }
-            // With the banner showing, it took the status bar inset: the
-            // screens below must not pad for it again.
-            val moveBannerShown by com.solutions5060.aria.move.CallMoveCoordinator.banner.collectAsState()
             NavHost(
                 navController = navController,
                 startDestination = fixture?.startTab ?: "dialer",
                 modifier = Modifier.weight(1f).then(
-                    if (moveBannerShown.isNotEmpty()) {
-                        Modifier.consumeWindowInsets(
-                            androidx.compose.foundation.layout.WindowInsets.statusBars,
-                        )
-                    } else {
-                        Modifier
-                    },
+                    if (bannersShown) Modifier.consumeWindowInsets(androidx.compose.foundation.layout.WindowInsets.Companion.statusBars) else Modifier,
                 ),
             ) {
                 composable("dialer") {
@@ -557,6 +566,7 @@ private fun MainApp(
                                         com.solutions5060.aria.ui.settings.CallHandoffRow(
                                             onOpen = { navController.navigate("call-handoff") },
                                         )
+                                        com.solutions5060.aria.ui.settings.HoldForMeRow()
                                     },
                                 )
                                 com.solutions5060.aria.ui.recordings.RecordingsSection(

@@ -10,6 +10,15 @@ import com.solutions5060.aria.call.CallManager
 import com.solutions5060.aria.call.CallPhase
 import com.solutions5060.aria.call.CallUiState
 import com.solutions5060.aria.history.CallHistoryEntry
+import com.solutions5060.aria.hold.HoldApi
+import com.solutions5060.aria.hold.HoldForMeCoordinator
+import com.solutions5060.aria.hold.HoldGreeting
+import com.solutions5060.aria.hold.HoldSettings
+import com.solutions5060.aria.hold.HoldWait
+import com.solutions5060.aria.hold.TranscriptLine
+import com.solutions5060.aria.move.ActiveCall
+import com.solutions5060.aria.move.CallMoveCoordinator
+import com.solutions5060.aria.move.MoveEvent
 import com.solutions5060.aria.ui.contacts.Contact
 import com.solutions5060.aria.voicemail.VoicemailMessage
 import uniffi.aria_mobile.CallDirection
@@ -53,6 +62,9 @@ object Fixtures {
     /** `--es aria.fixture.sheet <name>`: a sheet open on top of the scene (e.g. "connection", "keypad"). */
     const val EXTRA_SHEET = "aria.fixture.sheet"
 
+    /** `--ez aria.fixture.noHoldForMe true`: the PBX does not offer Hold for me (its `features` lacks the flag). */
+    const val EXTRA_NO_HOLD_FOR_ME = "aria.fixture.noHoldForMe"
+
     @Volatile
     var current: FixtureSet? = null
         private set
@@ -65,12 +77,34 @@ object Fixtures {
         if (!BuildConfig.DEBUG) return
         current = set
         CallManager.showFixtureCalls(set.calls)
+        FakeHoldApi.reset()
+        HoldForMeCoordinator.installFixture(
+            FakeHoldApi,
+            set.holdForMe,
+            when (set.scene) {
+                FixtureScene.HOLD_WAITING -> listOf(FakeHoldApi.waiting(System.currentTimeMillis() - 754_000L))
+                FixtureScene.INCOMING_HOLD_RETURN -> listOf(FakeHoldApi.returning())
+                else -> emptyList()
+            },
+            if (set.scene == FixtureScene.INCOMING_HOLD_RETURN) {
+                mapOf(FakeHoldApi.RETURN_CALL_ID to FixtureData.holdReturnTranscript)
+            } else {
+                emptyMap()
+            },
+        )
+        if (set.scene == FixtureScene.IN_CALL_HOLD_FOR_ME) {
+            // The PBX's own record of the call on screen, so the button can resolve its id.
+            CallMoveCoordinator.onEvent(MoveEvent.CallActiveElsewhere(FixtureData.pbxCall))
+        }
     }
 
     fun clear() {
         if (!BuildConfig.DEBUG) return
         current = null
         CallManager.showFixtureCalls(emptyList())
+        HoldForMeCoordinator.clearFixture()
+        FakeHoldApi.reset()
+        CallMoveCoordinator.reset()
     }
 
     /** The gateway connection a fixture [account] shows: registered, with its gateway. */
@@ -96,6 +130,8 @@ object Fixtures {
                 dialNumber = intent.getStringExtra(EXTRA_NUMBER),
                 voicemailPlaying = intent.getBooleanExtra(EXTRA_PLAYING, false),
                 sheet = intent.getStringExtra(EXTRA_SHEET),
+                holdForMe = !intent.getBooleanExtra(EXTRA_NO_HOLD_FOR_ME, false) &&
+                    (scene == FixtureScene.IN_CALL_HOLD_FOR_ME || scene == FixtureScene.HOLD_WAITING || scene == FixtureScene.INCOMING_HOLD_RETURN),
             ),
         )
         return true
@@ -124,6 +160,15 @@ enum class FixtureScene(val id: String) {
 
     /** A connected call with a second call ringing in (call waiting). */
     CALL_WAITING("call-waiting"),
+
+    /** A connected outgoing call on an account whose PBX offers Hold for me. */
+    IN_CALL_HOLD_FOR_ME("in-call-hold-for-me"),
+
+    /** No call: the tabs, with one Hold for me wait that started 12:34 ago. */
+    HOLD_WAITING("hold-waiting"),
+
+    /** A call ringing in because the business ("Acme Bank") is back, with the assistant's transcript. */
+    INCOMING_HOLD_RETURN("incoming-hold-return"),
 }
 
 data class FixtureAccount(
@@ -153,6 +198,8 @@ data class FixtureSet(
     /** Id of the voicemail shown expanded and playing, if any. */
     val voicemailPlayingId: String? = null,
     val sheet: String? = null,
+    /** Whether the PBX offers Hold for me to this account (`/me` `features`). */
+    val holdForMe: Boolean = false,
 ) {
     companion object {
         fun standard(
@@ -161,6 +208,8 @@ data class FixtureSet(
             dialNumber: String? = null,
             voicemailPlaying: Boolean = false,
             sheet: String? = null,
+            holdForMe: Boolean = scene == FixtureScene.IN_CALL_HOLD_FOR_ME || scene == FixtureScene.HOLD_WAITING ||
+                scene == FixtureScene.INCOMING_HOLD_RETURN,
             nowMillis: Long = System.currentTimeMillis(),
             nowElapsed: Long = SystemClock.elapsedRealtime(),
         ): FixtureSet {
@@ -176,6 +225,7 @@ data class FixtureSet(
                 dialNumber = dialNumber,
                 voicemailPlayingId = if (voicemailPlaying) voicemail.first().id else null,
                 sheet = sheet,
+                holdForMe = holdForMe,
             )
         }
     }
@@ -282,6 +332,19 @@ object FixtureData {
         )
     }
 
+    /** The PBX's record of [calls]' outgoing call, as `GET /me/calls/active` lists it. */
+    val pbxCall = ActiveCall(
+        id = "fixture-pbx-call-a",
+        state = "active",
+        direction = "outbound",
+        remoteNumber = "+15552014410",
+        remoteName = "Amelia Chen",
+        startedAtMillis = null,
+        deviceRegistrationId = "fixture-reg",
+        deviceLabel = "Aria Android",
+        sipCallId = null,
+    )
+
     private val audio = AudioRouteState(
         options = listOf(
             AudioRouteOption(id = "earpiece", label = "Phone", type = AudioRouteType.EARPIECE),
@@ -289,6 +352,12 @@ object FixtureData {
             AudioRouteOption(id = "bt", label = "Pixel Buds", type = AudioRouteType.BLUETOOTH),
         ),
         currentId = "earpiece",
+    )
+
+    /** What the assistant heard from the business, for the `incoming-hold-return` scene. */
+    val holdReturnTranscript = listOf(
+        TranscriptLine("assistant", "I'm an automated assistant for Sam."),
+        TranscriptLine("caller", "Hi, this is Dana from Acme."),
     )
 
     fun calls(scene: FixtureScene, nowElapsed: Long): List<CallUiState> {
@@ -315,9 +384,18 @@ object FixtureData {
             audio = audio,
         )
         return when (scene) {
-            FixtureScene.ONBOARDING, FixtureScene.MAIN -> emptyList()
+            FixtureScene.ONBOARDING, FixtureScene.MAIN, FixtureScene.HOLD_WAITING -> emptyList()
             FixtureScene.INCOMING -> listOf(ben)
-            FixtureScene.IN_CALL -> listOf(amelia)
+            FixtureScene.INCOMING_HOLD_RETURN -> listOf(
+                ben.copy(
+                    key = "fixture-hold-return",
+                    remoteName = "Acme Bank",
+                    remoteUri = "sip:+18005550100@acme.ariaroute.com",
+                    holdReturnId = FakeHoldApi.RETURN_WAIT_ID,
+                    holdReturnName = "Acme Bank",
+                ),
+            )
+            FixtureScene.IN_CALL, FixtureScene.IN_CALL_HOLD_FOR_ME -> listOf(amelia)
             FixtureScene.IN_CALL_UNENCRYPTED -> listOf(amelia.copy(encrypted = false))
             FixtureScene.TWO_CALLS -> listOf(
                 amelia.copy(phase = CallPhase.HELD, onHold = true),
@@ -326,4 +404,80 @@ object FixtureData {
             FixtureScene.CALL_WAITING -> listOf(amelia, ben)
         }
     }
+}
+
+/** A Hold for me service that never touches the network and records what it was asked, as `start:assistant`, `cancel:rejoin`, `still`. */
+object FakeHoldApi : HoldApi {
+
+    private val log = java.util.Collections.synchronizedList(mutableListOf<String>())
+
+    /** A snapshot of the calls made, oldest first. */
+    val calls: List<String> get() = synchronized(log) { log.toList() }
+
+    /** Test hook: the next `start` is refused with this status and body, as the PBX would. */
+    @Volatile
+    var refuseNextStart: Pair<Int, String>? = null
+
+    fun reset() {
+        log.clear()
+        refuseNextStart = null
+    }
+
+    const val RETURN_WAIT_ID = "fixture-return-wait"
+    const val RETURN_CALL_ID = "fixture-return-call"
+
+    /** The wait behind the `incoming-hold-return` scene: a person is on the line, ringing this phone. */
+    fun returning() = wait(RETURN_CALL_ID, "ringing", id = RETURN_WAIT_ID, ringReason = "human")
+        .copy(remoteName = "Acme Bank")
+
+    /** The wait the `hold-waiting` scene opens with. */
+    fun waiting(startedAtMillis: Long) = wait("fixture-call", "waiting", startedAt = startedAtMillis)
+
+    private fun wait(
+        callId: String,
+        state: String,
+        greeting: HoldGreeting = HoldGreeting.LINE,
+        ended: String? = null,
+        startedAt: Long? = null,
+        id: String = "fixture-wait",
+        ringReason: String? = null,
+    ) = HoldWait(
+        holdWaitId = id,
+        callId = callId,
+        state = state,
+        greeting = greeting,
+        startedAtMillis = startedAt,
+        stateSinceMillis = null,
+        maxWaitSecs = 10_800,
+        falseAlarms = 0,
+        remoteNumber = "+15552014410",
+        remoteName = "Amelia Chen",
+        ringReason = ringReason,
+        endedReason = ended,
+    )
+
+    override suspend fun start(callId: String, greeting: HoldGreeting?, displayName: String?): HoldWait {
+        refuseNextStart?.let { (code, body) ->
+            refuseNextStart = null
+            throw com.solutions5060.aria.service.PbxApiClient.HttpException(code, "refused", body = body)
+        }
+        log.add("start:${greeting?.wire ?: "default"}")
+        return wait(callId, "waiting", greeting ?: HoldGreeting.LINE)
+    }
+
+    override suspend fun cancel(callId: String, action: String): HoldWait {
+        log.add("cancel:${if (action == "rejoin") "rejoin" else "hang_up"}")
+        return wait(callId, "ended", ended = if (action == "rejoin") "rejoined" else "hung_up")
+    }
+
+    override suspend fun stillOnHold(callId: String): HoldWait {
+        log.add("still")
+        return wait(callId, "waiting")
+    }
+
+    override suspend fun openWaits(): List<HoldWait> = emptyList()
+
+    override suspend fun settings() = HoldSettings(HoldGreeting.LINE, assistantAvailable = true, maxWaitSecs = 10_800)
+
+    override suspend fun setGreeting(g: HoldGreeting) = HoldSettings(g, assistantAvailable = true, maxWaitSecs = 10_800)
 }

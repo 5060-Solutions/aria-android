@@ -57,6 +57,9 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import com.solutions5060.aria.fixtures.FakeHoldApi
+import com.solutions5060.aria.hold.HoldGreeting
+import com.solutions5060.aria.ui.call.HoldTags
 import java.util.regex.Pattern
 
 /**
@@ -89,9 +92,10 @@ class AriaUiTest {
     }
 
     /** Launches a fixture scene and checks that no runtime permission dialog came up with it. */
-    private fun launch(scene: String, tab: String? = null) {
+    private fun launch(scene: String, tab: String? = null, noHoldForMe: Boolean = false) {
         val intent = Intent(context, MainActivity::class.java)
             .putExtra(Fixtures.EXTRA_SCENE, scene)
+            .putExtra(Fixtures.EXTRA_NO_HOLD_FOR_ME, noHoldForMe)
         tab?.let { intent.putExtra(Fixtures.EXTRA_TAB, it) }
         scenario = ActivityScenario.launch(intent)
         compose.waitForIdle()
@@ -280,11 +284,95 @@ class AriaUiTest {
         assertTrue("no notice for an encrypted call", !noticeShowing())
     }
 
+    // ── Hold for me ──────────────────────────────────────────────────
+
+    @Test
+    fun holdForMeIsInTheOverflowAndStartsWithTheChosenGreeting() {
+        launch("in-call-hold-for-me")
+        compose.onNodeWithContentDescription(str(R.string.ui_call_more)).performClick()
+        compose.onNodeWithTag(HoldTags.OVERFLOW).performClick()
+        compose.onNodeWithTag(HoldTags.greeting(HoldGreeting.ASSISTANT)).performClick()
+        compose.onNodeWithTag(HoldTags.START).performClick()
+        compose.waitUntil(5_000) { FakeHoldApi.calls.isNotEmpty() }
+        assertEquals(listOf("start:assistant"), FakeHoldApi.calls)
+    }
+
+    @Test
+    fun aRefusedHoldForMeClosesTheSheetAndShowsItsReason() {
+        launch("in-call-hold-for-me")
+        FakeHoldApi.refuseNextStart = 409 to """{"error":"refused","reason":"emergency"}"""
+        compose.onNodeWithContentDescription(str(R.string.ui_call_more)).performClick()
+        compose.onNodeWithTag(HoldTags.OVERFLOW).performClick()
+        compose.onNodeWithTag(HoldTags.START).performClick()
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText(str(R.string.ui_hold_error_emergency)).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag(HoldTags.START).assertDoesNotExist()
+        assertEquals(emptyList<String>(), FakeHoldApi.calls)
+    }
+
+    @Test
+    fun theyreBackShowsTheTranscriptAndStillOnHold() {
+        launch("incoming-hold-return")
+        compose.onNodeWithText(str(R.string.ui_hold_theyre_back, "Acme Bank")).assertIsDisplayed()
+        compose.onNodeWithTag(HoldTags.TRANSCRIPT).assertIsDisplayed()
+        compose.onNodeWithText(str(R.string.ui_hold_transcript_title)).assertIsDisplayed()
+        compose.onNodeWithText("Hi, this is Dana from Acme.").assertIsDisplayed()
+        compose.onNodeWithText(str(R.string.ui_hold_speaker_caller)).assertIsDisplayed()
+        // The fixed Decline and Answer stay, with Still on hold above them.
+        compose.onNodeWithContentDescription(str(R.string.ui_call_decline)).assertIsDisplayed()
+        compose.onNodeWithContentDescription(str(R.string.ui_call_answer)).assertIsDisplayed()
+        compose.onNodeWithTag(HoldTags.STILL_ON_HOLD).assertIsDisplayed().performClick()
+        compose.waitUntil(5_000) { FakeHoldApi.calls.isNotEmpty() }
+        assertEquals(listOf("still"), FakeHoldApi.calls)
+    }
+
+    @Test
+    fun holdForMeIsHiddenWithoutTheFlag() {
+        launch("in-call-hold-for-me", noHoldForMe = true)
+        compose.onNodeWithContentDescription(str(R.string.ui_call_more)).performClick()
+        compose.onNodeWithText(str(R.string.ui_call_record)).assertExists()
+        compose.onNodeWithTag(HoldTags.OVERFLOW).assertDoesNotExist()
+    }
+
+    @Test
+    fun theWaitingCardShowsElapsedAndCancelOffersRejoinOrHangUp() {
+        launch("hold-waiting")
+        compose.onNodeWithTag(HoldTags.CARD).assertIsDisplayed()
+        compose.onNode(hasText("12:3", substring = true) and hasAnyAncestor(hasTestTag(HoldTags.CARD))).assertExists()
+        compose.onNodeWithTag(HoldTags.CANCEL).performClick()
+        compose.onNodeWithText(str(R.string.ui_hold_stop_title)).assertIsDisplayed()
+        compose.onNodeWithTag(HoldTags.REJOIN).performClick()
+        compose.waitUntil(5_000) { FakeHoldApi.calls.isNotEmpty() }
+        assertEquals("cancel:rejoin", FakeHoldApi.calls.last())
+    }
+
+    @Test
+    fun noWaitingCardWithoutTheFlag() {
+        launch("hold-waiting", noHoldForMe = true)
+        compose.onNodeWithTag(HoldTags.CARD).assertDoesNotExist()
+    }
+
+    @Test
+    fun settingsShowsTheGreetingOnlyWithTheFlag() {
+        launch("hold-waiting", tab = "settings")
+        compose.onNodeWithTag(com.solutions5060.aria.ui.settings.HoldSettingsTags.ROW).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(str(R.string.ui_hold_settings_greeting)).assertIsDisplayed()
+        compose.onNodeWithTag(com.solutions5060.aria.ui.settings.HoldSettingsTags.ROW).performClick()
+        compose.onNodeWithTag(com.solutions5060.aria.ui.settings.HoldSettingsTags.option(HoldGreeting.SILENCE)).performClick()
+        scenario?.close()
+        Fixtures.clear()
+
+        launch("hold-waiting", tab = "settings", noHoldForMe = true)
+        compose.onNodeWithTag(CallingSectionTags.DND).assertExists()
+        compose.onNodeWithTag(com.solutions5060.aria.ui.settings.HoldSettingsTags.ROW).assertDoesNotExist()
+    }
+
     // ── Launch permissions ───────────────────────────────────────────
 
     @Test
     fun noSceneRaisesAPermissionDialogAtLaunch() {
-        for (scene in listOf("onboarding", "main", "incoming", "in-call", "in-call-unencrypted", "two-calls", "call-waiting")) {
+        for (scene in listOf("onboarding", "main", "incoming", "in-call", "in-call-unencrypted", "two-calls", "call-waiting", "in-call-hold-for-me", "incoming-hold-return")) {
             launch(scene)
             scenario?.close()
         }

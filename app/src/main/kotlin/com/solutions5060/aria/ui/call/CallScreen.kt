@@ -98,6 +98,10 @@ import com.solutions5060.aria.call.Conference
 import com.solutions5060.aria.fixtures.Fixtures
 import com.solutions5060.aria.ui.SecureWindow
 import com.solutions5060.aria.ui.components.AriaButton
+import com.solutions5060.aria.ui.components.AriaButtonStyle
+import com.solutions5060.aria.hold.HoldReturn
+import com.solutions5060.aria.hold.stillOnHoldDeadline
+import com.solutions5060.aria.hold.stillOnHoldVisible
 import com.solutions5060.aria.ui.components.AriaIcon
 import com.solutions5060.aria.ui.components.AriaSnackbarHost
 import com.solutions5060.aria.ui.components.LocalSnackbarHostState
@@ -148,6 +152,14 @@ data class CallActions(
     /** The user's other online devices this call can move to. */
     val loadMoveTargets: suspend () -> List<com.solutions5060.aria.move.MoveDevice> = { emptyList() },
     val onMoveTo: (com.solutions5060.aria.move.MoveDevice) -> Unit = {},
+    /** Hold for me's settings, for its greeting sheet. */
+    val loadHoldSettings: suspend () -> com.solutions5060.aria.hold.HoldSettings = { com.solutions5060.aria.hold.HoldSettings.Fallback },
+    /** Start Hold for me on this call with the greeting the user picked, or null for the account's default. */
+    val onHoldForMe: (com.solutions5060.aria.hold.HoldGreeting?) -> Unit = {},
+    /** The default greeting last mirrored on this phone, for the sheet's first selection. */
+    val holdGreetingMirror: () -> com.solutions5060.aria.hold.HoldGreeting? = { null },
+    /** "Still on hold" on a hold-return call: tell the PBX, then (while ringing) reject the ring. */
+    val onStillOnHold: () -> Unit = {},
 )
 
 /** What else is going on around the call on screen. */
@@ -163,6 +175,14 @@ data class CallContext(
     val quality: CallQuality? = null,
     /** Errors to show once each (call setup, merge/record failures). */
     val errors: List<String> = emptyList(),
+    /** Hold for me is on for this account and this call can use it (an outgoing, connected call, not in a conference). */
+    val holdForMeAvailable: Boolean = false,
+    /** What the assistant heard, for a hold-return call; empty until there is a transcript. */
+    val holdTranscript: List<com.solutions5060.aria.hold.TranscriptLine> = emptyList(),
+    /** Why a hold return rings (`human`, `rejoin`, `max_wait`), once its wait is known; else null. */
+    val holdRingReason: String? = null,
+    /** The wait's maximum, for the final ring's "Still waiting after N hours"; null while unknown. */
+    val holdMaxWaitSecs: Int? = null,
 )
 
 /**
@@ -190,6 +210,7 @@ fun CallScreen(
     var showKeypad by rememberSaveable { mutableStateOf(Fixtures.current?.sheet == "keypad") }
     var showAudio by rememberSaveable { mutableStateOf(false) }
     var showMove by rememberSaveable { mutableStateOf(false) }
+    var showHold by rememberSaveable { mutableStateOf(false) }
     var showMore by remember { mutableStateOf(false) }
     var showRecordingNotice by remember { mutableStateOf(false) }
     // The app's snackbar host, so notices posted elsewhere ("Call dropped") show here too.
@@ -224,7 +245,27 @@ fun CallScreen(
     }
 
     // Spoken state changes (DESIGN.md §7): "Call connected", "Call on hold", "Recording started".
-    val announcement = announcementFor(call)
+    val announcement = announcementFor(call, context.holdRingReason)
+    // A hold return: the label stands in for the name ("They're back" only when a person is), and the status line says what to do.
+    val holdLabel = if (incoming) HoldReturn.label(stringResource(R.string.ui_hold_theyre_back), call, context.holdRingReason) else null
+    val holdStatus = if (holdLabel != null) {
+        when (val st = HoldReturn.status(context.holdRingReason, context.holdMaxWaitSecs)) {
+            is HoldReturn.Status.StillWaiting -> stringResource(R.string.ui_hold_still_waiting_hours, st.hours)
+            HoldReturn.Status.TapToRejoin -> stringResource(R.string.ui_hold_tap_to_rejoin)
+            HoldReturn.Status.Incoming -> null
+        }
+    } else {
+        null
+    }
+    // "Still on hold" shows while ringing and for 10 s after joining; recompose when the window closes.
+    var nowMillis by remember { mutableLongStateOf(System.currentTimeMillis()) }
+    LaunchedEffect(call.holdReturnId, call.joinedAtMillis, phase) {
+        val deadline = stillOnHoldDeadline(call) ?: return@LaunchedEffect
+        nowMillis = System.currentTimeMillis()
+        delay((deadline - nowMillis).coerceAtLeast(0L))
+        nowMillis = System.currentTimeMillis()
+    }
+    val stillOnHold = stillOnHoldVisible(call, nowMillis, context.holdRingReason)
 
     // An unencrypted call is called out once per call: when it connects
     // unencrypted, or the first time it drops to unencrypted later. The
@@ -281,6 +322,30 @@ fun CallScreen(
                 actions.onMoveTo(it)
             },
             onDismiss = { showMove = false },
+        )
+    }
+    if (showHold && !(active && context.holdForMeAvailable)) showHold = false
+    if (showHold) {
+        // Opens at once on the default; the account's settings replace it when they arrive.
+        var holdSettings by remember {
+            mutableStateOf(com.solutions5060.aria.hold.HoldSettings.opening(actions.holdGreetingMirror()))
+        }
+        LaunchedEffect(Unit) {
+            holdSettings = try {
+                actions.loadHoldSettings()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                com.solutions5060.aria.hold.HoldSettings.Fallback
+            }
+        }
+        HoldForMeSheet(
+            settings = holdSettings,
+            onStart = {
+                showHold = false
+                actions.onHoldForMe(it)
+            },
+            onDismiss = { showHold = false },
         )
     }
     if (showAddCall && !context.canAddCall) showAddCall = false
@@ -370,6 +435,10 @@ fun CallScreen(
                         showMore = false
                         showAudio = true
                     },
+                    onHoldForMe = {
+                        showMore = false
+                        showHold = true
+                    },
                 )
             }
 
@@ -404,7 +473,11 @@ fun CallScreen(
                 CallerAvatar(call, animate = incoming)
                 Spacer(Modifier.height(Spacing.lg))
                 Text(
-                    if (call.inConference) stringResource(R.string.ui_call_conference) else call.displayName.ifEmpty { stringResource(R.string.ui_call_unknown) },
+                    if (call.inConference) {
+                        stringResource(R.string.ui_call_conference)
+                    } else {
+                        holdLabel ?: call.displayName.ifEmpty { stringResource(R.string.ui_call_unknown) }
+                    },
                     style = MaterialTheme.typography.headlineMedium,
                     color = MaterialTheme.colorScheme.onSurface,
                     textAlign = TextAlign.Center,
@@ -422,7 +495,11 @@ fun CallScreen(
                     )
                 }
                 Spacer(Modifier.height(Spacing.sm))
-                StateLine(call, elapsed)
+                StateLine(call, elapsed, holdStatus)
+                HoldReturnTranscript(
+                    context.holdTranscript,
+                    Modifier.padding(top = Spacing.md),
+                )
                 call.originalStartMillis?.takeIf { call.phase == CallPhase.ACTIVE || call.phase == CallPhase.HELD }?.let { start ->
                     Text(
                         stringResource(
@@ -496,6 +573,16 @@ fun CallScreen(
         }
         val bottom: @Composable () -> Unit = {
             // Bottom actions
+            if (stillOnHold) {
+                AriaButton(
+                    text = stringResource(R.string.ui_hold_still_on_hold),
+                    onClick = actions.onStillOnHold,
+                    style = AriaButtonStyle.Standard,
+                    modifier = Modifier
+                        .padding(bottom = Spacing.md)
+                        .testTag(HoldTags.STILL_ON_HOLD),
+                )
+            }
             AnimatedContent(
                 targetState = when {
                     incoming && context.otherCalls.isNotEmpty() -> BottomMode.Waiting
@@ -573,12 +660,14 @@ private val LandscapeCallWidth = 560.dp
 private enum class BottomMode { Incoming, Waiting, HangUp, Ended }
 
 @Composable
-private fun announcementFor(call: CallUiState): String {
+private fun announcementFor(call: CallUiState, holdRingReason: String?): String {
     val connected = stringResource(R.string.ui_call_announce_connected)
     val held = stringResource(R.string.ui_call_announce_held)
     val ended = stringResource(R.string.ui_call_announce_ended)
     val recording = stringResource(R.string.ui_call_announce_recording)
+    val back = HoldReturn.announcement(stringResource(R.string.ui_hold_announce_back), call, holdRingReason)
     return when {
+        call.phase == CallPhase.INCOMING && back != null -> back
         call.recording -> recording
         call.phase == CallPhase.HELD -> held
         call.phase == CallPhase.ACTIVE -> connected
@@ -666,14 +755,14 @@ private fun CallerAvatar(call: CallUiState, animate: Boolean) {
 }
 
 @Composable
-private fun StateLine(call: CallUiState, elapsed: Long) {
+private fun StateLine(call: CallUiState, elapsed: Long, incomingOverride: String? = null) {
     val text = when (call.phase) {
-        CallPhase.INCOMING -> stringResource(R.string.ui_call_incoming)
+        CallPhase.INCOMING -> incomingOverride ?: stringResource(R.string.ui_call_incoming)
         CallPhase.CONNECTING -> stringResource(R.string.ui_call_calling)
         CallPhase.RINGING -> stringResource(R.string.ui_call_ringing)
         CallPhase.HELD -> stringResource(R.string.ui_call_on_hold)
         CallPhase.ENDED -> call.movedTo?.let { stringResource(R.string.move_moved_to, it) }
-            ?: stringResource(R.string.ui_call_ended)
+            ?: if (call.heldForYou) stringResource(R.string.ui_hold_holding_for_you) else stringResource(R.string.ui_call_ended)
         CallPhase.ACTIVE -> CallStateMapping.statusText(CallPhase.ACTIVE, elapsed)
     }
     val timer = call.phase == CallPhase.ACTIVE
@@ -682,7 +771,7 @@ private fun StateLine(call: CallUiState, elapsed: Long) {
         style = if (timer) AriaType.display.copy(fontFeatureSettings = "tnum") else MaterialTheme.typography.titleMedium,
         color = when (call.phase) {
             CallPhase.HELD -> MaterialTheme.colorScheme.tertiary
-            CallPhase.ENDED -> if (call.movedTo != null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
+            CallPhase.ENDED -> if (call.movedTo != null || call.heldForYou) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
             else -> if (timer) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
         },
     )
@@ -914,6 +1003,7 @@ private fun MoreMenuItems(
     onMerge: () -> Unit,
     onSplit: () -> Unit,
     onAudio: () -> Unit,
+    onHoldForMe: () -> Unit,
 ) {
     call.codec?.let { codec ->
         DropdownMenuItem(
@@ -954,6 +1044,15 @@ private fun MoreMenuItems(
         leadingIcon = { AriaIcon(routeIcon(call.audio.current?.type ?: AudioRouteType.EARPIECE), null) },
         onClick = onAudio,
     )
+    if (context.holdForMeAvailable) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.ui_hold_title)) },
+            leadingIcon = { AriaIcon(AriaIcons.Hourglass, null) },
+            enabled = call.phase == CallPhase.ACTIVE,
+            onClick = onHoldForMe,
+            modifier = Modifier.testTag(HoldTags.OVERFLOW),
+        )
+    }
 }
 
 /** The 3×2 control grid (2 columns at accessibility font sizes). */
@@ -1233,6 +1332,41 @@ fun ManagedCallScreen(call: CallUiState) {
     val actionError by CallManager.actionError.collectAsState()
     val quality = rememberCallQuality(call)
     val key = call.key
+    // The button follows the flag and the PBX's list of calls, which arrive after the call does.
+    val holdAvailable by com.solutions5060.aria.hold.HoldForMeCoordinator.available.collectAsState()
+    val pbxCalls by com.solutions5060.aria.move.CallMoveCoordinator.calls.collectAsState()
+    val holdForMe = remember(holdAvailable, pbxCalls, call, calls) {
+        com.solutions5060.aria.hold.HoldForMeCoordinator.canHoldForMe(call, call.inConference || Conference.canSplit(calls))
+    }
+    // The item needs the PBX's record of this call: read the list once as the call connects rather than at the next poll.
+    val connectedOutgoing = call.phase == CallPhase.ACTIVE &&
+        (call.direction == uniffi.aria_mobile.CallDirection.OUTBOUND || call.holdReturnId != null)
+    LaunchedEffect(call.key, connectedOutgoing, holdAvailable) {
+        if (!Fixtures.active && connectedOutgoing && holdAvailable) com.solutions5060.aria.move.CallMoveCoordinator.refresh()
+    }
+    // A refusal: the call is untouched and the banner says why.
+    val refusal by com.solutions5060.aria.hold.HoldForMeCoordinator.refusal.collectAsState()
+    val refusalText = refusal?.let { stringResource(it.message) }
+    val snackbar = com.solutions5060.aria.ui.components.LocalSnackbarHostState.current
+    LaunchedEffect(refusalText) {
+        refusalText?.let {
+            // Show first: clearing changes the key and would cancel the snackbar mid-show.
+            try {
+                snackbar.showSnackbar(it)
+            } finally {
+                com.solutions5060.aria.hold.HoldForMeCoordinator.clearRefusal()
+            }
+        }
+    }
+    // A hold return's wait arrives over the socket or REST, maybe after the ring: absent until then.
+    val holdWaits by com.solutions5060.aria.hold.HoldForMeCoordinator.waits.collectAsState()
+    val holdTranscripts by com.solutions5060.aria.hold.HoldForMeCoordinator.transcripts.collectAsState()
+    val holdWait = remember(holdWaits, call.holdReturnId) {
+        call.holdReturnId?.let { com.solutions5060.aria.hold.HoldForMeCoordinator.waitForHoldReturn(it) }
+    }
+    val holdTranscript = remember(holdWait, holdTranscripts) {
+        holdWait?.let { holdTranscripts[it.callId] }.orEmpty()
+    }
     CallScreen(
         call = call,
         context = CallContext(
@@ -1245,6 +1379,10 @@ fun ManagedCallScreen(call: CallUiState) {
             transferPair = CallWaiting.attendedTransferPair(calls),
             errors = listOfNotNull(callError, actionError),
             quality = quality,
+            holdForMeAvailable = holdForMe,
+            holdTranscript = holdTranscript,
+            holdRingReason = holdWait?.ringReason,
+            holdMaxWaitSecs = holdWait?.maxWaitSecs,
         ),
         onDismissError = { message ->
             if (message == callError) CallManager.clearError()
@@ -1273,6 +1411,24 @@ fun ManagedCallScreen(call: CallUiState) {
             recordingConsentNeeded = { CallManager.recordingConsentNeeded() },
             loadMoveTargets = { com.solutions5060.aria.move.CallMoveCoordinator.targets(call.remoteUri) },
             onMoveTo = { com.solutions5060.aria.move.CallMoveCoordinator.moveTo(call.remoteUri, it) },
+            loadHoldSettings = { com.solutions5060.aria.hold.HoldForMeCoordinator.service()?.settings() ?: com.solutions5060.aria.hold.HoldSettings.Fallback },
+            onHoldForMe = { com.solutions5060.aria.hold.HoldForMeCoordinator.startAsync(call, it) },
+            holdGreetingMirror = { com.solutions5060.aria.hold.PrefsGreetingMirror(context).get() },
+            onStillOnHold = {
+                call.holdReturnId?.let { holdId ->
+                    val ringing = call.phase == CallPhase.INCOMING
+                    com.solutions5060.aria.AppScope.scope.launch {
+                        if (ringing) {
+                            // Tell the PBX first (bounded), then drop this ring whether or not it got through.
+                            if (com.solutions5060.aria.hold.HoldForMeCoordinator.stillOnHoldThenProceed(holdId)) {
+                                CallManager.rejectByKey(key)
+                            }
+                        } else {
+                            com.solutions5060.aria.hold.HoldForMeCoordinator.stillOnHoldForReturn(holdId)
+                        }
+                    }
+                }
+            },
         ),
     )
 }

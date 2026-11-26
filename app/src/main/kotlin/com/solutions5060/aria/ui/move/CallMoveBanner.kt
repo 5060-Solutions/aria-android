@@ -2,9 +2,6 @@ package com.solutions5060.aria.ui.move
 
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.windowInsetsPadding
-import androidx.compose.foundation.layout.statusBars
-import androidx.compose.foundation.layout.WindowInsets
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.widthIn
@@ -45,11 +42,9 @@ fun CallMoveBanner(modifier: Modifier = Modifier) {
     val suggested by CallMoveCoordinator.suggested.collectAsState()
     if (calls.isEmpty()) return
     Column(
-        // Above every screen, so it sits below the status bar itself: drawn
-        // under it, the system takes the taps and Move here cannot be pressed.
+        // The status bar inset is applied by the shared banner column in AriaApp.
         modifier
             .fillMaxWidth()
-            .windowInsetsPadding(WindowInsets.statusBars)
             .padding(horizontal = Spacing.screen, vertical = Spacing.xs),
         verticalArrangement = Arrangement.spacedBy(Spacing.xs),
         horizontalAlignment = Alignment.CenterHorizontally,

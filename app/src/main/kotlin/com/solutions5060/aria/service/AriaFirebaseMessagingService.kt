@@ -5,6 +5,7 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.solutions5060.aria.AppScope
 import com.solutions5060.aria.call.CallManager
+import com.solutions5060.aria.hold.HoldReturnPush
 import kotlinx.coroutines.launch
 import uniffi.aria_mobile.PushCallPayload
 
@@ -52,12 +53,26 @@ class AriaFirebaseMessagingService : FirebaseMessagingService() {
         // A text message (`type: sms`): a notification that opens the thread.
         if (com.solutions5060.aria.messaging.MessagingNotifier.handlePush(applicationContext, data)) return
 
+        // A Hold for me alert (missed pickup and the like): a banner with Call again while the app is open,
+        // carrying the push's own title and body since the system shows no notification in the foreground.
+        // In the background the system's notification shows it and a tap delivers `data` to MainActivity.
+        if (data["type"] == "hold_wait") {
+            com.solutions5060.aria.hold.HoldForMeCoordinator.onForegroundPush(
+                data,
+                message.notification?.title,
+                message.notification?.body,
+            )
+            return
+        }
+
         // Check if this is a VoIP call notification
         // Gateway sends camelCase keys
         val callToken = data["callToken"] ?: data["call_token"] ?: return
         val callerUri = data["callerUri"] ?: data["caller_uri"] ?: "Unknown"
         val callerName = data["callerName"] ?: data["caller_name"]
         val gatewayUrl = data["gatewayUrl"] ?: data["gateway_url"] ?: "https://push.ariaroute.com"
+
+        val holdReturn = HoldReturnPush.from(data)
 
         // Record the token as coming from a genuine push so the exported
         // MainActivity will accept it (and reject any injected/fabricated token).
@@ -68,7 +83,13 @@ class AriaFirebaseMessagingService : FirebaseMessagingService() {
 
         // Ring first; building the engine below can take a network round-trip.
         // A repeated push for a call already handled is dropped entirely.
-        if (!CallManager.reportIncomingCall(applicationContext, callToken, callerUri, callerName)) return
+        if (!CallManager.reportIncomingCall(applicationContext, callToken, callerUri, callerName, holdReturn.id, holdReturn.name)) return
+        // The far party is back: the wait's transcript and state come from the socket and REST, which may not be running.
+        if (holdReturn.id != null) {
+            com.solutions5060.aria.AppScope.scope.launch {
+                com.solutions5060.aria.hold.HoldForMeCoordinator.ensureListening(applicationContext)
+            }
+        }
 
         // Fetch the offer so the engine knows the call: it is what lets the
         // engine report a caller who hangs up before we answer. This runs on

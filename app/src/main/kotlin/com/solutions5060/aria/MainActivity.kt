@@ -35,6 +35,7 @@ class MainActivity : AppCompatActivity() {
         if (savedInstanceState == null && !fromHistory) {
             DeepLinks.offer(DeepLinks.parse(intent?.action, intent?.dataString))
             DeepLinks.offer(tabLink(intent))
+            holdNotice(intent)
         }
 
         setContent {
@@ -67,5 +68,18 @@ class MainActivity : AppCompatActivity() {
         if (Fixtures.installFrom(intent)) recreate()
         DeepLinks.offer(DeepLinks.parse(intent.action, intent.dataString))
         DeepLinks.offer(tabLink(intent))
+        holdNotice(intent)
+    }
+
+    /**
+     * A tapped Hold for me notification: FCM puts the alert's data in the
+     * intent's extras. It can only come from a PBX that offers the feature, so
+     * the banner shows even before the flag has been read.
+     */
+    private fun holdNotice(intent: android.content.Intent?) {
+        val extras = intent?.extras ?: return
+        val data = extras.keySet().mapNotNull { k -> (extras.get(k) as? String)?.let { k to it } }.toMap()
+        com.solutions5060.aria.hold.HoldNotificationJson.parse(data)
+            ?.let(com.solutions5060.aria.hold.HoldForMeCoordinator::showNotice)
     }
 }

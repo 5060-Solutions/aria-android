@@ -37,6 +37,8 @@ class PbxApiClient(private val baseUrl: String) {
         val deviceId: String? = null,
         /** The request field the PBX refused (`"field"` in its error body), if it named one. */
         val field: String? = null,
+        /** The raw error body, for callers that read more than `error` and `field` (Hold for me's `reason`). */
+        val body: String? = null,
     ) : Exception(message)
 
     data class LoginResult(
@@ -307,6 +309,37 @@ class PbxApiClient(private val baseUrl: String) {
         return send(jwt, "POST", "/api/v1/me/calls/${encode(callId)}/move", body.toString().toRequestBody(JSON_MEDIA))
     }
 
+    // ── Hold for me (2026-11-26 contract, C2) ───────────────────────────
+
+    /**
+     * POST /api/v1/me/calls/{id}/hold-for-me — 202 `HoldWait`. Both fields are optional.
+     * 404 not the user's call, 409 `reason`, 422 bad greeting, 403 feature unavailable.
+     */
+    fun holdStart(jwt: String, callId: String, greeting: String?, displayName: String?): String {
+        val body = JSONObject()
+        greeting?.let { body.put("greeting", it) }
+        displayName?.let { body.put("display_name", it) }
+        return send(jwt, "POST", "/api/v1/me/calls/${encode(callId)}/hold-for-me", body.toString().toRequestBody(JSON_MEDIA))
+    }
+
+    /** DELETE /api/v1/me/calls/{id}/hold-for-me?action=rejoin|hang_up — 202 `HoldWait`. */
+    fun holdCancel(jwt: String, callId: String, action: String): String =
+        send(jwt, "DELETE", "/api/v1/me/calls/${encode(callId)}/hold-for-me?action=${encode(action)}")
+
+    /** POST /api/v1/me/calls/{id}/hold-for-me/still-on-hold — 202; 409 when not ringing and not joined in the last 10 s. */
+    fun holdStillOnHold(jwt: String, callId: String): String =
+        send(jwt, "POST", "/api/v1/me/calls/${encode(callId)}/hold-for-me/still-on-hold", "".toRequestBody(JSON_MEDIA))
+
+    /** GET /api/v1/me/hold-waits — the caller's waits that have not ended. */
+    fun holdWaits(jwt: String): String = send(jwt, "GET", "/api/v1/me/hold-waits")
+
+    /** GET /api/v1/me/hold-for-me/settings */
+    fun holdSettings(jwt: String): String = send(jwt, "GET", "/api/v1/me/hold-for-me/settings")
+
+    /** PUT /api/v1/me/hold-for-me/settings `{"greeting"}` — 200, the same shape as GET. */
+    fun setHoldGreeting(jwt: String, greeting: String): String =
+        send(jwt, "PUT", "/api/v1/me/hold-for-me/settings", JSONObject().put("greeting", greeting).toString().toRequestBody(JSON_MEDIA))
+
     // ── Call handoff and proximity ──────────────────────────────────────
     // Every devices/current/* route names this device by its +sip.instance
     // (`urn:uuid:<pbx device id>`), which must be registered: 422 if missing,
@@ -420,7 +453,7 @@ class PbxApiClient(private val baseUrl: String) {
             null
         }
         val errorMsg = error?.optString("error", "")?.ifEmpty { null } ?: "HTTP $code"
-        return HttpException(code, errorMsg, field = error?.optString("field", "")?.ifEmpty { null })
+        return HttpException(code, errorMsg, field = error?.optString("field", "")?.ifEmpty { null }, body = responseBody)
     }
 
     private fun encode(value: String): String = java.net.URLEncoder.encode(value, "UTF-8")

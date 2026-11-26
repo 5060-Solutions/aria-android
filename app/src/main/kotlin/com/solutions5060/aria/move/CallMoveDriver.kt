@@ -2,6 +2,8 @@ package com.solutions5060.aria.move
 
 import android.content.Context
 import com.solutions5060.aria.AppScope
+import com.solutions5060.aria.hold.HoldForMeCoordinator
+import com.solutions5060.aria.hold.HoldJson
 import com.solutions5060.aria.messaging.EventSocket
 import com.solutions5060.aria.proximity.BleProximity
 import com.solutions5060.aria.proximity.ProximityMonitor
@@ -23,14 +25,22 @@ object CallMoveDriver {
     private var report: Job? = null
 
     @Synchronized
+    fun isRunning(): Boolean = events != null
+
+    @Synchronized
     fun start(context: Context) {
         val app = context.applicationContext
         if (poll == null) poll = AppScope.scope.launch { CallMoveCoordinator.pollWhile() }
         if (events == null) {
             events = AppScope.scope.launch {
-                EventSocket.texts(app).collect { text -> MoveJson.event(text)?.let { CallMoveCoordinator.onEvent(it) } }
+                EventSocket.texts(app).collect { text ->
+                    MoveJson.event(text)?.let { CallMoveCoordinator.onEvent(it) }
+                    HoldJson.event(text)?.let { HoldForMeCoordinator.onEvent(it) }
+                }
             }
         }
+        // The Hold for me flag from /me, and its open waits when on.
+        AppScope.scope.launch { HoldForMeCoordinator.refresh() }
         if (report == null) {
             // On foreground, then about every 60 s while the app is visible.
             report = AppScope.scope.launch {

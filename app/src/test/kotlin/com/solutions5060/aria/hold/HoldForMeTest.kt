@@ -1,0 +1,606 @@
+package com.solutions5060.aria.hold
+
+import android.telecom.DisconnectCause
+import com.solutions5060.aria.call.CallStateMapping
+import com.solutions5060.aria.call.EndReason
+import com.solutions5060.aria.history.CallHistoryRecorder
+import com.solutions5060.aria.pbx.MeFeatures
+import com.solutions5060.aria.pbx.SelfServiceJson
+import org.junit.Assert.assertEquals
+import org.junit.Assert.assertFalse
+import org.junit.Assert.assertNull
+import org.junit.Assert.assertTrue
+import org.junit.Assert.fail
+import org.junit.After
+import org.junit.Before
+import org.junit.Test
+import com.solutions5060.aria.R
+import com.solutions5060.aria.call.CallPhase
+import com.solutions5060.aria.call.CallUiState
+import com.solutions5060.aria.service.PbxApiClient
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
+import kotlinx.coroutines.async
+import org.json.JSONObject
+import uniffi.aria_mobile.CallDirection
+import uniffi.aria_mobile.EndReason as CoreEndReason
+
+class HoldForMeTest {
+
+    @Test
+    fun featuresAdvertiseHoldForMe() {
+        assertEquals(MeFeatures(true), SelfServiceJson.meFeatures("""{"role":"user","features":["hold_for_me"]}"""))
+        assertEquals(MeFeatures(true), SelfServiceJson.meFeatures("""{"features":["other","hold_for_me"]}"""))
+        assertEquals(MeFeatures(false), SelfServiceJson.meFeatures("""{"features":[]}"""))
+        assertEquals(MeFeatures(false), SelfServiceJson.meFeatures("""{"features":["other"]}"""))
+        // An older PBX sends no field; a malformed one is not a list.
+        assertEquals(MeFeatures(false), SelfServiceJson.meFeatures("""{"role":"user"}"""))
+        assertEquals(MeFeatures(false), SelfServiceJson.meFeatures("""{"features":"hold_for_me"}"""))
+        assertEquals(MeFeatures(false), SelfServiceJson.meFeatures("""{"features":null}"""))
+    }
+
+    @Test
+    fun heldForYouIsNotADroppedCall() {
+        val reason = CallStateMapping.endReasonFor(CoreEndReason.HELD_FOR_YOU)
+        assertEquals(EndReason.HELD_FOR_YOU, reason)
+        assertEquals(DisconnectCause.REMOTE, CallStateMapping.disconnectCauseFor(EndReason.HELD_FOR_YOU))
+        // No "Call dropped" banner.
+        assertFalse(CallStateMapping.isConnectionLoss(CoreEndReason.HELD_FOR_YOU, wasAnswered = true, localHangupRequested = false))
+        assertEquals(
+            EndReason.HELD_FOR_YOU,
+            CallStateMapping.endReasonForEngineEnd(false, true, CallDirection.OUTBOUND, CoreEndReason.HELD_FOR_YOU),
+        )
+        // Not a missed call, and not a failure, in Recents.
+        val entry = CallHistoryRecorder.entryFor(
+            "sip:bank@example.com", "Acme Bank", CallDirection.OUTBOUND, 1_000L, 60, EndReason.HELD_FOR_YOU,
+        )!!
+        assertFalse(entry.missed)
+        assertFalse(entry.rejected)
+        assertFalse(entry.answeredElsewhere)
+    }
+
+    @Test
+    fun fcmHoldReturnIsParsed() {
+        val camel = HoldReturnPush.from(mapOf("holdReturnId" to "w-1", "holdReturnName" to "Acme Bank"))
+        assertEquals(HoldReturnPush("w-1", "Acme Bank"), camel)
+        val snake = HoldReturnPush.from(mapOf("hold_return_id" to "w-2", "hold_return_name" to "Acme"))
+        assertEquals(HoldReturnPush("w-2", "Acme"), snake)
+        // camelCase wins over snake_case.
+        assertEquals(
+            HoldReturnPush("w-3", null),
+            HoldReturnPush.from(mapOf("holdReturnId" to "w-3", "hold_return_id" to "w-9")),
+        )
+        // Each is omitted when its header is absent; empty counts as absent.
+        assertEquals(HoldReturnPush(null, null), HoldReturnPush.from(mapOf("callToken" to "t")))
+        assertNull(HoldReturnPush.from(mapOf("holdReturnId" to "", "holdReturnName" to "  ")).id)
+        assertNull(HoldReturnPush.from(mapOf("holdReturnId" to "", "holdReturnName" to "  ")).name)
+    }
+
+    // ── Service, events and policy (Task D2) ───────────────────────────
+
+    private val server = MockWebServer()
+
+    @Before fun startServer() = server.start()
+
+    @After fun stopServer() = server.shutdown()
+
+    private fun api() = PbxApiClient(server.url("/").toString().trimEnd('/'))
+
+    private val waitJson = """
+        {"hold_wait_id":"w-1","call_id":"call-1","state":"waiting","greeting":"line",
+         "started_at":"2026-11-26T15:04:05Z","state_since":"2026-11-26T15:04:06Z","max_wait_secs":10800,
+         "false_alarms":0,"remote":{"number":"+18005550100","name":"Acme Bank"},"ring_reason":null,"ended_reason":null}
+    """.trimIndent()
+
+    @Test
+    fun startPostsTheGreetingAndName() {
+        server.enqueue(MockResponse().setResponseCode(202).setBody(waitJson))
+        val body = api().holdStart("jwt", "call-1", "assistant", "Acme Bank")
+        assertEquals("w-1", HoldJson.wait(body).holdWaitId)
+        val req = server.takeRequest()
+        assertEquals("POST", req.method)
+        assertEquals("/api/v1/me/calls/call-1/hold-for-me", req.path)
+        assertEquals("Bearer jwt", req.getHeader("Authorization"))
+        val sent = JSONObject(req.body.readUtf8())
+        assertEquals("assistant", sent.getString("greeting"))
+        assertEquals("Acme Bank", sent.getString("display_name"))
+
+        // Both fields are optional: omitted, not null.
+        server.enqueue(MockResponse().setResponseCode(202).setBody(waitJson))
+        api().holdStart("jwt", "call-1", null, null)
+        val bare = JSONObject(server.takeRequest().body.readUtf8())
+        assertFalse(bare.has("greeting"))
+        assertFalse(bare.has("display_name"))
+    }
+
+    @Test
+    fun cancelUsesTheActionQuery() {
+        repeat(4) { server.enqueue(MockResponse().setResponseCode(202).setBody(waitJson)) }
+        api().holdCancel("jwt", "call-1", "rejoin")
+        val del = server.takeRequest()
+        assertEquals("DELETE", del.method)
+        assertEquals("/api/v1/me/calls/call-1/hold-for-me?action=rejoin", del.path)
+        api().holdCancel("jwt", "call-1", "hang_up")
+        assertEquals("/api/v1/me/calls/call-1/hold-for-me?action=hang_up", server.takeRequest().path)
+        api().holdStillOnHold("jwt", "call-1")
+        val still = server.takeRequest()
+        assertEquals("POST", still.method)
+        assertEquals("/api/v1/me/calls/call-1/hold-for-me/still-on-hold", still.path)
+        api().holdWaits("jwt")
+        assertEquals("/api/v1/me/hold-waits", server.takeRequest().path)
+    }
+
+    @Test
+    fun settingsRoutesAndShape() {
+        server.enqueue(MockResponse().setBody("""{"greeting":"line","assistant_available":true,"max_wait_secs":10800}"""))
+        val s = HoldJson.settings(api().holdSettings("jwt"))
+        assertEquals(HoldSettings(HoldGreeting.LINE, true, 10800), s)
+        assertEquals("/api/v1/me/hold-for-me/settings", server.takeRequest().path)
+        server.enqueue(MockResponse().setBody("""{"greeting":"assistant","assistant_available":false,"max_wait_secs":600}"""))
+        api().setHoldGreeting("jwt", "silence")
+        val put = server.takeRequest()
+        assertEquals("PUT", put.method)
+        assertEquals("silence", JSONObject(put.body.readUtf8()).getString("greeting"))
+    }
+
+    private fun refusalFor(code: Int, body: String): HoldRefusal {
+        server.enqueue(MockResponse().setResponseCode(code).setBody(body))
+        try {
+            api().holdStart("jwt", "call-1", null, null)
+        } catch (e: PbxApiClient.HttpException) {
+            return HoldJson.refusal(e.code, e.body)
+        }
+        fail("expected a refusal")
+        throw AssertionError()
+    }
+
+    @Test
+    fun refusalsMapToCopy() {
+        fun reason(r: String) = """{"error":"refused","reason":"$r"}"""
+        assertEquals(R.string.ui_hold_error_emergency, refusalFor(409, reason("emergency")).message)
+        assertEquals(R.string.ui_hold_error_busy, refusalFor(409, reason("conference")).message)
+        assertEquals(R.string.ui_hold_error_busy, refusalFor(409, reason("transfer")).message)
+        assertEquals(R.string.ui_hold_error_already, refusalFor(409, reason("already_holding")).message)
+        assertEquals(R.string.ui_hold_error_start, refusalFor(409, reason("not_outgoing")).message)
+        assertEquals(R.string.ui_hold_error_start, refusalFor(409, reason("not_answered")).message)
+        assertEquals(R.string.ui_hold_error_start, refusalFor(409, reason("something_new")).message)
+        assertEquals(R.string.ui_hold_error_start, refusalFor(409, "not json").message)
+        assertEquals(R.string.ui_hold_error_start, refusalFor(404, """{"error":"no"}""").message)
+        assertEquals(R.string.ui_hold_error_start, refusalFor(403, """{"reason":"emergency"}""").message)
+        // A network failure has no status and no body.
+        assertEquals(R.string.ui_hold_error_start, HoldJson.refusal(0, null).message)
+    }
+
+    @Test
+    fun holdEventParsesTheContract() {
+        val text = """
+            {"type":"hold_wait_state","tenant_id":"t","extension_id":"e",
+             "hold_wait":{"hold_wait_id":"w-1","call_id":"call-1","state":"ringing","greeting":"assistant",
+               "started_at":"2026-11-26T15:04:05Z","state_since":"2026-11-26T15:10:00Z","max_wait_secs":10800,
+               "false_alarms":1,"remote":{"number":"+18005550100","name":null},"ring_reason":"human","ended_reason":null},
+             "transcript":[{"speaker":"assistant","text":"I'm an automated assistant for Sam."},
+                           {"speaker":"caller","text":"Hi, this is Dana from Acme."}]}
+        """.trimIndent()
+        val e = HoldJson.event(text) as HoldEvent.State
+        val w = e.wait
+        assertEquals("w-1", w.holdWaitId)
+        assertEquals("call-1", w.callId)
+        assertEquals("ringing", w.state)
+        assertEquals(HoldGreeting.ASSISTANT, w.greeting)
+        assertEquals(1_795_705_445_000L, w.startedAtMillis)
+        assertEquals(1, w.falseAlarms)
+        assertEquals(10800, w.maxWaitSecs)
+        assertEquals("+18005550100", w.remoteNumber)
+        assertNull(w.remoteName)
+        assertEquals("human", w.ringReason)
+        assertNull(w.endedReason)
+        assertTrue(w.isOpen)
+        assertEquals(
+            listOf(TranscriptLine("assistant", "I'm an automated assistant for Sam."), TranscriptLine("caller", "Hi, this is Dana from Acme.")),
+            e.transcript,
+        )
+        assertFalse(HoldJson.wait(waitJson.replace("\"waiting\"", "\"ended\"")).isOpen)
+        // `requested` is shown as waiting.
+        assertEquals("requested", HoldJson.wait(waitJson.replace("\"waiting\"", "\"requested\"")).state)
+        // Other events and junk are not ours.
+        assertNull(HoldJson.event("""{"type":"call_moved"}"""))
+        assertNull(HoldJson.event("not json"))
+        assertEquals(1, HoldJson.waits("[$waitJson]").size)
+    }
+
+    private fun outgoing(phase: CallPhase = CallPhase.ACTIVE, connected: Long? = 5L, dir: CallDirection = CallDirection.OUTBOUND) =
+        CallUiState("k", "c", "sip:+18005550100@acme", "Acme Bank", dir, phase, connectedAtElapsed = connected)
+
+    @Test
+    fun theButtonNeedsTheFlagAnOutgoingCallAndNoConference() {
+        val id = "pbx-call"
+        assertTrue(HoldForMePolicy.canHold(true, outgoing(), false, id))
+        assertFalse("flag off", HoldForMePolicy.canHold(false, outgoing(), false, id))
+        assertFalse("incoming", HoldForMePolicy.canHold(true, outgoing(dir = CallDirection.INBOUND), false, id))
+        assertFalse("in a conference", HoldForMePolicy.canHold(true, outgoing(), true, id))
+        assertFalse("not connected", HoldForMePolicy.canHold(true, outgoing(phase = CallPhase.RINGING, connected = null), false, id))
+        assertFalse("no PBX call", HoldForMePolicy.canHold(true, outgoing(), false, null))
+    }
+
+    @Test
+    fun theDisplayNameIsTheContactNameElseTheNetworkNameElseOmitted() {
+        assertEquals("Amelia", HoldForMePolicy.displayName(outgoing().copy(contactName = "Amelia")))
+        assertEquals("Acme Bank", HoldForMePolicy.displayName(outgoing()))
+        assertNull(HoldForMePolicy.displayName(outgoing().copy(remoteName = null)))
+        assertEquals("a".repeat(64), HoldForMePolicy.displayName(outgoing().copy(remoteName = "a".repeat(80))))
+    }
+
+    // ── Ongoing notification (Task D3) ─────────────────────────────────
+
+    private class FakeNotifications : HoldNotifications {
+        val shown = linkedMapOf<String, HoldWait>()
+        val log = mutableListOf<String>()
+        override fun post(wait: HoldWait) {
+            log.add("post:${wait.holdWaitId}:${wait.state}")
+            shown[wait.holdWaitId] = wait
+        }
+        override fun cancel(holdWaitId: String) {
+            log.add("cancel:$holdWaitId")
+            shown.remove(holdWaitId)
+        }
+        override fun activeIds(): Set<String> = shown.keys.toSet()
+    }
+
+    private fun wait(id: String, state: String = "waiting", callId: String = "call-$id") =
+        HoldJson.wait(waitJson.replace("w-1", id).replace("call-1", callId).replace("\"waiting\"", "\"$state\""))
+
+    @Test
+    fun notifierSyncPostsUpdatesAndCancels() {
+        val fake = FakeNotifications()
+        HoldWaitNotifier.override = fake
+        try {
+            HoldWaitNotifier.sync(null, listOf(wait("a"), wait("b")))
+            assertEquals(setOf("a", "b"), fake.shown.keys)
+            // A state change updates the same notification.
+            HoldWaitNotifier.sync(null, listOf(wait("a", "ringing"), wait("b")))
+            assertEquals("ringing", fake.shown.getValue("a").state)
+            assertEquals(2, fake.shown.size)
+            // A closed wait, and one that is missing from the model, are cancelled.
+            fake.shown["orphan"] = wait("orphan")
+            HoldWaitNotifier.sync(null, listOf(wait("a", "ended"), wait("b")))
+            assertEquals(setOf("b"), fake.shown.keys)
+            HoldWaitNotifier.sync(null, emptyList())
+            assertTrue(fake.shown.isEmpty())
+        } finally {
+            HoldWaitNotifier.override = null
+        }
+    }
+
+    @Test
+    fun notificationIdsStayInTheBlockAndAreStablePerWait() {
+        val id = HoldWaitNotifier.notificationId("some-uuid")
+        assertEquals(id, HoldWaitNotifier.notificationId("some-uuid"))
+        assertTrue(id in 7320..(7320 + 255))
+    }
+
+    private class StaleApi(var open: List<HoldWait>) : HoldApi {
+        override suspend fun start(callId: String, greeting: HoldGreeting?, displayName: String?) = error("unused")
+        override suspend fun cancel(callId: String, action: String) = error("unused")
+        override suspend fun stillOnHold(callId: String) = error("unused")
+        override suspend fun openWaits() = open
+        override suspend fun settings() = error("unused")
+        override suspend fun setGreeting(g: HoldGreeting) = error("unused")
+    }
+
+    @Test
+    fun aStaleNotificationIsClearedOnForeground() {
+        val fake = FakeNotifications()
+        HoldWaitNotifier.override = fake
+        val api = StaleApi(listOf(wait("w-1")))
+        HoldForMeCoordinator.installFixture(api, available = true)
+        try {
+            kotlinx.coroutines.runBlocking { HoldForMeCoordinator.reconcile() }
+            assertEquals(setOf("w-1"), fake.shown.keys)
+            // The wait ended while the app was away: the PBX no longer lists it.
+            api.open = emptyList()
+            kotlinx.coroutines.runBlocking { HoldForMeCoordinator.reconcile() }
+            assertTrue(fake.shown.isEmpty())
+            // A notification left by a dead process, for a wait the model never saw.
+            fake.shown["ghost"] = wait("ghost")
+            kotlinx.coroutines.runBlocking { HoldForMeCoordinator.reconcile() }
+            assertTrue(fake.shown.isEmpty())
+        } finally {
+            HoldWaitNotifier.override = null
+            HoldForMeCoordinator.clearFixture()
+        }
+    }
+
+    @Test
+    fun nothingIsShownWhenTheFeatureIsOff() {
+        val fake = FakeNotifications()
+        HoldWaitNotifier.override = fake
+        val api = StaleApi(listOf(wait("w-1")))
+        HoldForMeCoordinator.installFixture(api, available = false)
+        try {
+            HoldForMeCoordinator.onEvent(HoldEvent.State(wait("w-1"), emptyList()))
+            assertTrue(fake.shown.isEmpty())
+        } finally {
+            HoldWaitNotifier.override = null
+            HoldForMeCoordinator.clearFixture()
+        }
+    }
+
+    // ── "They're back" (Task D4) ───────────────────────────────────────
+
+    private fun hold(id: String?, name: String?, phase: CallPhase = CallPhase.INCOMING, joined: Long? = null) =
+        CallUiState(
+            "k", "c", "sip:+18005550100@acme", null, CallDirection.INBOUND, phase,
+            holdReturnId = id, holdReturnName = name, joinedAtMillis = joined,
+        )
+
+    @Test
+    fun fcmHoldReturnLabelsTheIncomingCallBeforeTheOffer() {
+        // The push alone (no offer, no socket yet) already names who is back.
+        val fromPush = hold("hw-1", "Acme Bank")
+        assertEquals("They're back — Acme Bank", HoldReturn.label("They're back — %1\$s", fromPush))
+        assertEquals("They're back, Acme Bank", HoldReturn.announcement("They're back, %1\$s", fromPush))
+        // No name in the push: the call's own display name.
+        assertEquals("They're back — bank", HoldReturn.label("They're back — %1\$s", hold("hw-1", null).copy(remoteUri = "sip:bank@acme")))
+        // An ordinary call has no label.
+        assertNull(HoldReturn.label("They're back — %1\$s", hold(null, null)))
+        assertNull(HoldReturn.announcement("x %1\$s", hold(null, null)))
+    }
+
+    @Test
+    fun stillOnHoldHidesAfterTenSeconds() {
+        // Ringing: always offered.
+        assertTrue(stillOnHoldVisible(hold("hw-1", "Acme"), 99_999_999L))
+        // Connected: for 10 s after joining.
+        val joined = hold("hw-1", "Acme", CallPhase.ACTIVE, joined = 100_000L)
+        assertTrue(stillOnHoldVisible(joined, 100_000L))
+        assertTrue(stillOnHoldVisible(joined, 109_999L))
+        assertFalse(stillOnHoldVisible(joined, 110_000L))
+        assertFalse(stillOnHoldVisible(joined, 500_000L))
+        // Not a hold return, not joined yet, or over.
+        assertFalse(stillOnHoldVisible(hold(null, null, CallPhase.ACTIVE, joined = 100_000L), 100_001L))
+        assertFalse(stillOnHoldVisible(hold("hw-1", "Acme", CallPhase.ACTIVE, joined = null), 100_001L))
+        assertFalse(stillOnHoldVisible(hold("hw-1", "Acme", CallPhase.ENDED), 100_001L))
+        // The screen recomposes when the window closes.
+        assertEquals(110_000L, stillOnHoldDeadline(joined))
+        assertNull(stillOnHoldDeadline(hold("hw-1", "Acme")))
+    }
+
+    private class RecordingApi(var open: List<HoldWait> = emptyList()) : HoldApi {
+        val still = mutableListOf<String>()
+        override suspend fun start(callId: String, greeting: HoldGreeting?, displayName: String?) = error("unused")
+        override suspend fun cancel(callId: String, action: String) = error("unused")
+        override suspend fun stillOnHold(callId: String): HoldWait {
+            still.add(callId)
+            return open.first { it.callId == callId }
+        }
+        override suspend fun openWaits() = open
+        override suspend fun settings() = error("unused")
+        override suspend fun setGreeting(g: HoldGreeting) = error("unused")
+    }
+
+    @Test
+    fun aHoldReturnFindsItsWaitByHoldWaitId() {
+        val api = RecordingApi()
+        HoldForMeCoordinator.installFixture(api, available = false)
+        try {
+            assertNull(HoldForMeCoordinator.waitForHoldReturn("w-1"))
+            HoldForMeCoordinator.onEvent(HoldEvent.State(wait("w-1", "ringing", callId = "pbx-9"), emptyList()))
+            assertEquals("pbx-9", HoldForMeCoordinator.waitForHoldReturn("w-1")?.callId)
+            assertNull(HoldForMeCoordinator.waitForHoldReturn("w-2"))
+        } finally {
+            HoldForMeCoordinator.clearFixture()
+        }
+    }
+
+    @Test
+    fun stillOnHoldForAReturnUsesTheWaitsCallIdAndReadsTheWaitsIfUnknown() {
+        val api = RecordingApi(listOf(wait("w-1", "ringing", callId = "pbx-9")))
+        HoldForMeCoordinator.installFixture(api, available = true)
+        try {
+            // The push beat the socket: no wait known yet; one read finds it.
+            assertTrue(kotlinx.coroutines.runBlocking { HoldForMeCoordinator.stillOnHoldForReturn("w-1") })
+            assertEquals(listOf("pbx-9"), api.still)
+            // Unresolvable even after reading: a no-op, never an error.
+            assertFalse(kotlinx.coroutines.runBlocking { HoldForMeCoordinator.stillOnHoldForReturn("w-404") })
+            assertEquals(listOf("pbx-9"), api.still)
+        } finally {
+            HoldForMeCoordinator.clearFixture()
+        }
+    }
+
+    @Test
+    fun theTranscriptIsFoundThroughTheWaitAndAbsentUntilThereIsOne() {
+        HoldForMeCoordinator.installFixture(RecordingApi(), available = true)
+        try {
+            assertTrue(HoldForMeCoordinator.transcriptForHoldReturn("w-1").isEmpty())
+            val lines = listOf(TranscriptLine("caller", "Hi, this is Dana"))
+            HoldForMeCoordinator.onEvent(HoldEvent.State(wait("w-1", "ringing", callId = "pbx-9"), lines))
+            assertEquals(lines, HoldForMeCoordinator.transcriptForHoldReturn("w-1"))
+        } finally {
+            HoldForMeCoordinator.clearFixture()
+        }
+    }
+
+    @Test
+    fun aPushStartedListenerStopsOnlyWhenNothingElseOwnsIt() {
+        // Nothing running: the push starts it. Already running: leave it alone.
+        assertTrue(PushListener.shouldStart(alreadyRunning = false))
+        assertFalse(PushListener.shouldStart(alreadyRunning = true))
+        // Stop it in the background once this push's call is over...
+        assertTrue(PushListener.shouldStop(startedByPush = true, foreground = false))
+        // ...never while the app is in the foreground, nor if the push did not start it.
+        assertFalse(PushListener.shouldStop(startedByPush = true, foreground = true))
+        assertFalse(PushListener.shouldStop(startedByPush = false, foreground = false))
+        assertTrue(PushListener.MAX_MS > 0)
+    }
+
+    private class SlowApi(val delayMs: Long, open: List<HoldWait>) : HoldApi {
+        val api = RecordingApi(open)
+        override suspend fun start(callId: String, greeting: HoldGreeting?, displayName: String?) = error("unused")
+        override suspend fun cancel(callId: String, action: String) = error("unused")
+        override suspend fun stillOnHold(callId: String): HoldWait {
+            kotlinx.coroutines.delay(delayMs)
+            return api.stillOnHold(callId)
+        }
+        override suspend fun openWaits() = api.open
+        override suspend fun settings() = error("unused")
+        override suspend fun setGreeting(g: HoldGreeting) = error("unused")
+    }
+
+    @Test
+    fun stillOnHoldDoesNotHangTheRingOnASlowNetworkAndIgnoresRepeatTaps() {
+        val api = SlowApi(5_000L, listOf(wait("w-1", "ringing", callId = "pbx-9")))
+        HoldForMeCoordinator.installFixture(api, available = true)
+        try {
+            kotlinx.coroutines.runBlocking {
+                // A slow PBX: give up after the bound and let the caller reject the ring.
+                val first = this.async { HoldForMeCoordinator.stillOnHoldThenProceed("w-1", timeoutMs = 300L) }
+                kotlinx.coroutines.delay(100L)
+                // A second tap while the first is in flight is ignored.
+                assertFalse(HoldForMeCoordinator.stillOnHoldThenProceed("w-1", timeoutMs = 300L))
+                assertTrue(first.await())
+                // Once finished, a later tap works again.
+                assertTrue(HoldForMeCoordinator.stillOnHoldThenProceed("w-1", timeoutMs = 300L))
+            }
+        } finally {
+            HoldForMeCoordinator.clearFixture()
+        }
+    }
+
+    // ── Final review fixes ─────────────────────────────────────────────
+
+    @Test
+    fun theNotificationTimeoutIsBoundedPerState() {
+        val started = java.time.Instant.parse("2026-11-26T15:04:05Z").toEpochMilli()
+        val since = java.time.Instant.parse("2026-11-26T15:04:06Z").toEpochMilli()
+        val now = started + 60_000L
+        // Waiting, requested and someone answered: the maximum wait plus 5 min from the start.
+        val waitBound = started + 10_800_000L + 300_000L - now
+        for (state in listOf("waiting", "requested", "human_detected")) {
+            assertEquals(state, waitBound, HoldWaitNotifier.timeoutAfterMs(wait("w", state), now))
+        }
+        // Ringing: about 2 min from when it started ringing.
+        assertEquals(since + 120_000L - now, HoldWaitNotifier.timeoutAfterMs(wait("w", "ringing"), now))
+        // Not shown: no timeout.
+        assertNull(HoldWaitNotifier.timeoutAfterMs(wait("w", "joined"), now))
+        assertNull(HoldWaitNotifier.timeoutAfterMs(wait("w", "ended"), now))
+        // Already overdue: gone almost at once, never a non-positive timeout.
+        assertEquals(1_000L, HoldWaitNotifier.timeoutAfterMs(wait("w", "ringing"), since + 10 * 60_000L))
+        // No timestamps: counted from now.
+        val bare = wait("w", "waiting").copy(startedAtMillis = null)
+        assertEquals(10_800_000L + 300_000L, HoldWaitNotifier.timeoutAfterMs(bare, now))
+    }
+
+    @Test
+    fun releasingThePushListenerReconcilesBeforeItStops() {
+        val fake = FakeNotifications()
+        HoldWaitNotifier.override = fake
+        val api = StaleApi(listOf(wait("w-1", "ringing")))
+        HoldForMeCoordinator.installFixture(api, available = true, waits = listOf(wait("w-1", "ringing")))
+        try {
+            assertEquals(setOf("w-1"), fake.shown.keys)
+            // The pickup was missed in the background: the PBX ended the wait, and no socket event came.
+            api.open = emptyList()
+            kotlinx.coroutines.runBlocking {
+                HoldForMeCoordinator.reconcileThenRelease(settleMs = 10L) { fake.log.add("stop") }
+            }
+            assertTrue(fake.shown.isEmpty())
+            assertEquals(listOf("cancel:w-1", "stop"), fake.log.takeLast(2))
+            assertTrue(PushListener.SETTLE_MS in 1_000L..10_000L)
+        } finally {
+            HoldWaitNotifier.override = null
+            HoldForMeCoordinator.clearFixture()
+        }
+    }
+
+    @Test
+    fun onlyAPersonBackIsTheyreBack() {
+        val call = hold("hw-1", "Acme Bank")
+        val back = "They're back — %1\$s"
+        val announce = "They're back, %1\$s"
+        // A person answered, or the wait is not known yet (push only): "They're back".
+        for (reason in listOf("human", null)) {
+            assertEquals("They're back — Acme Bank", HoldReturn.label(back, call, reason))
+            assertEquals("They're back, Acme Bank", HoldReturn.announcement(announce, call, reason))
+        }
+        // Rejoin now and the final ring: the plain name.
+        for (reason in listOf("rejoin", "max_wait")) {
+            assertEquals("Acme Bank", HoldReturn.label(back, call, reason))
+            assertEquals("Acme Bank", HoldReturn.announcement(announce, call, reason))
+        }
+        assertNull(HoldReturn.label(back, hold(null, null), "max_wait"))
+    }
+
+    @Test
+    fun theHoldReturnStatusFollowsTheRingReason() {
+        assertEquals(HoldReturn.Status.StillWaiting(3), HoldReturn.status("max_wait", 10_800))
+        assertEquals(HoldReturn.Status.StillWaiting(4), HoldReturn.status("max_wait", 14_400))
+        assertEquals(HoldReturn.Status.StillWaiting(1), HoldReturn.status("max_wait", 600))
+        assertEquals(HoldReturn.Status.Incoming, HoldReturn.status("rejoin", 10_800))
+        assertEquals(HoldReturn.Status.TapToRejoin, HoldReturn.status("human", 10_800))
+        assertEquals(HoldReturn.Status.TapToRejoin, HoldReturn.status(null, null))
+    }
+
+    @Test
+    fun stillOnHoldIsNotOfferedOnRejoinOrFinalRings() {
+        val ringing = hold("hw-1", "Acme")
+        assertTrue(stillOnHoldVisible(ringing, 0L, "human"))
+        assertTrue(stillOnHoldVisible(ringing, 0L, null))
+        assertFalse(stillOnHoldVisible(ringing, 0L, "rejoin"))
+        assertFalse(stillOnHoldVisible(ringing, 0L, "max_wait"))
+        val joined = hold("hw-1", "Acme", CallPhase.ACTIVE, joined = 100_000L)
+        assertFalse(stillOnHoldVisible(joined, 100_001L, "max_wait"))
+        assertTrue(stillOnHoldVisible(joined, 100_001L, "human"))
+    }
+
+    @Test
+    fun theCardAndNotificationShareOnePresentation() {
+        assertEquals(HoldWaitPresentation.WAITING, HoldWaitPresentation.of("requested"))
+        assertEquals(HoldWaitPresentation.WAITING, HoldWaitPresentation.of("waiting"))
+        assertEquals(HoldWaitPresentation.SOMEONE_ANSWERED, HoldWaitPresentation.of("human_detected"))
+        assertEquals(HoldWaitPresentation.RINGING, HoldWaitPresentation.of("ringing"))
+        assertNull(HoldWaitPresentation.of("joined"))
+        assertNull(HoldWaitPresentation.of("ended"))
+        assertEquals(R.string.ui_hold_waiting, HoldWaitPresentation.WAITING.title)
+        assertEquals(R.string.ui_hold_someone_answered, HoldWaitPresentation.SOMEONE_ANSWERED.title)
+        assertEquals(R.string.ui_hold_ringing_you, HoldWaitPresentation.RINGING.title)
+        val all = listOf("requested", "waiting", "human_detected", "ringing", "joined", "ended").map { wait(it, it) }
+        assertEquals(listOf("requested", "waiting", "human_detected", "ringing"), HoldWaitPresentation.shown(all).map { it.state })
+    }
+
+    @Test
+    fun aJoinedWaitHasNoNotification() {
+        val fake = FakeNotifications()
+        HoldWaitNotifier.override = fake
+        try {
+            HoldWaitNotifier.sync(null, listOf(wait("a", "ringing")))
+            assertEquals(setOf("a"), fake.shown.keys)
+            // The user joined: no "Waiting on hold" with Hang up on the call they are on.
+            HoldWaitNotifier.sync(null, listOf(wait("a", "joined")))
+            assertTrue(fake.shown.isEmpty())
+        } finally {
+            HoldWaitNotifier.override = null
+        }
+    }
+
+    @Test
+    fun aRejoinedHoldReturnCanBeHeldForAgain() {
+        // The leg here is incoming, but the PBX call is still the original outgoing one.
+        val rejoined = hold("hw-1", "Acme Bank", CallPhase.ACTIVE, joined = 100_000L).copy(connectedAtElapsed = 5L)
+        assertTrue(HoldForMePolicy.canHold(true, rejoined, inConference = false, pbxCallId = "pbx-9"))
+        // An ordinary incoming call still cannot.
+        assertFalse(HoldForMePolicy.canHold(true, rejoined.copy(holdReturnId = null), inConference = false, pbxCallId = "pbx-9"))
+        // Still needs the flag, the PBX's id, and no conference.
+        assertFalse(HoldForMePolicy.canHold(false, rejoined, inConference = false, pbxCallId = "pbx-9"))
+        assertFalse(HoldForMePolicy.canHold(true, rejoined, inConference = false, pbxCallId = null))
+        assertFalse(HoldForMePolicy.canHold(true, rejoined, inConference = true, pbxCallId = "pbx-9"))
+    }
+
+    @Test
+    fun maxWaitHoursNeverReadZero() {
+        assertEquals(1, HoldReturn.hours(600))
+        assertEquals(1, HoldReturn.hours(0))
+        assertEquals(3, HoldReturn.hours(10_800))
+        assertEquals(4, HoldReturn.hours(14_400))
+    }
+}

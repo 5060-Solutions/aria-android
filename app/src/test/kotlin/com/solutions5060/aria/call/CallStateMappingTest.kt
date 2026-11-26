@@ -69,7 +69,16 @@ class CallStateMappingTest {
         assertEquals(DisconnectCause.REJECTED, CallStateMapping.disconnectCauseFor(EndReason.REJECTED))
         assertEquals(DisconnectCause.MISSED, CallStateMapping.disconnectCauseFor(EndReason.MISSED))
         assertEquals(DisconnectCause.ERROR, CallStateMapping.disconnectCauseFor(EndReason.FAILED))
-        assertEquals(EndReason.entries.size, EndReason.entries.map { CallStateMapping.disconnectCauseFor(it) }.toSet().size)
+        // Holding for you is, to Telecom, the far end ending the call: it shares REMOTE.
+        val others = EndReason.entries - EndReason.HELD_FOR_YOU
+        assertEquals(others.size, others.map { CallStateMapping.disconnectCauseFor(it) }.toSet().size)
+        assertEquals(DisconnectCause.REMOTE, CallStateMapping.disconnectCauseFor(EndReason.HELD_FOR_YOU))
+    }
+
+    @Test
+    fun heldForYouMapsFromTheCore() {
+        assertEquals(EndReason.HELD_FOR_YOU, CallStateMapping.endReasonFor(uniffi.aria_mobile.EndReason.HELD_FOR_YOU))
+        assertEquals(TelecomUpdate.Disconnect(DisconnectCause.REMOTE, null), CallStateMapping.disconnectFor(EndReason.HELD_FOR_YOU))
     }
 
     @Test
@@ -202,6 +211,7 @@ class CallStateMappingTest {
             CoreEndReason.REJECTED to (EndReason.REJECTED to DisconnectCause.REJECTED),
             CoreEndReason.TRANSFERRED to (EndReason.TRANSFERRED to DisconnectCause.OTHER),
             CoreEndReason.FAILED to (EndReason.FAILED to DisconnectCause.ERROR),
+            CoreEndReason.HELD_FOR_YOU to (EndReason.HELD_FOR_YOU to DisconnectCause.REMOTE),
         )
         assertEquals(CoreEndReason.entries.toSet(), expected.keys)
         for ((core, pair) in expected) {
