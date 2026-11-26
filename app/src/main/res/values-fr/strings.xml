@@ -102,7 +102,6 @@
     <string name="diag_codec">Codec</string>
     <string name="diag_srtp">Chiffrement (SRTP)</string>
     <string name="diag_srtp_on">Chiffré</string>
-    <string name="diag_srtp_off">Non chiffré</string>
     <string name="diag_packets">Paquets</string>
     <string name="diag_packets_value">Envoyés : %1$d · Reçus : %2$d · Perdus : %3$d</string>
     <string name="diag_jitter_rtt">Gigue / aller-retour</string>

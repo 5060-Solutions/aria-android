@@ -107,6 +107,14 @@ data class AriaExtendedColors(
     val statusError: Color,
     val statusOffline: Color,
     /**
+     * Amber, for what the user should know but need not act on at once,
+     * such as a call that is not encrypted. [warning] text clears 4.5:1 on
+     * the surfaces and on [warningContainer] in both modes.
+     */
+    val warning: Color,
+    val warningContainer: Color,
+    val onWarningContainer: Color,
+    /**
      * Fills of the 72 dp Call/Answer and Hang-up/Decline buttons: the same in
      * light and dark, with a white glyph (DESIGN.md §1). [success] and
      * [hangup] are for text and small accents only.
@@ -130,6 +138,9 @@ internal val LightExtended = AriaExtendedColors(
     statusConnecting = Color(0xFFFF9800),
     statusError = Color(0xFFF44336),
     statusOffline = Color(0xFF9E9E9E),
+    warning = Color(0xFF8A5100),
+    warningContainer = Color(0xFFFFDDB8),
+    onWarningContainer = Color(0xFF2C1600),
     brandAccent = Color(0xFF6366F1),
     callGlowA = Color(0xFFA8F0CF),
     callGlowB = Color(0xFFE0E0FF),
@@ -144,6 +155,9 @@ internal val DarkExtended = AriaExtendedColors(
     statusConnecting = Color(0xFFFF9800),
     statusError = Color(0xFFF44336),
     statusOffline = Color(0xFF9E9E9E),
+    warning = Color(0xFFFFB95C),
+    warningContainer = Color(0xFF4A2800),
+    onWarningContainer = Color(0xFFFFDDB8),
     brandAccent = Color(0xFFA5B4FC),
     callGlowA = Color(0xFF005138),
     callGlowB = Color(0xFF2E2A7A),

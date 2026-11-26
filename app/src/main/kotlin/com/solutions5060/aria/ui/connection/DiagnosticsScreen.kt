@@ -39,7 +39,9 @@ import com.solutions5060.aria.ui.components.AriaListItem
 import com.solutions5060.aria.ui.components.LocalSnackbarHostState
 import com.solutions5060.aria.ui.components.RowGroup
 import com.solutions5060.aria.ui.components.SectionCard
+import androidx.compose.ui.graphics.Color
 import com.solutions5060.aria.ui.theme.AriaIcons
+import com.solutions5060.aria.ui.theme.LocalAriaColors
 import com.solutions5060.aria.ui.theme.Spacing
 import kotlinx.coroutines.launch
 import java.util.Locale
@@ -49,6 +51,7 @@ object DiagnosticsTags {
     const val LOG = "diagnostics_log"
     const val GATEWAY_NODE = "diagnostics_gateway_node"
     const val CODEC = "diagnostics_codec"
+    const val ENCRYPTION = "diagnostics_encryption"
     const val ROW = "settings_diagnostics"
 }
 
@@ -120,15 +123,18 @@ fun DiagnosticsScreen(onBack: () -> Unit, vm: ConnectionDetailsViewModel = viewM
                     DetailRow(R.string.diag_call_none, dash)
                 } else {
                     DetailRow(R.string.diag_codec, call.codecLabel ?: dash, Modifier.testTag(DiagnosticsTags.CODEC))
+                    // Never hidden: an unencrypted call says so, in amber.
                     DetailRow(
                         R.string.diag_srtp,
                         stringResource(
                             when (call.encrypted) {
                                 true -> R.string.diag_srtp_on
-                                false -> R.string.diag_srtp_off
+                                false -> R.string.ui_connection_encryption_none
                                 null -> R.string.diag_none
                             },
                         ),
+                        Modifier.testTag(DiagnosticsTags.ENCRYPTION),
+                        valueColor = if (call.encrypted == false) LocalAriaColors.current.warning else null,
                     )
                     call.stats?.let { s ->
                         DetailRow(R.string.diag_packets, stringResource(R.string.diag_packets_value, s.packetsSent.toLong(), s.packetsReceived.toLong(), s.packetLoss.toLong()))
@@ -181,8 +187,13 @@ fun DiagnosticsScreen(onBack: () -> Unit, vm: ConnectionDetailsViewModel = viewM
 }
 
 @Composable
-private fun DetailRow(@StringRes label: Int, value: String, modifier: Modifier = Modifier) {
-    AriaListItem(headline = stringResource(label), supporting = value, modifier = modifier)
+private fun DetailRow(@StringRes label: Int, value: String, modifier: Modifier = Modifier, valueColor: Color? = null) {
+    AriaListItem(
+        headline = stringResource(label),
+        supporting = value,
+        supportingColor = valueColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = modifier,
+    )
 }
 
 private fun copy(context: Context, text: String) {

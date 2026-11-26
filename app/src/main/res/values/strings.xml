@@ -135,7 +135,6 @@
     <string name="diag_codec">Codec</string>
     <string name="diag_srtp">Encryption (SRTP)</string>
     <string name="diag_srtp_on">Encrypted</string>
-    <string name="diag_srtp_off">Not encrypted</string>
     <string name="diag_packets">Packets</string>
     <string name="diag_packets_value">Sent: %1$d · Received: %2$d · Lost: %3$d</string>
     <string name="diag_jitter_rtt">Jitter / round trip</string>

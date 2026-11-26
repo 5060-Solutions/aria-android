@@ -49,6 +49,7 @@ import com.solutions5060.aria.ui.components.RowShape
 import com.solutions5060.aria.ui.components.SectionCard
 import com.solutions5060.aria.ui.components.SectionHeader
 import com.solutions5060.aria.ui.components.StatusDot
+import androidx.compose.ui.graphics.Color
 import com.solutions5060.aria.ui.theme.AriaIcons
 import com.solutions5060.aria.ui.theme.AriaShapes
 import com.solutions5060.aria.ui.theme.LocalAriaColors
@@ -155,14 +156,16 @@ fun ConnectionSheetContent(
                     )
                     details.call?.let { call ->
                         InfoRow(AriaIcons.Codecs, stringResource(R.string.ui_connection_codec), call.codecLabel ?: "—")
+                        // Never hidden: an unencrypted call says so, in amber.
                         InfoRow(
-                            AriaIcons.Secure,
+                            if (call.encrypted == false) AriaIcons.NotSecure else AriaIcons.Secure,
                             stringResource(R.string.ui_connection_encryption),
                             when (call.encrypted) {
                                 true -> "SRTP"
                                 false -> stringResource(R.string.ui_connection_encryption_none)
                                 null -> "—"
                             },
+                            valueColor = if (call.encrypted == false) LocalAriaColors.current.warning else null,
                         )
                         call.stats?.let { st ->
                             InfoRow(
@@ -252,7 +255,13 @@ private fun InfoGroup(content: @Composable ColumnScope.() -> Unit) {
 }
 
 @Composable
-private fun InfoRow(@DrawableRes icon: Int, label: String, value: String, last: Boolean = false) {
+private fun InfoRow(
+    @DrawableRes icon: Int,
+    label: String,
+    value: String,
+    last: Boolean = false,
+    valueColor: Color? = null,
+) {
     Column {
         Row(
             Modifier
@@ -267,7 +276,7 @@ private fun InfoRow(@DrawableRes icon: Int, label: String, value: String, last: 
             Text(
                 value,
                 style = MaterialTheme.typography.bodyLarge,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                color = valueColor ?: MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.End,
                 // Domains and hosts keep both ends readable.
                 maxLines = 1,

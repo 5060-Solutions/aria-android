@@ -41,6 +41,9 @@
     <string name="ui_call_in_conference">En conferencia</string>
     <string name="ui_call_encrypted">Cifrada</string>
     <string name="ui_call_not_encrypted">Sin cifrar</string>
+    <string name="ui_call_not_encrypted_description">Llamada no cifrada</string>
+    <string name="ui_call_unencrypted_notice">Esta llamada no está cifrada. La centralita no aceptó una conexión segura.</string>
+    <string name="ui_call_unencrypted_explain">Explicar</string>
     <string name="ui_call_more">Más opciones de llamada</string>
     <string name="ui_call_mute">Silenciar</string>
     <string name="ui_call_keypad">Teclado</string>
@@ -87,7 +90,7 @@
     <string name="ui_connection_account">Cuenta</string>
     <string name="ui_connection_codec">Códec</string>
     <string name="ui_connection_encryption">Cifrado de llamada</string>
-    <string name="ui_connection_encryption_none">Ninguno</string>
+    <string name="ui_connection_encryption_none">Ninguno (sin cifrar)</string>
     <string name="ui_connection_media">Audio</string>
     <string name="ui_connection_media_value">Pérdida %1$d · jitter %2$d ms · RTT %3$d ms</string>
     <string name="ui_connection_network">Red</string>

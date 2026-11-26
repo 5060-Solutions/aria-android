@@ -3729,7 +3729,16 @@ data class CallInfo (
      * The negotiated audio codec by its SDP name (`PCMU`, `PCMA`, `opus`,
      * `G729`), once the call has media; null before then.
      */
-    var `codec`: kotlin.String? = null
+    var `codec`: kotlin.String? = null, 
+    /**
+     * Call audio is SRTP-encrypted to the PBX, as actually negotiated:
+     * set on `Connected` and carried on every later event, and re-reported
+     * whenever it changes (a media re-offer after a network change). False
+     * before `Connected` and whenever the far side declined SRTP: the app
+     * must then say the call is not encrypted. Same value as
+     * `call_is_encrypted`. See "Media encryption" in the README.
+     */
+    var `encrypted`: kotlin.Boolean = false
 ) {
     
     companion object
@@ -3753,6 +3762,7 @@ public object FfiConverterTypeCallInfo: FfiConverterRustBuffer<CallInfo> {
             FfiConverterBoolean.read(buf),
             FfiConverterBoolean.read(buf),
             FfiConverterOptionalString.read(buf),
+            FfiConverterBoolean.read(buf),
         )
     }
 
@@ -3768,7 +3778,8 @@ public object FfiConverterTypeCallInfo: FfiConverterRustBuffer<CallInfo> {
             FfiConverterOptionalTypeEndReason.allocationSize(value.`endReason`) +
             FfiConverterBoolean.allocationSize(value.`inConference`) +
             FfiConverterBoolean.allocationSize(value.`recording`) +
-            FfiConverterOptionalString.allocationSize(value.`codec`)
+            FfiConverterOptionalString.allocationSize(value.`codec`) +
+            FfiConverterBoolean.allocationSize(value.`encrypted`)
     )
 
     override fun write(value: CallInfo, buf: ByteBuffer) {
@@ -3784,6 +3795,7 @@ public object FfiConverterTypeCallInfo: FfiConverterRustBuffer<CallInfo> {
             FfiConverterBoolean.write(value.`inConference`, buf)
             FfiConverterBoolean.write(value.`recording`, buf)
             FfiConverterOptionalString.write(value.`codec`, buf)
+            FfiConverterBoolean.write(value.`encrypted`, buf)
     }
 }
 

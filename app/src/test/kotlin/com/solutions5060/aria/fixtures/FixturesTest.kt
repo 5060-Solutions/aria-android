@@ -45,6 +45,15 @@ class FixturesTest {
     }
 
     @Test
+    fun unencryptedInCallIsTheSameCallWithoutSrtp() {
+        val calls = set(FixtureScene.IN_CALL_UNENCRYPTED).calls
+        assertEquals(1, calls.size)
+        assertEquals(CallPhase.ACTIVE, calls[0].phase)
+        assertEquals(false, calls[0].encrypted)
+        assertEquals(true, set(FixtureScene.IN_CALL).calls[0].encrypted)
+    }
+
+    @Test
     fun twoCallsHasOneActiveInFrontAndOneHeld() {
         val calls = set(FixtureScene.TWO_CALLS).calls
         val fg = CallWaiting.foreground(calls)

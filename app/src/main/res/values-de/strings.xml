@@ -102,7 +102,6 @@
     <string name="diag_codec">Codec</string>
     <string name="diag_srtp">Verschlüsselung (SRTP)</string>
     <string name="diag_srtp_on">Verschlüsselt</string>
-    <string name="diag_srtp_off">Unverschlüsselt</string>
     <string name="diag_packets">Pakete</string>
     <string name="diag_packets_value">Gesendet: %1$d · Empfangen: %2$d · Verloren: %3$d</string>
     <string name="diag_jitter_rtt">Jitter / Umlaufzeit</string>

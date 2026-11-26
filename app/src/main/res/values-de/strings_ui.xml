@@ -41,6 +41,9 @@
     <string name="ui_call_in_conference">In Konferenz</string>
     <string name="ui_call_encrypted">Verschlüsselt</string>
     <string name="ui_call_not_encrypted">Unverschlüsselt</string>
+    <string name="ui_call_not_encrypted_description">Anruf nicht verschlüsselt</string>
+    <string name="ui_call_unencrypted_notice">Dieser Anruf ist nicht verschlüsselt. Die Telefonanlage hat keine sichere Verbindung akzeptiert.</string>
+    <string name="ui_call_unencrypted_explain">Erklären</string>
     <string name="ui_call_more">Weitere Anrufoptionen</string>
     <string name="ui_call_mute">Stumm</string>
     <string name="ui_call_keypad">Tastatur</string>
@@ -87,7 +90,7 @@
     <string name="ui_connection_account">Konto</string>
     <string name="ui_connection_codec">Codec</string>
     <string name="ui_connection_encryption">Anrufverschlüsselung</string>
-    <string name="ui_connection_encryption_none">Keine</string>
+    <string name="ui_connection_encryption_none">Keine (unverschlüsselt)</string>
     <string name="ui_connection_media">Audio</string>
     <string name="ui_connection_media_value">Verlust %1$d · Jitter %2$d ms · RTT %3$d ms</string>
     <string name="ui_connection_network">Netzwerk</string>

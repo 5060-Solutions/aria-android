@@ -1,5 +1,12 @@
 package com.solutions5060.aria.ui.call
 
+import androidx.compose.foundation.clickable
+import androidx.compose.material3.SnackbarDuration
+import androidx.compose.material3.minimumInteractiveComponentSize
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.testTag
+import androidx.compose.ui.semantics.Role
 import android.os.SystemClock
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -107,7 +114,10 @@ import com.solutions5060.aria.ui.theme.LocalAriaColors
 import com.solutions5060.aria.ui.theme.LocalReducedMotion
 import com.solutions5060.aria.ui.theme.Sizes
 import com.solutions5060.aria.ui.theme.Spacing
+import com.solutions5060.aria.call.CallEncryption
+import com.solutions5060.aria.call.UnencryptedCallNotices
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 
 /** Everything the call screen can ask for. Every action names the call shown when it was tapped. */
 data class CallActions(
@@ -212,6 +222,23 @@ fun CallScreen(
     // Spoken state changes (DESIGN.md §7): "Call connected", "Call on hold", "Recording started".
     val announcement = announcementFor(call)
 
+    // An unencrypted call is called out once per call: when it connects
+    // unencrypted, or the first time it drops to unencrypted later. The
+    // snackbar host is a polite live region, so TalkBack reads it out.
+    val encryption = CallEncryption.of(call)
+    val unencryptedNotice = stringResource(R.string.ui_call_unencrypted_notice)
+    val noticeScope = rememberCoroutineScope()
+    val explainUnencrypted: () -> Unit = {
+        noticeScope.launch {
+            snackbar.showSnackbar(unencryptedNotice, withDismissAction = true, duration = SnackbarDuration.Long)
+        }
+    }
+    LaunchedEffect(call.key, encryption) {
+        val notices = UnencryptedCallNotices.shared
+        notices.retainOnly(context.otherCalls.map { it.key }.toSet() + call.key)
+        if (notices.shouldNotify(call.key, encryption)) explainUnencrypted()
+    }
+
     // Sheets
     if (showTransfer && !active) showTransfer = false
     if (consultRequested && context.otherCalls.isNotEmpty()) {
@@ -304,6 +331,7 @@ fun CallScreen(
             TopRow(
                 call = call,
                 quality = context.quality,
+                onExplainUnencrypted = explainUnencrypted,
                 showMenu = active,
                 menuOpen = showMore,
                 onMenu = { showMore = it },
@@ -664,6 +692,7 @@ private fun RecordingBadge(modifier: Modifier = Modifier) {
 private fun TopRow(
     call: CallUiState,
     quality: CallQuality?,
+    onExplainUnencrypted: () -> Unit,
     showMenu: Boolean,
     menuOpen: Boolean,
     onMenu: (Boolean) -> Unit,
@@ -674,9 +703,14 @@ private fun TopRow(
             .fillMaxWidth()
             .heightIn(min = Sizes.iconButton),
     ) {
-        val encrypted = call.encrypted
-        if (call.phase != CallPhase.INCOMING && (encrypted != null || quality != null)) {
-            CallCapsule(encrypted = encrypted, quality = quality, modifier = Modifier.align(Alignment.Center))
+        val encryption = CallEncryption.of(call)
+        if (call.phase != CallPhase.INCOMING && (encryption != CallEncryption.UNKNOWN || quality != null)) {
+            CallCapsule(
+                encryption = encryption,
+                quality = quality,
+                onExplainUnencrypted = onExplainUnencrypted,
+                modifier = Modifier.align(Alignment.Center),
+            )
         }
         if (showMenu) {
             Box(Modifier.align(Alignment.CenterEnd)) {
@@ -693,32 +727,62 @@ private fun TopRow(
     }
 }
 
-/** "🔒 Encrypted | ▂▄▆ Good": security and call quality in one capsule (DESIGN.md §5, parity with iOS). */
+/** Test tags of the call screen's encryption capsule. */
+object CallScreenTags {
+    const val ENCRYPTED = "call_encrypted"
+    const val NOT_ENCRYPTED = "call_not_encrypted"
+}
+
+/**
+ * "🔒 Encrypted | ▂▄▆ Good": security and call quality in one capsule
+ * (DESIGN.md §5, parity with iOS). A call that is not encrypted gets an amber
+ * capsule with an open lock instead, never the encrypted look, for as long as
+ * it lasts; tapping it explains why.
+ */
 @Composable
-private fun CallCapsule(encrypted: Boolean?, quality: CallQuality?, modifier: Modifier = Modifier) {
-    val aria = LocalAriaColors.current
-    val secureLabel = encrypted?.let { stringResource(if (it) R.string.ui_call_encrypted else R.string.ui_call_not_encrypted) }
+private fun CallCapsule(
+    encryption: CallEncryption,
+    quality: CallQuality?,
+    onExplainUnencrypted: () -> Unit,
+    modifier: Modifier = Modifier,
+) {
+    val secureLabel = when (encryption) {
+        CallEncryption.ENCRYPTED -> stringResource(R.string.ui_call_encrypted)
+        CallEncryption.UNENCRYPTED -> stringResource(R.string.ui_call_not_encrypted)
+        CallEncryption.UNKNOWN -> null
+    }
+    val secureDescription = when (encryption) {
+        CallEncryption.ENCRYPTED -> stringResource(R.string.ui_call_encrypted)
+        CallEncryption.UNENCRYPTED -> stringResource(R.string.ui_call_not_encrypted_description)
+        CallEncryption.UNKNOWN -> null
+    }
     val qualityLabel = quality?.let { stringResource(qualityLabelRes(it)) }
-    val description = listOfNotNull(secureLabel, qualityLabel?.let { stringResource(R.string.ui_call_quality, it) }).joinToString(", ")
+    val description = listOfNotNull(secureDescription, qualityLabel?.let { stringResource(R.string.ui_call_quality, it) }).joinToString(", ")
+    val explainLabel = stringResource(R.string.ui_call_unencrypted_explain)
     // A one-line capsule: grows with the font scale only up to 1.3x.
-    CappedFontScale(max = 1.3f) { CapsuleBody(encrypted, quality, secureLabel, qualityLabel, description, modifier) }
+    CappedFontScale(max = 1.3f) {
+        CapsuleBody(encryption, quality, secureLabel, qualityLabel, description, explainLabel, onExplainUnencrypted, modifier)
+    }
 }
 
 @Composable
 private fun CapsuleBody(
-    encrypted: Boolean?,
+    encryption: CallEncryption,
     quality: CallQuality?,
     secureLabel: String?,
     qualityLabel: String?,
     description: String,
+    explainLabel: String,
+    onExplainUnencrypted: () -> Unit,
     modifier: Modifier,
 ) {
     val aria = LocalAriaColors.current
-    Surface(
-        modifier = modifier.semantics(mergeDescendants = true) { contentDescription = description },
-        shape = AriaShapes.chip,
-        color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f),
-    ) {
+    val unencrypted = encryption == CallEncryption.UNENCRYPTED
+    val textColor = if (unencrypted) aria.onWarningContainer else MaterialTheme.colorScheme.onSurfaceVariant
+    val semanticsModifier = modifier
+        .testTag(if (unencrypted) CallScreenTags.NOT_ENCRYPTED else CallScreenTags.ENCRYPTED)
+        .semantics(mergeDescendants = true) { contentDescription = description }
+    val body: @Composable () -> Unit = {
         Row(
             Modifier
                 .height(androidx.compose.foundation.layout.IntrinsicSize.Min)
@@ -726,29 +790,47 @@ private fun CapsuleBody(
             horizontalArrangement = Arrangement.spacedBy(Spacing.xs),
             verticalAlignment = Alignment.CenterVertically,
         ) {
-            if (encrypted != null && secureLabel != null) {
+            if (encryption != CallEncryption.UNKNOWN && secureLabel != null) {
                 AriaIcon(
-                    if (encrypted) AriaIcons.Secure else AriaIcons.NotSecure,
+                    if (unencrypted) AriaIcons.NotSecure else AriaIcons.Secure,
                     contentDescription = null,
                     size = Sizes.iconSmall,
-                    tint = if (encrypted) aria.success else aria.statusConnecting,
+                    tint = if (unencrypted) aria.warning else aria.success,
                 )
-                Text(secureLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(secureLabel, style = MaterialTheme.typography.labelLarge, color = textColor)
             }
-            if (encrypted != null && quality != null) {
+            if (encryption != CallEncryption.UNKNOWN && quality != null) {
                 Box(
                     Modifier
                         .padding(horizontal = Spacing.xxs)
                         .width(1.dp)
                         .fillMaxHeight()
-                        .background(MaterialTheme.colorScheme.outlineVariant),
+                        .background(if (unencrypted) aria.onWarningContainer.copy(alpha = 0.4f) else MaterialTheme.colorScheme.outlineVariant),
                 )
             }
             if (quality != null && qualityLabel != null) {
                 QualityBars(quality)
-                Text(qualityLabel, style = MaterialTheme.typography.labelLarge, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(qualityLabel, style = MaterialTheme.typography.labelLarge, color = textColor)
             }
         }
+    }
+    if (unencrypted) {
+        // Solid amber, not translucent: the label keeps its contrast over the
+        // call screen's moving colour.
+        Surface(
+            modifier = semanticsModifier
+                .minimumInteractiveComponentSize()
+                .clip(AriaShapes.chip)
+                .clickable(onClickLabel = explainLabel, role = Role.Button, onClick = onExplainUnencrypted),
+            shape = AriaShapes.chip,
+            color = aria.warningContainer,
+        ) { body() }
+    } else {
+        Surface(
+            modifier = semanticsModifier,
+            shape = AriaShapes.chip,
+            color = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.85f),
+        ) { body() }
     }
 }
 

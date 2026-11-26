@@ -59,6 +59,9 @@
     <string name="ui_call_in_conference">In conference</string>
     <string name="ui_call_encrypted">Encrypted</string>
     <string name="ui_call_not_encrypted">Not encrypted</string>
+    <string name="ui_call_not_encrypted_description">Call not encrypted</string>
+    <string name="ui_call_unencrypted_notice">This call isn\'t encrypted. The phone system didn\'t accept a secure connection.</string>
+    <string name="ui_call_unencrypted_explain">Explain</string>
     <string name="ui_call_more">More call options</string>
     <string name="ui_call_mute">Mute</string>
     <string name="ui_call_keypad">Keypad</string>
@@ -107,7 +110,7 @@
     <string name="ui_connection_account">Account</string>
     <string name="ui_connection_codec">Codec</string>
     <string name="ui_connection_encryption">Call encryption</string>
-    <string name="ui_connection_encryption_none">None</string>
+    <string name="ui_connection_encryption_none">None (unencrypted)</string>
     <string name="ui_connection_media">Media</string>
     <string name="ui_connection_media_value">Loss %1$d · jitter %2$d ms · RTT %3$d ms</string>
     <string name="ui_connection_network">Network</string>

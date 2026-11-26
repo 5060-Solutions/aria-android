@@ -61,7 +61,10 @@ data class CallUiState(
     val connectedAtElapsed: Long? = null,
     /** Audio outputs Telecom offers, and the one in use. */
     val audio: AudioRouteState = AudioRouteState(),
-    /** Whether media is SRTP-encrypted as negotiated; null until known. */
+    /**
+     * Whether media is SRTP-encrypted as negotiated (`CallInfo.encrypted`),
+     * null until the core has reported it on Connected. See [CallEncryption].
+     */
     val encrypted: Boolean? = null,
     /** A blind transfer is waiting for its outcome (up to about 45 s). */
     val transferring: Boolean = false,
@@ -330,6 +333,10 @@ object CallManager {
         rec.inConference = info.inConference
         rec.recording = info.recording
         info.codec?.let { rec.codec = it }
+        // Every event once connected carries the negotiated encryption, and a
+        // change mid-call is re-sent with the state unchanged; the call screen
+        // re-evaluates its callout on each published state.
+        CallEncryption.reported(info.state, info.encrypted)?.let { rec.encrypted = it }
 
         if (info.state == CallState.ENDED) {
             info.endReason?.let { rec.deferredEndReason = CallStateMapping.endReasonFor(it) }
@@ -388,22 +395,8 @@ object CallManager {
         cancelRingTimeout(rec)
         syncIncomingNotifier()
         val callId = rec.callId ?: return
-        // Ask the engine what SRTP negotiation produced; a padlock derived
-        // from settings would lie whenever the peer declined the crypto line.
-        engineExecutor.execute {
-            val encrypted = try {
-                SipEngineHolder.engine?.callIsEncrypted(callId)
-            } catch (e: Exception) {
-                Log.w(TAG, "Could not read call encryption: ${e.message}")
-                null
-            }
-            mainHandler.post {
-                if (!rec.finished && encrypted != null) {
-                    rec.encrypted = encrypted
-                    publishAll()
-                }
-            }
-        }
+        // Encryption comes with the call's events (CallInfo.encrypted), as
+        // negotiated; see onEngineCallState.
         // Opt-in and a no-op unless the user turned transcription on and a
         // speech model is installed.
         scope.launch { CallTranscription.onCallStarted(appContext, callId) }
