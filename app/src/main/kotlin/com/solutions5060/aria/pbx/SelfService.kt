@@ -51,6 +51,9 @@ data class ServerCall(
     val durationSecs: Int,
 )
 
+/** What `GET /me` says about the dial country. */
+data class MeCountry(val callingCountry: String?, val isAdmin: Boolean)
+
 /** The PBX refused a value; [field] names it when the PBX said which. */
 class SelfServiceException(message: String, val code: Int, val field: String? = null) : Exception(message)
 
@@ -62,6 +65,16 @@ object SelfServiceJson {
         return ExtensionFeatures(
             doNotDisturb = j.optBoolean("do_not_disturb", false),
             maxConcurrentCalls = j.optInt("max_concurrent_calls", 0),
+        )
+    }
+
+    /** `GET /me`: the company's calling country (nullable) and whether the credential is an admin. */
+    fun me(body: String): MeCountry {
+        val j = JSONObject(body)
+        val role = j.optString("role")
+        return MeCountry(
+            callingCountry = j.optStringOrNull("calling_country"),
+            isAdmin = j.optBoolean("is_superadmin", false) || role in setOf("superadmin", "tenant_admin", "admin"),
         )
     }
 
@@ -126,11 +139,17 @@ class SelfServiceRepository(private val api: PbxApiClient, private val auth: Pbx
 
     fun features(): ExtensionFeatures = call { SelfServiceJson.features(api.features(it, auth.extensionId())) }
 
-    /** The company's calling country (ISO 3166-1 alpha-2); null when the seat has no tenant. */
-    fun callingCountry(): String? {
-        val tenant = auth.tenantId() ?: return null
-        return call { SelfServiceJson.callingCountry(api.callingSettings(it, tenant)) }
-    }
+    /**
+     * The company's calling country (ISO 3166-1 alpha-2): `/me`'s `calling_country`, else
+     * the admin-only calling settings (asked only of an admin, to avoid a 403), else null.
+     */
+    fun callingCountry(): String? = resolveCountry(
+        me = { call { SelfServiceJson.me(api.me(it)) } },
+        settings = {
+            val tenant = auth.tenantId()
+            if (tenant == null) null else call { SelfServiceJson.callingCountry(api.callingSettings(it, tenant)) }
+        },
+    )
 
     fun setDoNotDisturb(on: Boolean) = call { api.setDoNotDisturb(it, auth.extensionId(), on) }
 
@@ -176,4 +195,10 @@ class SelfServiceRepository(private val api: PbxApiClient, private val auth: Pbx
         }
         throw e
     }
+}
+
+/** The order of the dial country's sources; the device region is the caller's last resort (null here). */
+internal fun resolveCountry(me: () -> MeCountry, settings: () -> String?): String? {
+    val identity = me()
+    return identity.callingCountry ?: if (identity.isAdmin) settings() else null
 }

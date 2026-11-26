@@ -1,6 +1,9 @@
 package com.solutions5060.aria.ui
 
 import com.solutions5060.aria.pbx.DialCountry
+import com.solutions5060.aria.pbx.MeCountry
+import com.solutions5060.aria.pbx.SelfServiceJson
+import com.solutions5060.aria.pbx.resolveCountry
 import com.solutions5060.aria.ui.components.PhoneFormat
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertNull
@@ -113,5 +116,21 @@ class PhoneFormatTest {
         assertEquals("FR", DialCountry.deviceRegion("fr", "US"))
         assertEquals("US", DialCountry.deviceRegion("", "US"))
         assertNull(DialCountry.deviceRegion(null, ""))
+    }
+
+    @Test
+    fun countrySourceOrder() {
+        var settingsCalls = 0
+        val settings = { settingsCalls++; "GB" }
+        assertEquals("DE", resolveCountry({ MeCountry("DE", true) }, settings))
+        assertEquals(0, settingsCalls)
+        assertEquals("GB", resolveCountry({ MeCountry(null, true) }, settings))
+        assertEquals(1, settingsCalls)
+        assertNull(resolveCountry({ MeCountry(null, false) }, settings))
+        assertEquals(1, settingsCalls)
+        // Nothing from the PBX: the device region.
+        assertEquals("FR", DialCountry.effective(null, "FR"))
+        assertEquals(MeCountry("US", false), SelfServiceJson.me("""{"role":"user","is_superadmin":false,"calling_country":"US"}"""))
+        assertEquals(MeCountry(null, true), SelfServiceJson.me("""{"role":"tenant_admin","calling_country":null}"""))
     }
 }
