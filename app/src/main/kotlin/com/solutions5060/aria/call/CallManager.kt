@@ -286,6 +286,7 @@ object CallManager {
     fun init(context: Context) {
         appContext = context.applicationContext
         com.solutions5060.aria.move.CallMoveCoordinator.init(appContext)
+        com.solutions5060.aria.hold.HoldForMeCoordinator.init(appContext)
     }
 
     /** `X-Aria-Move` per offered call token (null: the offer carried none). */

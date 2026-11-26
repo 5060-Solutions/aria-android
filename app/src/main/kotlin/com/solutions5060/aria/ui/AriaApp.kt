@@ -205,6 +205,7 @@ fun AriaApp() {
                     }
                     clearAccount()
                     com.solutions5060.aria.move.CallMoveCoordinator.reset()
+                    com.solutions5060.aria.hold.HoldForMeCoordinator.reset()
                     phase = AppPhase.SETUP
                 },
             )

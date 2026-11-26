@@ -201,6 +201,13 @@ object CallMoveCoordinator {
         return list
     }
 
+    /**
+     * The PBX's record of this app's own call to [localRemoteUri], as last read
+     * (no network); null until the active calls are known or when none matches.
+     */
+    fun ownCallFor(localRemoteUri: String): ActiveCall? =
+        CallMovePolicy.ownCall(_calls.value, ownRegistrationId, emptySet(), localRemoteUri)
+
     /** The label of the device named [registrationId], if devices were read. */
     fun deviceLabel(registrationId: String): String? = deviceNames[registrationId]
 

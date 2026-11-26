@@ -80,4 +80,16 @@ class FixturesTest {
         val ids = FixtureScene.entries.map { it.id }
         assertEquals(ids.size, ids.toSet().size)
     }
+
+    @Test
+    fun holdForMeSceneIsAConnectedOutgoingCallWithTheFlagOnUnlessTurnedOff() {
+        val s = set(FixtureScene.IN_CALL_HOLD_FOR_ME)
+        assertEquals("in-call-hold-for-me", FixtureScene.IN_CALL_HOLD_FOR_ME.id)
+        assertEquals(1, s.calls.size)
+        assertEquals(CallPhase.ACTIVE, s.calls[0].phase)
+        assertEquals(uniffi.aria_mobile.CallDirection.OUTBOUND, s.calls[0].direction)
+        assertTrue(s.holdForMe)
+        assertEquals(false, FixtureSet.standard(scene = FixtureScene.IN_CALL_HOLD_FOR_ME, holdForMe = false, nowMillis = 1L, nowElapsed = 1L).holdForMe)
+        assertEquals(false, set(FixtureScene.IN_CALL).holdForMe)
+    }
 }

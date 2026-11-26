@@ -233,4 +233,19 @@
     <string name="ui_settings_language">Idioma</string>
     <string name="ui_settings_language_system">Predeterminado del sistema</string>
     <string name="ui_hold_holding_for_you">Esperando por ti</string>
+    <string name="ui_hold_title">Esperar por mí</string>
+    <string name="ui_hold_sheet_body">Esperaremos en línea y te llamaremos cuando conteste una persona. Mientras tanto, tu teléfono queda libre.</string>
+    <string name="ui_hold_when_they_pick_up">Cuando contesten</string>
+    <string name="ui_hold_greeting_silence">Silencio</string>
+    <string name="ui_hold_greeting_silence_desc">No oyen nada hasta que te unas.</string>
+    <string name="ui_hold_greeting_line">Mensaje breve</string>
+    <string name="ui_hold_greeting_line_desc">Escuchan: “One moment please, I\'m connecting you now.”</string>
+    <string name="ui_hold_greeting_assistant">Asistente de IA</string>
+    <string name="ui_hold_greeting_assistant_desc">Un asistente automatizado avisa de que es automático, pregunta el motivo de la llamada y te muestra lo que dicen.</string>
+    <string name="ui_hold_assistant_unavailable">No disponible en esta cuenta</string>
+    <string name="ui_hold_start">Empezar a esperar</string>
+    <string name="ui_hold_error_start">No se pudo iniciar Esperar por mí.</string>
+    <string name="ui_hold_error_emergency">No disponible en llamadas de emergencia.</string>
+    <string name="ui_hold_error_busy">No disponible durante una transferencia o fusión.</string>
+    <string name="ui_hold_error_already">Ya se está esperando en esta llamada.</string>
 </resources>

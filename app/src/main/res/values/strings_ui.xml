@@ -261,4 +261,19 @@
     <string name="ui_settings_language">Language</string>
     <string name="ui_settings_language_system">System default</string>
     <string name="ui_hold_holding_for_you">Holding for you</string>
+    <string name="ui_hold_title">Hold for me</string>
+    <string name="ui_hold_sheet_body">We\'ll wait on hold and ring you when a person answers. Your phone is free meanwhile.</string>
+    <string name="ui_hold_when_they_pick_up">When they pick up</string>
+    <string name="ui_hold_greeting_silence">Silence</string>
+    <string name="ui_hold_greeting_silence_desc">They hear nothing until you join.</string>
+    <string name="ui_hold_greeting_line">Short message</string>
+    <string name="ui_hold_greeting_line_desc">They hear: “One moment please, I\'m connecting you now.”</string>
+    <string name="ui_hold_greeting_assistant">AI assistant</string>
+    <string name="ui_hold_greeting_assistant_desc">An automated assistant says it\'s automated, asks what the call is about, and shows you what they say.</string>
+    <string name="ui_hold_assistant_unavailable">Not available on this account</string>
+    <string name="ui_hold_start">Start holding</string>
+    <string name="ui_hold_error_start">Couldn\'t start Hold for me.</string>
+    <string name="ui_hold_error_emergency">Not available on emergency calls.</string>
+    <string name="ui_hold_error_busy">Not available while a transfer or merge is in progress.</string>
+    <string name="ui_hold_error_already">Already holding this call.</string>
 </resources>

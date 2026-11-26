@@ -148,6 +148,10 @@ data class CallActions(
     /** The user's other online devices this call can move to. */
     val loadMoveTargets: suspend () -> List<com.solutions5060.aria.move.MoveDevice> = { emptyList() },
     val onMoveTo: (com.solutions5060.aria.move.MoveDevice) -> Unit = {},
+    /** Hold for me's settings, for its greeting sheet. */
+    val loadHoldSettings: suspend () -> com.solutions5060.aria.hold.HoldSettings = { com.solutions5060.aria.hold.HoldSettings.Fallback },
+    /** Start Hold for me on this call with the chosen greeting. */
+    val onHoldForMe: (com.solutions5060.aria.hold.HoldGreeting) -> Unit = {},
 )
 
 /** What else is going on around the call on screen. */
@@ -163,6 +167,8 @@ data class CallContext(
     val quality: CallQuality? = null,
     /** Errors to show once each (call setup, merge/record failures). */
     val errors: List<String> = emptyList(),
+    /** Hold for me is on for this account and this call can use it (an outgoing, connected call, not in a conference). */
+    val holdForMeAvailable: Boolean = false,
 )
 
 /**
@@ -190,6 +196,7 @@ fun CallScreen(
     var showKeypad by rememberSaveable { mutableStateOf(Fixtures.current?.sheet == "keypad") }
     var showAudio by rememberSaveable { mutableStateOf(false) }
     var showMove by rememberSaveable { mutableStateOf(false) }
+    var showHold by rememberSaveable { mutableStateOf(false) }
     var showMore by remember { mutableStateOf(false) }
     var showRecordingNotice by remember { mutableStateOf(false) }
     // The app's snackbar host, so notices posted elsewhere ("Call dropped") show here too.
@@ -283,6 +290,30 @@ fun CallScreen(
             onDismiss = { showMove = false },
         )
     }
+    if (showHold && !(active && context.holdForMeAvailable)) showHold = false
+    if (showHold) {
+        var holdSettings by remember { mutableStateOf<com.solutions5060.aria.hold.HoldSettings?>(null) }
+        LaunchedEffect(Unit) {
+            holdSettings = try {
+                actions.loadHoldSettings()
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
+            } catch (_: Exception) {
+                com.solutions5060.aria.hold.HoldSettings.Fallback
+            }
+        }
+        // The sheet opens once the greeting in effect is known, so the choice starts on it.
+        holdSettings?.let { settings ->
+            HoldForMeSheet(
+                settings = settings,
+                onStart = {
+                    showHold = false
+                    actions.onHoldForMe(it)
+                },
+                onDismiss = { showHold = false },
+            )
+        }
+    }
     if (showAddCall && !context.canAddCall) showAddCall = false
     if (showAddCall) {
         NumberEntrySheet(
@@ -369,6 +400,10 @@ fun CallScreen(
                     onAudio = {
                         showMore = false
                         showAudio = true
+                    },
+                    onHoldForMe = {
+                        showMore = false
+                        showHold = true
                     },
                 )
             }
@@ -914,6 +949,7 @@ private fun MoreMenuItems(
     onMerge: () -> Unit,
     onSplit: () -> Unit,
     onAudio: () -> Unit,
+    onHoldForMe: () -> Unit,
 ) {
     call.codec?.let { codec ->
         DropdownMenuItem(
@@ -954,6 +990,15 @@ private fun MoreMenuItems(
         leadingIcon = { AriaIcon(routeIcon(call.audio.current?.type ?: AudioRouteType.EARPIECE), null) },
         onClick = onAudio,
     )
+    if (context.holdForMeAvailable) {
+        DropdownMenuItem(
+            text = { Text(stringResource(R.string.ui_hold_title)) },
+            leadingIcon = { AriaIcon(AriaIcons.Hourglass, null) },
+            enabled = call.phase == CallPhase.ACTIVE,
+            onClick = onHoldForMe,
+            modifier = Modifier.testTag(HoldTags.OVERFLOW),
+        )
+    }
 }
 
 /** The 3×2 control grid (2 columns at accessibility font sizes). */
@@ -1233,6 +1278,22 @@ fun ManagedCallScreen(call: CallUiState) {
     val actionError by CallManager.actionError.collectAsState()
     val quality = rememberCallQuality(call)
     val key = call.key
+    // The button follows the flag and the PBX's list of calls, which arrive after the call does.
+    val holdAvailable by com.solutions5060.aria.hold.HoldForMeCoordinator.available.collectAsState()
+    val pbxCalls by com.solutions5060.aria.move.CallMoveCoordinator.calls.collectAsState()
+    val holdForMe = remember(holdAvailable, pbxCalls, call, calls) {
+        com.solutions5060.aria.hold.HoldForMeCoordinator.canHoldForMe(call, call.inConference || Conference.canSplit(calls))
+    }
+    // A refusal: the call is untouched and the banner says why.
+    val refusal by com.solutions5060.aria.hold.HoldForMeCoordinator.refusal.collectAsState()
+    val refusalText = refusal?.let { stringResource(it.message) }
+    val snackbar = com.solutions5060.aria.ui.components.LocalSnackbarHostState.current
+    LaunchedEffect(refusalText) {
+        refusalText?.let {
+            com.solutions5060.aria.hold.HoldForMeCoordinator.clearRefusal()
+            snackbar.showSnackbar(it)
+        }
+    }
     CallScreen(
         call = call,
         context = CallContext(
@@ -1245,6 +1306,7 @@ fun ManagedCallScreen(call: CallUiState) {
             transferPair = CallWaiting.attendedTransferPair(calls),
             errors = listOfNotNull(callError, actionError),
             quality = quality,
+            holdForMeAvailable = holdForMe,
         ),
         onDismissError = { message ->
             if (message == callError) CallManager.clearError()
@@ -1273,6 +1335,8 @@ fun ManagedCallScreen(call: CallUiState) {
             recordingConsentNeeded = { CallManager.recordingConsentNeeded() },
             loadMoveTargets = { com.solutions5060.aria.move.CallMoveCoordinator.targets(call.remoteUri) },
             onMoveTo = { com.solutions5060.aria.move.CallMoveCoordinator.moveTo(call.remoteUri, it) },
+            loadHoldSettings = { com.solutions5060.aria.hold.HoldForMeCoordinator.service()?.settings() ?: com.solutions5060.aria.hold.HoldSettings.Fallback },
+            onHoldForMe = { com.solutions5060.aria.hold.HoldForMeCoordinator.startAsync(call, it) },
         ),
     )
 }

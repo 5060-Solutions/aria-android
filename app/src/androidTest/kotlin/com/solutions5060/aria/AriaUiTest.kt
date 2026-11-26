@@ -57,6 +57,9 @@ import org.junit.Before
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
+import com.solutions5060.aria.fixtures.FakeHoldApi
+import com.solutions5060.aria.hold.HoldGreeting
+import com.solutions5060.aria.ui.call.HoldTags
 import java.util.regex.Pattern
 
 /**
@@ -89,9 +92,10 @@ class AriaUiTest {
     }
 
     /** Launches a fixture scene and checks that no runtime permission dialog came up with it. */
-    private fun launch(scene: String, tab: String? = null) {
+    private fun launch(scene: String, tab: String? = null, noHoldForMe: Boolean = false) {
         val intent = Intent(context, MainActivity::class.java)
             .putExtra(Fixtures.EXTRA_SCENE, scene)
+            .putExtra(Fixtures.EXTRA_NO_HOLD_FOR_ME, noHoldForMe)
         tab?.let { intent.putExtra(Fixtures.EXTRA_TAB, it) }
         scenario = ActivityScenario.launch(intent)
         compose.waitForIdle()
@@ -280,11 +284,32 @@ class AriaUiTest {
         assertTrue("no notice for an encrypted call", !noticeShowing())
     }
 
+    // ── Hold for me ──────────────────────────────────────────────────
+
+    @Test
+    fun holdForMeIsInTheOverflowAndStartsWithTheChosenGreeting() {
+        launch("in-call-hold-for-me")
+        compose.onNodeWithContentDescription(str(R.string.ui_call_more)).performClick()
+        compose.onNodeWithTag(HoldTags.OVERFLOW).performClick()
+        compose.onNodeWithTag(HoldTags.greeting(HoldGreeting.ASSISTANT)).performClick()
+        compose.onNodeWithTag(HoldTags.START).performClick()
+        compose.waitUntil(5_000) { FakeHoldApi.calls.isNotEmpty() }
+        assertEquals(listOf("start:assistant"), FakeHoldApi.calls)
+    }
+
+    @Test
+    fun holdForMeIsHiddenWithoutTheFlag() {
+        launch("in-call-hold-for-me", noHoldForMe = true)
+        compose.onNodeWithContentDescription(str(R.string.ui_call_more)).performClick()
+        compose.onNodeWithText(str(R.string.ui_call_record)).assertExists()
+        compose.onNodeWithTag(HoldTags.OVERFLOW).assertDoesNotExist()
+    }
+
     // ── Launch permissions ───────────────────────────────────────────
 
     @Test
     fun noSceneRaisesAPermissionDialogAtLaunch() {
-        for (scene in listOf("onboarding", "main", "incoming", "in-call", "in-call-unencrypted", "two-calls", "call-waiting")) {
+        for (scene in listOf("onboarding", "main", "incoming", "in-call", "in-call-unencrypted", "two-calls", "call-waiting", "in-call-hold-for-me")) {
             launch(scene)
             scenario?.close()
         }
