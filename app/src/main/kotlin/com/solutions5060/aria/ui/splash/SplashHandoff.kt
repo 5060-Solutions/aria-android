@@ -38,4 +38,16 @@ object SplashHandoff {
         hasTarget -> ExitPlan.Glide
         else -> ExitPlan.Fade
     }
+
+    /**
+     * The icon's scale at [t] of the glide into a header mark [markWidth] wide,
+     * from a splash tile [tilePx] wide; null when either size is not known yet
+     * (zero, or not finite), and the exit fades instead. A view's scale must
+     * never be NaN or infinite: Android throws.
+     */
+    fun glideScale(markWidth: Float, tilePx: Float, t: Float): Float? {
+        if (!(tilePx > 0f) || !(markWidth > 0f) || !tilePx.isFinite() || !markWidth.isFinite()) return null
+        val s = 1f + (markWidth / tilePx - 1f) * t
+        return s.takeIf { it.isFinite() }
+    }
 }
