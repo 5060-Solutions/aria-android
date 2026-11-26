@@ -12,10 +12,27 @@ import org.junit.Test
 
 class ProximityTest {
 
+    private val EXT = "ce0284f1-9c1e-420e-8bff-3b7b1f33cc25"
+
+    /** The vector every app asserts: gateway 192.168.1.1, network 192.168.1.0/24. */
+    @Test
+    fun theHashMatchesTheSharedVector() {
+        assertEquals(
+            "c220200c4e27272ef046b841eba83e316a8c004fd8c5a91289d6df1936ba90a3",
+            NetworkIdentity.hash(EXT.uppercase(), "192.168.1.57", 24, "192.168.1.1", true),
+        )
+    }
+
+    @Test
+    fun noDefaultRouteOrExtensionMeansNoHash() {
+        assertNull(NetworkIdentity.hash(EXT, "192.168.1.57", 24, null, true))
+        assertNull(NetworkIdentity.hash(null, "192.168.1.57", 24, "192.168.1.1", true))
+    }
+
     @Test
     fun theHashIsSha256HexAndStable() {
-        val a = NetworkIdentity.hash("192.168.1.57", 24, "192.168.1.1", true)
-        val b = NetworkIdentity.hash("192.168.1.200", 24, "192.168.1.1", true)
+        val a = NetworkIdentity.hash(EXT, "192.168.1.57", 24, "192.168.1.1", true)
+        val b = NetworkIdentity.hash(EXT, "192.168.1.200", 24, "192.168.1.1", true)
         assertNotNull(a)
         assertEquals(64, a!!.length)
         assertTrue(a.all { it in "0123456789abcdef" })
@@ -25,18 +42,18 @@ class ProximityTest {
 
     @Test
     fun anotherSubnetOrGatewayIsAnotherNetwork() {
-        val home = NetworkIdentity.hash("192.168.1.57", 24, "192.168.1.1", true)
-        assertNotEquals(home, NetworkIdentity.hash("10.0.0.5", 24, "10.0.0.1", true))
-        assertNotEquals(home, NetworkIdentity.hash("192.168.1.57", 24, "192.168.1.254", true))
-        assertNotEquals(home, NetworkIdentity.hash("192.168.1.57", 16, "192.168.1.1", true))
+        val home = NetworkIdentity.hash(EXT, "192.168.1.57", 24, "192.168.1.1", true)
+        assertNotEquals(home, NetworkIdentity.hash(EXT, "10.0.0.5", 24, "10.0.0.1", true))
+        assertNotEquals(home, NetworkIdentity.hash(EXT, "192.168.1.57", 24, "192.168.1.254", true))
+        assertNotEquals(home, NetworkIdentity.hash(EXT, "192.168.1.57", 16, "192.168.1.1", true))
     }
 
     @Test
     fun mobileDataAndUnusableAddressesHaveNoIdentity() {
-        assertNull(NetworkIdentity.hash("10.20.30.40", 24, "10.20.30.1", wifiOrEthernet = false))
-        assertNull(NetworkIdentity.hash(null, 24, null, true))
-        assertNull(NetworkIdentity.hash("not-an-ip", 24, null, true))
-        assertNull(NetworkIdentity.hash("192.168.1.5", 32, null, true))
+        assertNull(NetworkIdentity.hash(EXT, "10.20.30.40", 24, "10.20.30.1", wifiOrEthernet = false))
+        assertNull(NetworkIdentity.hash(EXT, null, 24, null, true))
+        assertNull(NetworkIdentity.hash(EXT, "not-an-ip", 24, null, true))
+        assertNull(NetworkIdentity.hash(EXT, "192.168.1.5", 32, null, true))
     }
 
     @Test
@@ -81,7 +98,7 @@ class ProximityTest {
 
     @Test
     fun theProximityBodyCarriesTheHashAndAtMost32Tokens() {
-        val hash = NetworkIdentity.hash("192.168.1.5", 24, "192.168.1.1", true)
+        val hash = NetworkIdentity.hash(EXT, "192.168.1.5", 24, "192.168.1.1", true)
         val none = JSONObject(ProximityJson.proximityBody(hash))
         assertEquals(hash, none.getString("network_hash"))
         assertFalse(none.has("ble_seen"))

@@ -39,6 +39,8 @@ data class PendingMove(
     /** When the call began on the other device, in epoch milliseconds, if known. */
     val callStartedAtMillis: Long?,
     val requestedAtMillis: Long,
+    /** The far party of the call being moved: the only incoming call that may wait silently for its offer. */
+    val remoteNumber: String? = null,
 )
 
 /** What the PBX pushes over `/api/v1/ws` that this feature reads. */

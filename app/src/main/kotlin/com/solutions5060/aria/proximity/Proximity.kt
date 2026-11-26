@@ -82,27 +82,25 @@ object ProximityJson {
 }
 
 /**
- * Which network a phone is on, as a SHA-256 hash.
+ * Which network a phone is on, as the call-move contract's `network_hash`:
+ * `lowercase_hex(sha256("aria-net-v1|" + extension_id + "|" + gateway + "|" + network/prefix))`
+ * on the default network's IPv4 gateway and subnet, the same on every
+ * platform so a phone and a desktop on one LAN match. Omitted (null) when
+ * there is no IPv4 default route.
  *
- * The identity is the default network's IPv4 subnet (address masked by the
- * prefix length) and its default gateway, not the SSID. Reading an SSID on
- * Android needs the location permission (and location services switched on;
- * NEARBY_WIFI_DEVICES on 13+), which a phone-calling app should not ask for.
- * LinkProperties is readable with ACCESS_NETWORK_STATE, which the app has.
- *
- * The cost: two different home networks that both use 192.168.1.0/24 behind a
- * .1 gateway hash alike. The hash is only compared between one user's own
- * devices, so it can wrongly say "same network" for a friend's house, never
- * for another user. Mobile data is never given an identity (carrier-grade NAT
- * puts unrelated phones on one range), and neither is a VPN.
+ * Neither SSID nor BSSID is read (that needs the location permission, which
+ * a phone-calling app should not ask for); LinkProperties needs only
+ * ACCESS_NETWORK_STATE. Mobile data and VPNs are never given an identity.
+ * The extension id salts the hash per user.
  */
 object NetworkIdentity {
 
-    /** Hex SHA-256 over a versioned string, or null when there is no usable fixed network. */
-    fun hash(subnetAddress: String?, prefixLength: Int, gateway: String?, wifiOrEthernet: Boolean): String? {
-        if (!wifiOrEthernet || subnetAddress.isNullOrEmpty() || prefixLength !in 8..30) return null
+    /** Hex SHA-256 over the contract's string, or null when there is no usable fixed network. */
+    fun hash(extensionId: String?, subnetAddress: String?, prefixLength: Int, gateway: String?, wifiOrEthernet: Boolean): String? {
+        if (!wifiOrEthernet || extensionId.isNullOrEmpty() || gateway.isNullOrEmpty()) return null
+        if (subnetAddress.isNullOrEmpty() || prefixLength !in 8..30) return null
         val net = maskedIpv4(subnetAddress, prefixLength) ?: return null
-        val input = "aria-net-v1|$net/$prefixLength|${gateway.orEmpty()}"
+        val input = "aria-net-v1|${extensionId.lowercase()}|$gateway|$net/$prefixLength"
         return MessageDigest.getInstance("SHA-256").digest(input.toByteArray(Charsets.UTF_8))
             .joinToString("") { "%02x".format(it) }
     }

@@ -12,6 +12,7 @@ import com.solutions5060.aria.move.CallMoveCoordinator
 import com.solutions5060.aria.move.CallMovePolicy
 import com.solutions5060.aria.pbx.StoredPbxAuth
 import com.solutions5060.aria.pbx.withAuth
+import com.solutions5060.aria.service.EngineManager
 import com.solutions5060.aria.service.PbxApiClient
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.launch
@@ -75,18 +76,20 @@ object ProximityMonitor {
     }
 
     private fun changed(context: Context, cm: ConnectivityManager, network: Network) {
-        update(context, identityOf(cm, network))
+        update(context, identityOf(context, cm, network))
     }
 
     /** The hash of [network], or null for mobile data, a VPN or no usable address. */
-    fun identityOf(cm: ConnectivityManager, network: Network): String? {
+    fun identityOf(context: Context, cm: ConnectivityManager, network: Network): String? {
         val caps = cm.getNetworkCapabilities(network) ?: return null
         val lp = cm.getLinkProperties(network) ?: return null
         val fixed = (caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI) || caps.hasTransport(NetworkCapabilities.TRANSPORT_ETHERNET)) &&
             !caps.hasTransport(NetworkCapabilities.TRANSPORT_VPN) && !caps.hasTransport(NetworkCapabilities.TRANSPORT_CELLULAR)
         val addr = lp.linkAddresses.firstOrNull { it.address is Inet4Address && !it.address.isLinkLocalAddress && !it.address.isLoopbackAddress }
         val gateway = lp.routes.firstOrNull { it.isDefaultRoute && it.gateway is Inet4Address }?.gateway?.hostAddress
-        return NetworkIdentity.hash(addr?.address?.hostAddress, addr?.prefixLength ?: 0, gateway, fixed)
+        val extensionId = context.applicationContext.getSharedPreferences(EngineManager.PREFS_NAME, Context.MODE_PRIVATE)
+            .getString("extension_id", null)
+        return NetworkIdentity.hash(extensionId, addr?.address?.hostAddress, addr?.prefixLength ?: 0, gateway, fixed)
     }
 
     @Synchronized
@@ -94,6 +97,8 @@ object ProximityMonitor {
         val previous = lastHash
         if (previous == hash) return
         lastHash = hash
+        // The network changed: this device's registration id is read afresh.
+        CallMoveCoordinator.forgetOwnRegistration()
         val settings = HandoffPrefs.load(context)
         if (!settings.enabled) return
         AppScope.scope.launch {

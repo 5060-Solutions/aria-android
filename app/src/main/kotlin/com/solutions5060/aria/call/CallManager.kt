@@ -347,6 +347,8 @@ object CallManager {
     /** Installed on every engine by [EngineManager]. */
     val eventHandler: MobileEventHandler = object : MobileEventHandler {
         override fun onRegistrationChanged(deviceId: String, status: String, error: String?) {
+            // A new registration may be a new PBX registration id.
+            com.solutions5060.aria.move.CallMoveCoordinator.forgetOwnRegistration()
             Log.i(TAG, "Registration $status${error?.let { " ($it)" } ?: ""}")
             com.solutions5060.aria.service.GatewayConnection.onCoreRegistration(appContext, deviceId, status, error)
         }
@@ -707,9 +709,10 @@ object CallManager {
         val rec = createIncomingRecord(extras ?: Bundle()) ?: return false
         rec.connection = connection
         val token = rec.callToken.orEmpty()
-        if (com.solutions5060.aria.move.CallMoveCoordinator.hasPending()) {
-            // A move to this device is on its way: do not ring until the
-            // offer says whether this is it. If the offer is slow, ring.
+        if (com.solutions5060.aria.move.CallMoveCoordinator.mayWaitForMove(rec.remoteUri)) {
+            // A move to this device is on its way and this call is from the
+            // far party being moved: do not ring until the offer says whether
+            // it is the move. If the offer is slow, ring. Any other call rings now.
             rec.awaitingMoveOffer = true
             if (offerMoveIds.containsKey(token)) {
                 applyMoveDecision(rec)

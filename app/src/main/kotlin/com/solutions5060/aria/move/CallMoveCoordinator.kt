@@ -166,7 +166,7 @@ object CallMoveCoordinator {
     fun onContextResult(result: ContextResult) {
         if (result.action == "moved" && result.callId != null && result.moveId != null) {
             val call = _calls.value.firstOrNull { it.id == result.callId }
-            pending.set(PendingMove(result.moveId, result.callId, call?.startedAtMillis, System.currentTimeMillis()))
+            pending.set(PendingMove(result.moveId, result.callId, call?.startedAtMillis, System.currentTimeMillis(), call?.remoteNumber))
             DiagLog.log("call", "move started by a left_network report")
         }
     }
@@ -219,6 +219,16 @@ object CallMoveCoordinator {
         if (p != null && p.moveId.equals(moveId, ignoreCase = true)) pending.compareAndSet(p, null)
     }
 
+    /**
+     * Whether an incoming call from [remoteUri] may wait, silent, for its
+     * offer: only the far party of the call being moved. Any other call rings.
+     */
+    fun mayWaitForMove(remoteUri: String, nowMillis: Long = System.currentTimeMillis()): Boolean {
+        val p = pending.get() ?: return false
+        return nowMillis - p.requestedAtMillis <= CallMovePolicy.PENDING_TTL_MS &&
+            p.remoteNumber != null && CallMovePolicy.sameNumber(remoteUri, p.remoteNumber)
+    }
+
     /** The label of the device a non-matching move comes from, as best the banner knows. */
     fun movingFromLabel(remoteUri: String): String? =
         _calls.value.firstOrNull { CallMovePolicy.sameNumber(remoteUri, it.remoteNumber) }?.deviceLabel
@@ -234,7 +244,7 @@ object CallMoveCoordinator {
                 val own = ownRegistration(auth)
                 val json = auth.withAuth { PbxApiClient(auth.apiUrl()).moveCall(it, call.id, own) }
                 val moveId = MoveJson.moveId(json)
-                pending.set(PendingMove(moveId, call.id, call.startedAtMillis, System.currentTimeMillis()))
+                pending.set(PendingMove(moveId, call.id, call.startedAtMillis, System.currentTimeMillis(), call.remoteNumber))
                 DiagLog.log("call", "move requested to this device")
                 _suggested.value = null
             } catch (e: CancellationException) {
@@ -322,6 +332,11 @@ object CallMoveCoordinator {
     }
 
     /** Clears what belongs to one account (sign-out). */
+    /** This device registered again or the network changed: read its registration id afresh next time. */
+    fun forgetOwnRegistration() {
+        ownRegistrationId = null
+    }
+
     fun reset() {
         pending.set(null)
         ownRegistrationId = null
