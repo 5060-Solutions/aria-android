@@ -80,7 +80,7 @@ fun HoldForMeRow() {
     var greeting by remember(setting) { mutableStateOf(setting.current()) }
     var settings by remember(setting) { mutableStateOf(HoldSettings.Opening) }
     var open by remember { mutableStateOf(false) }
-    val failed = stringResource(R.string.ui_hold_error_start)
+    val failed = stringResource(R.string.ui_hold_error_save)
 
     LaunchedEffect(setting) {
         settings = setting.load()

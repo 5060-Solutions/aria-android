@@ -295,4 +295,5 @@
     <string name="ui_hold_settings_greeting">Hold for me greeting</string>
     <string name="ui_hold_call_again">Call again</string>
     <string name="ui_hold_missed_title">%1$s picked up while you were away</string>
+    <string name="ui_hold_error_save">Couldn\'t save. Try again.</string>
 </resources>

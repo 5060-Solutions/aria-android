@@ -1,5 +1,8 @@
 package com.solutions5060.aria.ui
 
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.statusBars
+import androidx.compose.foundation.layout.statusBarsPadding
 import android.Manifest
 import android.content.Context
 import android.os.Build
@@ -454,9 +457,21 @@ private fun MainApp(
             },
         ) { innerPadding ->
             androidx.compose.foundation.layout.Column(Modifier.padding(innerPadding)) {
-            com.solutions5060.aria.ui.move.CallMoveBanner()
-            com.solutions5060.aria.ui.hold.HoldWaitCards()
-            com.solutions5060.aria.ui.hold.HoldNoticeBanner(onCallAgain = { placeCall(it) })
+            // The banners sit above the tab content, which has no top inset of its own; when any shows, they
+            // clear the status bar and the screens below skip that inset (so a top bar does not pad twice).
+            val moveShown by com.solutions5060.aria.move.CallMoveCoordinator.banner.collectAsState()
+            val holdAvailable by com.solutions5060.aria.hold.HoldForMeCoordinator.available.collectAsState()
+            val holdWaits by com.solutions5060.aria.hold.HoldForMeCoordinator.waits.collectAsState()
+            val holdNotice by com.solutions5060.aria.hold.HoldForMeCoordinator.notice.collectAsState()
+            val bannersShown = moveShown.isNotEmpty() ||
+                (holdAvailable && holdWaits.values.any { it.isOpen }) || holdNotice != null
+            androidx.compose.foundation.layout.Column(
+                if (bannersShown) Modifier.statusBarsPadding() else Modifier,
+            ) {
+                com.solutions5060.aria.ui.move.CallMoveBanner()
+                com.solutions5060.aria.ui.hold.HoldWaitCards()
+                com.solutions5060.aria.ui.hold.HoldNoticeBanner(onCallAgain = { placeCall(it) })
+            }
             val moveMessage by com.solutions5060.aria.move.CallMoveCoordinator.message.collectAsState()
             val moveText = moveMessage?.let { stringResource(moveMessageRes(it)) }
             val moveSnackbar = com.solutions5060.aria.ui.components.LocalSnackbarHostState.current
@@ -469,7 +484,9 @@ private fun MainApp(
             NavHost(
                 navController = navController,
                 startDestination = fixture?.startTab ?: "dialer",
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).then(
+                    if (bannersShown) Modifier.consumeWindowInsets(androidx.compose.foundation.layout.WindowInsets.Companion.statusBars) else Modifier,
+                ),
             ) {
                 composable("dialer") {
                     DialerScreen(

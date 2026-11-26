@@ -265,4 +265,5 @@
     <string name="ui_hold_settings_greeting">Begrüßung bei „Für mich warten“</string>
     <string name="ui_hold_call_again">Erneut anrufen</string>
     <string name="ui_hold_missed_title">%1$s hat abgenommen, während Sie weg waren</string>
+    <string name="ui_hold_error_save">Speichern fehlgeschlagen. Bitte erneut versuchen.</string>
 </resources>
