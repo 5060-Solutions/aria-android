@@ -11,14 +11,14 @@ import com.solutions5060.aria.service.EngineManager
  */
 object HandoffPrefs {
     private const val ENABLED = "handoff_enabled"
-    private const val NETWORK = "handoff_network"
+    private const val AUTO_LEAVE = "handoff_auto_leave"
     private const val BLE = "handoff_ble"
 
     fun load(context: Context): HandoffSettings {
         val p = context.applicationContext.getSharedPreferences(EngineManager.PREFS_NAME, Context.MODE_PRIVATE)
         return HandoffSettings(
             enabled = p.getBoolean(ENABLED, true),
-            network = p.getBoolean(NETWORK, true),
+            autoMoveOnLeave = p.getBoolean(AUTO_LEAVE, false),
             ble = p.getBoolean(BLE, false),
         )
     }
@@ -26,7 +26,7 @@ object HandoffPrefs {
     fun save(context: Context, s: HandoffSettings) {
         context.applicationContext.getSharedPreferences(EngineManager.PREFS_NAME, Context.MODE_PRIVATE).edit {
             putBoolean(ENABLED, s.enabled)
-            putBoolean(NETWORK, s.network)
+            putBoolean(AUTO_LEAVE, s.autoMoveOnLeave)
             putBoolean(BLE, s.ble)
         }
     }

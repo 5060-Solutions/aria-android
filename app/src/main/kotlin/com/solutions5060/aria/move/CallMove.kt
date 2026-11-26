@@ -47,8 +47,8 @@ sealed interface MoveEvent {
     data class CallMoved(val callId: String, val fromRegistrationId: String, val toRegistrationId: String) : MoveEvent
     data class CallEnded(val callId: String) : MoveEvent
 
-    /** The PBX thinks this device is the better place for [call] (it left the network, or is near). */
-    data class HandoffSuggested(val call: ActiveCall) : MoveEvent
+    /** The PBX suggests moving [callId] to [toRegistrationId] (`reason`: nearby, left_network or desktop_locked). */
+    data class HandoffSuggested(val callId: String, val toRegistrationId: String, val reason: String) : MoveEvent
 }
 
 /** What to do with an incoming call that may be a move. */
@@ -195,7 +195,11 @@ object MoveJson {
         }
         return when (o.optString("type")) {
             "call_active_elsewhere" -> activeCall(o.optJSONObject("call"))?.let { MoveEvent.CallActiveElsewhere(it) }
-            "handoff_suggested" -> activeCall(o.optJSONObject("call"))?.let { MoveEvent.HandoffSuggested(it) }
+            "handoff_suggested" -> MoveEvent.HandoffSuggested(
+                callId = o.optString("call_id", "").ifEmpty { return null },
+                toRegistrationId = o.optString("to_registration_id", "").ifEmpty { return null },
+                reason = o.optString("reason", ""),
+            )
             "call_moved" -> MoveEvent.CallMoved(
                 callId = o.optString("call_id", "").ifEmpty { return null },
                 fromRegistrationId = o.optString("from_registration_id", ""),

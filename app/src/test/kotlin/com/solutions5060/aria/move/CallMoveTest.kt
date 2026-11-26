@@ -68,7 +68,7 @@ class CallMoveTest {
         val moved = MoveJson.event("""{"type":"call_moved","call_id":"c","from_registration_id":"a","to_registration_id":"b"}""")
         assertEquals(MoveEvent.CallMoved("c", "a", "b"), moved)
         assertEquals(MoveEvent.CallEnded("c"), MoveJson.event("""{"type":"call_ended","call_id":"c"}"""))
-        assertTrue(MoveJson.event("""{"type":"handoff_suggested","call":{"id":"c","remote":{"number":"5"},"device":{"registration_id":"r"}}}""") is MoveEvent.HandoffSuggested)
+        assertTrue(MoveJson.event("""{"type":"handoff_suggested","call_id":"c","to_registration_id":"r","reason":"nearby"}""") == MoveEvent.HandoffSuggested("c", "r", "nearby"))
         assertNull(MoveJson.event("""{"type":"sms_received"}"""))
         assertNull(MoveJson.event("not json"))
     }
@@ -194,6 +194,27 @@ class CallMoveTest {
         val device = MoveJson.device(api().currentDevice("jwt", "urn:uuid:1234"))
         assertEquals("reg-phone", device?.registrationId)
         assertEquals("/api/v1/me/devices/current?sip_instance=urn%3Auuid%3A1234", server.takeRequest().path)
+    }
+
+    @Test
+    fun theProximityRoutesNameThisDeviceInTheQuery() {
+        val urn = "urn:uuid:1234"
+        val q = "?sip_instance=urn%3Auuid%3A1234"
+        repeat(5) { server.enqueue(MockResponse().setBody("{}")) }
+        val client = api()
+        client.devices("jwt", urn)
+        client.reportProximity("jwt", urn, """{"network_hash":"ab"}""")
+        client.postContext("jwt", urn, """{"event":"left_network"}""")
+        client.bleToken("jwt", urn)
+        client.callHandoff("jwt")
+        assertEquals("/api/v1/me/devices$q", server.takeRequest().path)
+        val prox = server.takeRequest()
+        assertEquals("POST /api/v1/me/devices/current/proximity$q", "${prox.method} ${prox.path}")
+        val ctx = server.takeRequest()
+        assertEquals("POST /api/v1/me/devices/current/context$q", "${ctx.method} ${ctx.path}")
+        assertEquals("left_network", JSONObject(ctx.body.readUtf8()).getString("event"))
+        assertEquals("/api/v1/me/devices/current/ble-token$q", server.takeRequest().path)
+        assertEquals("/api/v1/me/call-handoff", server.takeRequest().path)
     }
 
     @Test

@@ -286,8 +286,9 @@ class PbxApiClient(private val baseUrl: String) {
     /** GET /api/v1/me/calls/active — the user's answered calls, on any device. */
     fun activeCalls(jwt: String): String = send(jwt, "GET", "/api/v1/me/calls/active")
 
-    /** GET /api/v1/me/devices — the user's registered devices. */
-    fun devices(jwt: String): String = send(jwt, "GET", "/api/v1/me/devices")
+    /** GET /api/v1/me/devices?sip_instance= — the user's registered devices, with nearness to [sipInstance]. */
+    fun devices(jwt: String, sipInstance: String): String =
+        send(jwt, "GET", "/api/v1/me/devices?sip_instance=${encode(sipInstance)}")
 
     /** GET /api/v1/me/devices/current?sip_instance= — this client's own device. 404 when none matches. */
     fun currentDevice(jwt: String, sipInstance: String): String =
@@ -303,34 +304,29 @@ class PbxApiClient(private val baseUrl: String) {
     }
 
     // ── Call handoff and proximity ──────────────────────────────────────
-    // The proximity section of the contract was not available when this was
-    // written; these routes and bodies are this app's assumption and live
-    // only here (see ProximityJson).
+    // Every devices/current/* route names this device by its +sip.instance
+    // (`urn:uuid:<pbx device id>`), which must be registered: 422 if missing,
+    // 404 if no registered device has it.
 
     /** GET /api/v1/me/call-handoff */
     fun callHandoff(jwt: String): String = send(jwt, "GET", "/api/v1/me/call-handoff")
 
-    /** PUT /api/v1/me/call-handoff */
+    /** PUT /api/v1/me/call-handoff — the fields given are set, the rest kept. */
     fun setCallHandoff(jwt: String, json: String): String =
         send(jwt, "PUT", "/api/v1/me/call-handoff", json.toRequestBody(JSON_MEDIA))
 
-    /** POST /api/v1/me/proximity/network `{"registration_id","network_hash"}` — where this device is, as a hash. */
-    fun reportNetwork(jwt: String, json: String) {
-        send(jwt, "POST", "/api/v1/me/proximity/network", json.toRequestBody(JSON_MEDIA))
+    /** POST /api/v1/me/devices/current/proximity?sip_instance= `{"network_hash","ble_seen"}` — 200 `{"nearby":[…]}`. */
+    fun reportProximity(jwt: String, sipInstance: String, json: String) {
+        send(jwt, "POST", "/api/v1/me/devices/current/proximity?sip_instance=${encode(sipInstance)}", json.toRequestBody(JSON_MEDIA))
     }
 
-    /** POST /api/v1/me/proximity/events — `left_network` while another device has a call. */
-    fun postProximityEvent(jwt: String, json: String) {
-        send(jwt, "POST", "/api/v1/me/proximity/events", json.toRequestBody(JSON_MEDIA))
-    }
+    /** POST /api/v1/me/devices/current/context?sip_instance= `{"event":"left_network"}` — `{"action","call_id","move_id"}`. */
+    fun postContext(jwt: String, sipInstance: String, json: String): String =
+        send(jwt, "POST", "/api/v1/me/devices/current/context?sip_instance=${encode(sipInstance)}", json.toRequestBody(JSON_MEDIA))
 
-    /** GET /api/v1/me/proximity/ble-token — the rotating token to advertise. */
-    fun bleToken(jwt: String): String = send(jwt, "GET", "/api/v1/me/proximity/ble-token")
-
-    /** POST /api/v1/me/proximity/ble-seen `{"registration_id","tokens":[…]}` — tokens heard nearby. */
-    fun reportBleSeen(jwt: String, json: String) {
-        send(jwt, "POST", "/api/v1/me/proximity/ble-seen", json.toRequestBody(JSON_MEDIA))
-    }
+    /** GET /api/v1/me/devices/current/ble-token?sip_instance= — `{"token","rotates_at"}`; 403 unless `ble_opt_in`. */
+    fun bleToken(jwt: String, sipInstance: String): String =
+        send(jwt, "GET", "/api/v1/me/devices/current/ble-token?sip_instance=${encode(sipInstance)}")
 
     // ── Messaging (SMS/MMS inboxes) ─────────────────────────────────────
 

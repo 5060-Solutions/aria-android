@@ -50,7 +50,7 @@ import kotlinx.coroutines.withContext
 object CallHandoffTags {
     const val ROW = "settings_call_handoff"
     const val ENABLED = "handoff_enabled"
-    const val NETWORK = "handoff_network"
+    const val AUTO_MOVE_ON_LEAVE = "handoff_auto_move_on_leave"
     const val BLE = "handoff_ble"
 }
 
@@ -70,7 +70,7 @@ fun CallHandoffRow(onOpen: () -> Unit) {
 
 /**
  * `/me/call-handoff`: whether this phone is offered a call from another
- * device, whether it shares a hash of its network, and Bluetooth proximity.
+ * device, whether the call follows it when it leaves its network, and Bluetooth proximity.
  * Bluetooth is off by default; its three permissions are asked for only when
  * the user turns it on.
  */
@@ -154,13 +154,13 @@ fun CallHandoffScreen(onBack: () -> Unit) {
                 modifier = Modifier.testTag(CallHandoffTags.ENABLED),
             )
             AriaSwitchRow(
-                headline = stringResource(R.string.handoff_network),
-                supporting = stringResource(R.string.handoff_network_desc),
-                checked = settings.network,
+                headline = stringResource(R.string.handoff_auto_leave),
+                supporting = stringResource(R.string.handoff_auto_leave_desc),
+                checked = settings.autoMoveOnLeave,
                 enabled = settings.enabled,
-                onCheckedChange = { save(settings.copy(network = it)) },
+                onCheckedChange = { save(settings.copy(autoMoveOnLeave = it)) },
                 leading = { RowIcon(AriaIcons.Wifi) },
-                modifier = Modifier.testTag(CallHandoffTags.NETWORK),
+                modifier = Modifier.testTag(CallHandoffTags.AUTO_MOVE_ON_LEAVE),
             )
             AriaSwitchRow(
                 headline = stringResource(R.string.handoff_ble),

@@ -2,9 +2,14 @@ package com.solutions5060.aria.move
 
 import android.content.Context
 import android.util.Log
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.ProcessLifecycleOwner
 import com.solutions5060.aria.AppScope
 import com.solutions5060.aria.call.CallManager
 import com.solutions5060.aria.pbx.StoredPbxAuth
+import com.solutions5060.aria.proximity.ContextResult
+import com.solutions5060.aria.proximity.HandoffNotifier
+import com.solutions5060.aria.proximity.HandoffPrefs
 import com.solutions5060.aria.pbx.withAuth
 import com.solutions5060.aria.service.DiagLog
 import com.solutions5060.aria.service.EngineManager
@@ -90,6 +95,7 @@ object CallMoveCoordinator {
                 val auth = StoredPbxAuth(appContext)
                 val json = auth.withAuth { PbxApiClient(auth.apiUrl()).activeCalls(it) }
                 _calls.value = MoveJson.activeCalls(json)
+                awaitedSuggestion?.let { id -> _calls.value.firstOrNull { it.id == id }?.let(::showSuggestion) }
                 recompute()
             } catch (e: CancellationException) {
                 throw e
@@ -121,13 +127,47 @@ object CallMoveCoordinator {
                 }
                 refresh()
             }
-            is MoveEvent.HandoffSuggested -> {
-                if (event.call.deviceRegistrationId != ownRegistrationId) {
-                    _suggested.value = event.call
-                    _calls.update { list -> list.filterNot { it.id == event.call.id } + event.call }
-                    recompute()
-                }
+            is MoveEvent.HandoffSuggested -> onSuggested(event)
+        }
+    }
+
+    /** The call a suggestion named that is not in the list yet: shown once the list has it. */
+    @Volatile
+    private var awaitedSuggestion: String? = null
+
+    /**
+     * Only a suggestion to move to this device is shown ("Move here"); one
+     * naming another device is that device's to show.
+     */
+    private fun onSuggested(event: MoveEvent.HandoffSuggested) {
+        AppScope.scope.launch {
+            val own = ownRegistrationId ?: resolveOwnRegistration() ?: return@launch
+            if (event.toRegistrationId != own || !HandoffPrefs.load(appContext).enabled) return@launch
+            val call = _calls.value.firstOrNull { it.id == event.callId }
+            if (call != null) {
+                showSuggestion(call)
+            } else {
+                awaitedSuggestion = event.callId
+                refresh()
             }
+        }
+    }
+
+    private fun showSuggestion(call: ActiveCall) {
+        awaitedSuggestion = null
+        _suggested.value = call
+        recompute()
+        if (!ProcessLifecycleOwner.get().lifecycle.currentState.isAtLeast(Lifecycle.State.STARTED)) {
+            HandoffNotifier.show(appContext, call)
+        }
+    }
+
+    /** The answer to a context report: a move this device started must be answered without ringing. */
+    fun onContextResult(result: ContextResult) {
+        if (result.action == "moved" && result.callId != null && result.moveId != null) {
+            val call = _calls.value.firstOrNull { it.id == result.callId }
+            pending.set(PendingMove(result.moveId, result.callId, call?.startedAtMillis, System.currentTimeMillis()))
+            DiagLog.log("call", "move started by a left_network report")
         }
     }
 
@@ -155,7 +195,7 @@ object CallMoveCoordinator {
 
     private fun loadDevices(): List<MoveDevice> {
         val auth = StoredPbxAuth(appContext)
-        val list = MoveJson.devices(auth.withAuth { PbxApiClient(auth.apiUrl()).devices(it) })
+        val list = MoveJson.devices(auth.withAuth { PbxApiClient(auth.apiUrl()).devices(it, sipInstance(appContext)) })
         deviceNames = list.associate { it.registrationId to it.label }
         _devices.value = list
         return list
@@ -260,9 +300,6 @@ object CallMoveCoordinator {
         ownRegistrationId = id
         return id
     }
-
-    /** The registration id of this device, if already resolved. */
-    fun ownRegistrationIdOrNull(): String? = ownRegistrationId
 
     /** Resolve this device's registration (for proximity reports) without throwing. */
     fun resolveOwnRegistration(): String? = try {

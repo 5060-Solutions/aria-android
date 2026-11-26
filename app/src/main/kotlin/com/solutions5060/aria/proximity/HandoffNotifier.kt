@@ -15,9 +15,8 @@ import com.solutions5060.aria.MainActivity
 import com.solutions5060.aria.R
 import com.solutions5060.aria.move.ActiveCall
 import com.solutions5060.aria.move.CallMoveCoordinator
-import com.solutions5060.aria.move.MoveJson
 
-/** "Continue this call here": the notification for a `handoff_suggested` that arrives while the app is closed. */
+/** "Continue this call here": the notification for a `handoff_suggested` (WebSocket) that arrives while the app is in the background. */
 object HandoffNotifier {
 
     const val CHANNEL_ID = "call_handoff"
@@ -32,19 +31,6 @@ object HandoffNotifier {
             NotificationManager.IMPORTANCE_DEFAULT,
         ).apply { description = context.getString(R.string.handoff_channel_desc) }
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(channel)
-    }
-
-    /**
-     * An FCM data message with `type = handoff_suggested` and the active call
-     * as JSON in `call` (assumed shape). Returns true when it was one.
-     */
-    fun handlePush(context: Context, data: Map<String, String>): Boolean {
-        if (data["type"] != "handoff_suggested") return false
-        val call = data["call"]?.let { runCatching { MoveJson.activeCall(org.json.JSONObject(it)) }.getOrNull() } ?: return true
-        if (!HandoffPrefs.load(context).enabled) return true
-        CallMoveCoordinator.onEvent(com.solutions5060.aria.move.MoveEvent.HandoffSuggested(call))
-        show(context, call)
-        return true
     }
 
     fun show(context: Context, call: ActiveCall) {

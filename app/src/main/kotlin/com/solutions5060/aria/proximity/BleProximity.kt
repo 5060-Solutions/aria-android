@@ -27,32 +27,47 @@ import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-/** The parts of the Bluetooth proximity scheme that need no radio. */
+/**
+ * The parts of the Bluetooth proximity scheme that need no radio. The PBX
+ * issues a 16-byte token (32 hex digits); a device advertises it as one
+ * 128-bit service UUID, which fits those 16 bytes exactly, and scans for the
+ * 128-bit service UUIDs of the others.
+ */
 object BleToken {
-    /** The service UUID devices advertise and scan for. */
-    val SERVICE_UUID: UUID = UUID.fromString("5f0a7a1e-6a2b-4c1d-9e5a-a21a0c0de001")
-
-    /** Company id for the manufacturer data that carries the token (0xFFFF: reserved for testing and private use). */
-    const val COMPANY_ID = 0xFFFF
-    const val MAX_BYTES = 16
+    const val TOKEN_BYTES = 16
     const val MIN_REFRESH_MS = 30_000L
     const val DEFAULT_ROTATE_MS = 5 * 60_000L
 
-    fun toBytes(hex: String): ByteArray? {
-        if (hex.isEmpty() || hex.length % 2 != 0 || hex.length / 2 > MAX_BYTES) return null
-        return try {
-            ByteArray(hex.length / 2) { hex.substring(it * 2, it * 2 + 2).toInt(16).toByte() }
-        } catch (_: NumberFormatException) {
-            null
-        }
+    private val HEX = Regex("^[0-9a-f]{32}$")
+
+    /** Bluetooth's base UUID suffix: a 16- or 32-bit assigned number widened, never one of our tokens. */
+    private const val BASE_SUFFIX = "-0000-1000-8000-00805f9b34fb"
+
+    fun isToken(hex: String): Boolean = HEX.matches(hex)
+
+    /** The token as the UUID that carries it, or null when it is not 32 lowercase hex digits. */
+    fun toUuid(hex: String): UUID? {
+        if (!isToken(hex)) return null
+        return UUID.fromString(
+            "${hex.substring(0, 8)}-${hex.substring(8, 12)}-${hex.substring(12, 16)}-${hex.substring(16, 20)}-${hex.substring(20)}",
+        )
     }
 
-    fun toHex(bytes: ByteArray): String = bytes.joinToString("") { "%02x".format(it) }
+    /** The token carried by [uuid], or null for a standard Bluetooth (base UUID) service. */
+    fun fromUuid(uuid: UUID): String? {
+        val text = uuid.toString()
+        if (text.endsWith(BASE_SUFFIX)) return null
+        return text.replace("-", "").lowercase()
+    }
 
-    /** How long to wait before fetching a new token: until just before it expires. */
+    /** How long to wait before fetching a new token: until just before it rotates. */
     fun refreshDelayMs(expiresAtMillis: Long?, nowMillis: Long): Long =
         if (expiresAtMillis == null) DEFAULT_ROTATE_MS
         else (expiresAtMillis - nowMillis - 10_000L).coerceAtLeast(MIN_REFRESH_MS)
+
+    /** The strongest [limit] of the tokens heard, as the PBX takes at most that many. */
+    fun strongest(heard: Map<String, Int>, limit: Int = ProximityJson.MAX_BLE_SEEN): List<BleSeen> =
+        heard.entries.sortedByDescending { it.value }.take(limit).map { BleSeen(it.key, it.value) }
 }
 
 /**
@@ -91,19 +106,23 @@ object BleProximity {
         val app = context.applicationContext
         val adapter = app.getSystemService(BluetoothManager::class.java)?.adapter
         if (adapter == null || !adapter.isEnabled) return
-        val heard = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+        // token -> strongest RSSI heard since the last report
+        val heard = java.util.concurrent.ConcurrentHashMap<String, Int>()
         var ownToken: String? = null
 
         scanCallback = object : ScanCallback() {
             override fun onScanResult(callbackType: Int, result: ScanResult) {
-                val data = result.scanRecord?.getManufacturerSpecificData(BleToken.COMPANY_ID) ?: return
-                val hex = BleToken.toHex(data)
-                if (hex != ownToken && BleToken.toBytes(hex) != null) heard.add(hex)
+                val uuids = result.scanRecord?.serviceUuids ?: return
+                uuids.forEach { u ->
+                    val hex = BleToken.fromUuid(u.uuid) ?: return@forEach
+                    if (hex != ownToken) heard.merge(hex, result.rssi) { a, b -> maxOf(a, b) }
+                }
             }
         }
         try {
             adapter.bluetoothLeScanner?.startScan(
-                listOf(ScanFilter.Builder().setServiceUuid(ParcelUuid(BleToken.SERVICE_UUID)).build()),
+                // The tokens are not known in advance, so no filter: only 128-bit service UUIDs are read.
+                emptyList<ScanFilter>(),
                 ScanSettings.Builder().setScanMode(ScanSettings.SCAN_MODE_LOW_POWER).build(),
                 scanCallback,
             )
@@ -113,22 +132,18 @@ object BleProximity {
 
         job = AppScope.scope.launch {
             val auth = StoredPbxAuth(app)
+            val sipInstance = CallMoveCoordinator.sipInstance(app)
             while (isActive) {
                 var wait = BleToken.DEFAULT_ROTATE_MS
                 try {
-                    val token = ProximityJson.bleToken(auth.withAuth { PbxApiClient(auth.apiUrl()).bleToken(it) })
-                    val bytes = BleToken.toBytes(token.hex)
-                    if (bytes != null) {
+                    val token = ProximityJson.bleToken(auth.withAuth { PbxApiClient(auth.apiUrl()).bleToken(it, sipInstance) })
+                    val uuid = BleToken.toUuid(token.hex)
+                    if (uuid != null) {
                         ownToken = token.hex
-                        advertise(adapter, bytes)
+                        advertise(adapter, uuid)
                     }
                     wait = BleToken.refreshDelayMs(token.expiresAtMillis, System.currentTimeMillis())
-                    val own = CallMoveCoordinator.resolveOwnRegistration()
-                    if (own != null && heard.isNotEmpty()) {
-                        val tokens = heard.toList()
-                        heard.clear()
-                        auth.withAuth { PbxApiClient(auth.apiUrl()).reportBleSeen(it, ProximityJson.bleSeenBody(own, tokens)) }
-                    }
+                    reportHeard(app, auth, heard)
                 } catch (e: kotlinx.coroutines.CancellationException) {
                     throw e
                 } catch (e: Exception) {
@@ -139,19 +154,23 @@ object BleProximity {
                 while (slept < wait && isActive) {
                     delay(60_000L.coerceAtMost(wait - slept))
                     slept += 60_000L
-                    val own = CallMoveCoordinator.ownRegistrationIdOrNull()
-                    if (own != null && heard.isNotEmpty()) {
-                        val tokens = heard.toList()
-                        heard.clear()
-                        runCatching { auth.withAuth { PbxApiClient(auth.apiUrl()).reportBleSeen(it, ProximityJson.bleSeenBody(own, tokens)) } }
-                    }
+                    runCatching { reportHeard(app, auth, heard) }
                 }
             }
         }
     }
 
+    /** Report (and forget) the tokens heard, with the network hash this device has now. */
+    private fun reportHeard(app: Context, auth: StoredPbxAuth, heard: MutableMap<String, Int>) {
+        if (heard.isEmpty()) return
+        val seen = BleToken.strongest(heard.toMap())
+        heard.clear()
+        val urn = CallMoveCoordinator.sipInstance(app)
+        auth.withAuth { PbxApiClient(auth.apiUrl()).reportProximity(it, urn, ProximityJson.proximityBody(ProximityMonitor.currentHash(), seen)) }
+    }
+
     @SuppressLint("MissingPermission")
-    private fun advertise(adapter: android.bluetooth.BluetoothAdapter, token: ByteArray) {
+    private fun advertise(adapter: android.bluetooth.BluetoothAdapter, token: UUID) {
         val advertiser = adapter.bluetoothLeAdvertiser ?: return
         advertiseCallback?.let { runCatching { advertiser.stopAdvertising(it) } }
         val cb = object : AdvertiseCallback() {
@@ -167,8 +186,8 @@ object BleProximity {
                     .setConnectable(false)
                     .setTimeout(0)
                     .build(),
-                AdvertiseData.Builder().setIncludeDeviceName(false).addServiceUuid(ParcelUuid(BleToken.SERVICE_UUID)).build(),
-                AdvertiseData.Builder().setIncludeDeviceName(false).addManufacturerData(BleToken.COMPANY_ID, token).build(),
+                // The token is the 128-bit service UUID: 16 bytes, no name, nothing else.
+                AdvertiseData.Builder().setIncludeDeviceName(false).addServiceUuid(ParcelUuid(token)).build(),
                 cb,
             )
         } catch (e: Exception) {

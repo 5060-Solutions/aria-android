@@ -7,47 +7,74 @@ import java.security.MessageDigest
 
 /** `/me/call-handoff`: what the user lets the PBX do with this device's whereabouts. */
 data class HandoffSettings(
-    /** Suggest this device when a call is on another one. */
+    /** `suggest_nearby` (default on): suggest this device when a call is on another one. */
     val enabled: Boolean = true,
-    /** Tell the PBX which network this device is on (a hash). */
-    val network: Boolean = true,
-    /** Bluetooth proximity; off until the user turns it on. */
+    /** `auto_move_on_leave` (default off): move the call here when this phone leaves its network. */
+    val autoMoveOnLeave: Boolean = false,
+    /** `ble_opt_in` (default off): Bluetooth proximity; off until the user turns it on. */
     val ble: Boolean = false,
 )
 
+/** One token heard over Bluetooth, with its signal strength. */
+data class BleSeen(val token: String, val rssi: Int)
+
+/** What `POST .../context` answered. */
+data class ContextResult(val action: String, val callId: String?, val moveId: String?)
+
 /**
- * The proximity wire shapes, assumed: the contract's Proximity section was
- * not available. Kept in one place so a correction is one edit.
+ * The proximity wire shapes of the call-move contract ("Proximity"). Every
+ * `devices/current` route names this device by `?sip_instance=<urn>` (see
+ * PbxApiClient).
  */
 object ProximityJson {
+
+    /** At most this many tokens in one report. */
+    const val MAX_BLE_SEEN = 32
 
     fun settings(json: String): HandoffSettings {
         val o = JSONObject(json)
         return HandoffSettings(
-            enabled = o.optBoolean("enabled", true),
-            network = o.optBoolean("network", true),
-            ble = o.optBoolean("ble", false),
+            enabled = o.optBoolean("suggest_nearby", true),
+            autoMoveOnLeave = o.optBoolean("auto_move_on_leave", false),
+            ble = o.optBoolean("ble_opt_in", false),
         )
     }
 
+    /** `auto_move_on_desktop_lock` is the desktop's; PUT keeps the fields not given. */
     fun settingsBody(s: HandoffSettings): String =
-        JSONObject().put("enabled", s.enabled).put("network", s.network).put("ble", s.ble).toString()
+        JSONObject().put("suggest_nearby", s.enabled).put("auto_move_on_leave", s.autoMoveOnLeave).put("ble_opt_in", s.ble).toString()
 
-    fun networkBody(registrationId: String, hash: String?): String =
-        JSONObject().put("registration_id", registrationId).put("network_hash", hash ?: JSONObject.NULL).toString()
+    /** `{"network_hash"?, "ble_seen"?}`: both optional, the hash lowercase sha256 hex, at most 32 tokens. */
+    fun proximityBody(networkHash: String?, bleSeen: Collection<BleSeen> = emptyList()): String {
+        val o = JSONObject()
+        if (networkHash != null) o.put("network_hash", networkHash)
+        if (bleSeen.isNotEmpty()) {
+            val array = JSONArray()
+            bleSeen.take(MAX_BLE_SEEN).forEach { array.put(JSONObject().put("token", it.token).put("rssi", it.rssi)) }
+            o.put("ble_seen", array)
+        }
+        return o.toString()
+    }
 
-    fun leftNetworkBody(registrationId: String, callId: String): String =
-        JSONObject().put("type", "left_network").put("registration_id", registrationId).put("call_id", callId).toString()
+    /** `{"event":"left_network"}`. */
+    fun leftNetworkBody(): String = JSONObject().put("event", "left_network").toString()
 
-    fun bleSeenBody(registrationId: String, tokens: Collection<String>): String =
-        JSONObject().put("registration_id", registrationId).put("tokens", JSONArray(tokens.toList())).toString()
+    fun contextResult(json: String): ContextResult {
+        val o = JSONObject(json)
+        return ContextResult(
+            action = o.optString("action", "none"),
+            callId = o.takeUnless { it.isNull("call_id") }?.optString("call_id", "")?.ifEmpty { null },
+            moveId = o.takeUnless { it.isNull("move_id") }?.optString("move_id", "")?.ifEmpty { null },
+        )
+    }
 
+    /** [hex] is 16 bytes (32 hex digits); [expiresAtMillis] is `rotates_at`. */
     data class BleToken(val hex: String, val expiresAtMillis: Long?)
 
     fun bleToken(json: String): BleToken {
         val o = JSONObject(json)
         val token = o.optString("token", "").ifEmpty { throw IllegalStateException("The PBX returned no token") }
-        val expires = o.optString("expires_at", "").let {
+        val expires = o.optString("rotates_at", "").let {
             if (it.isEmpty()) null else runCatching { java.time.Instant.parse(it).toEpochMilli() }.getOrNull()
         }
         return BleToken(token, expires)
@@ -108,7 +135,7 @@ object LeftNetworkPolicy {
         othersCalls: List<ActiveCall>,
         alreadyReported: Set<String>,
     ): List<ActiveCall> {
-        if (!settings.enabled || !settings.network) return emptyList()
+        if (!settings.enabled) return emptyList()
         if (previousHash == null || previousHash == newHash) return emptyList()
         return othersCalls.filter { it.id !in alreadyReported }
     }

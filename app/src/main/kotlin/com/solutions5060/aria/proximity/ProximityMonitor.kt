@@ -21,7 +21,7 @@ import java.net.Inet4Address
  * Watches the default network (a [ConnectivityManager] callback). Each change
  * is reported to the PBX as a hash ([NetworkIdentity]); when this phone left a
  * network it was on while another of the user's devices has a call, it posts
- * `left_network` once per call, and the PBX answers with `handoff_suggested`.
+ * `left_network` context (once per call), and the PBX answers with a move, a `handoff_suggested`, or nothing.
  */
 object ProximityMonitor {
 
@@ -30,6 +30,32 @@ object ProximityMonitor {
     private var registered: ConnectivityManager.NetworkCallback? = null
     @Volatile private var lastHash: String? = null
     private val reported = java.util.Collections.synchronizedSet(mutableSetOf<String>())
+
+    /** The hash of the network this phone is on now, or null. */
+    fun currentHash(): String? = lastHash
+
+    /** Report the current hash again (foreground, and about every minute while visible). */
+    fun reportNow(context: Context) {
+        val app = context.applicationContext
+        val settings = HandoffPrefs.load(app)
+        if (!settings.enabled) return
+        AppScope.scope.launch {
+            try {
+                sendHash(app, lastHash)
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                Log.i(TAG, "Network report not sent: ${e.javaClass.simpleName}")
+            }
+        }
+    }
+
+    private fun sendHash(app: Context, hash: String?) {
+        if (hash == null) return
+        val auth = StoredPbxAuth(app)
+        val urn = CallMoveCoordinator.sipInstance(app)
+        auth.withAuth { PbxApiClient(auth.apiUrl()).reportProximity(it, urn, ProximityJson.proximityBody(hash)) }
+    }
 
     fun start(context: Context) {
         if (registered != null) return
@@ -69,17 +95,19 @@ object ProximityMonitor {
         if (previous == hash) return
         lastHash = hash
         val settings = HandoffPrefs.load(context)
-        if (!settings.enabled || !settings.network) return
+        if (!settings.enabled) return
         AppScope.scope.launch {
             try {
                 val auth = StoredPbxAuth(context)
-                val own = CallMoveCoordinator.resolveOwnRegistration() ?: return@launch
-                auth.withAuth { PbxApiClient(auth.apiUrl()).reportNetwork(it, ProximityJson.networkBody(own, hash)) }
+                sendHash(context, hash)
                 val others = CallMoveCoordinator.fetchOtherDeviceCalls(auth)
                 val toReport = LeftNetworkPolicy.callsToReport(previous, hash, settings, others, reported.toSet())
-                toReport.forEach { call ->
-                    reported.add(call.id)
-                    auth.withAuth { PbxApiClient(auth.apiUrl()).postProximityEvent(it, ProximityJson.leftNetworkBody(own, call.id)) }
+                if (toReport.isNotEmpty()) {
+                    // The PBX picks the call itself: one event covers them all.
+                    reported.addAll(toReport.map { it.id })
+                    val urn = CallMoveCoordinator.sipInstance(context)
+                    val answer = auth.withAuth { PbxApiClient(auth.apiUrl()).postContext(it, urn, ProximityJson.leftNetworkBody()) }
+                    CallMoveCoordinator.onContextResult(ProximityJson.contextResult(answer))
                 }
             } catch (e: CancellationException) {
                 throw e

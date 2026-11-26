@@ -20,8 +20,8 @@
     <string name="handoff_summary">Sugerir mover llamadas a este teléfono</string>
     <string name="handoff_desc">Cuando una llamada está en otro de tus dispositivos, este teléfono puede ofrecerse a asumirla.</string>
     <string name="handoff_enabled">Sugerir este teléfono para llamadas</string>
-    <string name="handoff_network">Misma red</string>
-    <string name="handoff_network_desc">Comparte un hash del rango de direcciones de esta red Wi-Fi, nunca su nombre, para que la centralita sepa que tus dispositivos están juntos. No necesita permiso de ubicación.</string>
+    <string name="handoff_auto_leave">Mover la llamada al salir del Wi-Fi</string>
+    <string name="handoff_auto_leave_desc">Cuando este teléfono sale de la red en la que estaba durante una llamada en otro de tus dispositivos, la llamada se mueve aquí. Si no, solo se te ofrece.</string>
     <string name="handoff_ble">Proximidad por Bluetooth</string>
     <string name="handoff_ble_desc">Desactivado por defecto. Mientras la app está abierta, este teléfono emite y escucha un código corto que cambia a menudo, para saber cuándo tus dispositivos están cerca. Requiere permisos de Bluetooth en Android 12 o posterior.</string>
     <string name="handoff_ble_unsupported">La proximidad por Bluetooth requiere Android 12 o posterior.</string>

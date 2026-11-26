@@ -20,8 +20,8 @@
     <string name="handoff_summary">Anrufe auf dieses Telefon vorschlagen</string>
     <string name="handoff_desc">Wenn ein Anruf auf einem anderen Ihrer Geräte läuft, kann dieses Telefon anbieten, ihn zu übernehmen.</string>
     <string name="handoff_enabled">Dieses Telefon für Anrufe vorschlagen</string>
-    <string name="handoff_network">Gleiches Netzwerk</string>
-    <string name="handoff_network_desc">Teilt einen Hash des Adressbereichs dieses WLANs, nie dessen Namen, damit die Telefonanlage erkennt, dass Ihre Geräte zusammen sind. Benötigt keine Standortberechtigung.</string>
+    <string name="handoff_auto_leave">Anruf beim Verlassen des WLANs verschieben</string>
+    <string name="handoff_auto_leave_desc">Verlässt dieses Telefon während eines Anrufs auf einem anderen Gerät sein Netzwerk, wechselt der Anruf hierher. Sonst wird er nur angeboten.</string>
     <string name="handoff_ble">Bluetooth-Nähe</string>
     <string name="handoff_ble_desc">Standardmäßig aus. Solange die App geöffnet ist, sendet und empfängt dieses Telefon einen kurzen, sich oft ändernden Code, um zu erkennen, wenn Ihre Geräte nah beieinander sind. Benötigt Bluetooth-Berechtigungen ab Android 12.</string>
     <string name="handoff_ble_unsupported">Bluetooth-Nähe erfordert Android 12 oder neuer.</string>

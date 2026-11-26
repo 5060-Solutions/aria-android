@@ -20,8 +20,8 @@
     <string name="handoff_summary">Proposer de déplacer les appels vers ce téléphone</string>
     <string name="handoff_desc">Quand un appel est en cours sur un autre de vos appareils, ce téléphone peut proposer de le reprendre.</string>
     <string name="handoff_enabled">Proposer ce téléphone pour les appels</string>
-    <string name="handoff_network">Même réseau</string>
-    <string name="handoff_network_desc">Partage une empreinte de la plage d\'adresses de ce réseau Wi-Fi, jamais son nom, pour que l\'IPBX sache que vos appareils sont ensemble. Aucune autorisation de localisation requise.</string>
+    <string name="handoff_auto_leave">Déplacer l\'appel quand je quitte le Wi-Fi</string>
+    <string name="handoff_auto_leave_desc">Quand ce téléphone quitte le réseau où il était pendant un appel sur un autre de vos appareils, l\'appel passe ici. Sinon, il vous est seulement proposé.</string>
     <string name="handoff_ble">Proximité Bluetooth</string>
     <string name="handoff_ble_desc">Désactivée par défaut. Tant que l\'application est ouverte, ce téléphone émet et écoute un code court qui change souvent, pour savoir quand vos appareils sont proches. Nécessite les autorisations Bluetooth sous Android 12 ou version ultérieure.</string>
     <string name="handoff_ble_unsupported">La proximité Bluetooth nécessite Android 12 ou version ultérieure.</string>

@@ -20,8 +20,8 @@
     <string name="handoff_summary">Suggest moving calls to this phone</string>
     <string name="handoff_desc">When a call is on another of your devices, this phone can offer to take it over.</string>
     <string name="handoff_enabled">Suggest this phone for calls</string>
-    <string name="handoff_network">Same network</string>
-    <string name="handoff_network_desc">Share a one-way hash of this Wi-Fi network\'s address range, never its name, so the PBX can tell your devices are together. Needs no location permission.</string>
+    <string name="handoff_auto_leave">Move the call when I leave Wi-Fi</string>
+    <string name="handoff_auto_leave_desc">When this phone leaves the network it was on during a call on another of your devices, the call moves here. Otherwise you are only offered it.</string>
     <string name="handoff_ble">Bluetooth proximity</string>
     <string name="handoff_ble_desc">Off by default. While the app is open, this phone broadcasts and listens for a short code that changes often, to tell when your devices are close. Needs Bluetooth permissions on Android 12 or later.</string>
     <string name="handoff_ble_unsupported">Bluetooth proximity needs Android 12 or later.</string>

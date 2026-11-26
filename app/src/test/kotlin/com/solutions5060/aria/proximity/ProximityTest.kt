@@ -62,38 +62,68 @@ class ProximityTest {
         assertTrue(LeftNetworkPolicy.callsToReport(null, "h2", HandoffSettings(), calls, emptySet()).isEmpty())
         assertTrue(LeftNetworkPolicy.callsToReport("h1", "h1", HandoffSettings(), calls, emptySet()).isEmpty())
         assertTrue(LeftNetworkPolicy.callsToReport("h1", "h2", HandoffSettings(enabled = false), calls, emptySet()).isEmpty())
-        assertTrue(LeftNetworkPolicy.callsToReport("h1", "h2", HandoffSettings(network = false), calls, emptySet()).isEmpty())
         assertTrue(LeftNetworkPolicy.callsToReport("h1", "h2", HandoffSettings(), emptyList(), emptySet()).isEmpty())
     }
 
     @Test
-    fun bluetoothIsOffByDefault() {
-        assertFalse(HandoffSettings().ble)
-        assertFalse(ProximityJson.settings("{}").ble)
-        assertTrue(ProximityJson.settings("""{"enabled":true,"network":false,"ble":true}""").ble)
+    fun settingsUseTheContractsNamesAndDefaults() {
+        val d = HandoffSettings()
+        assertTrue(d.enabled)
+        assertFalse(d.autoMoveOnLeave)
+        assertFalse(d.ble)
+        assertEquals(d, ProximityJson.settings("{}"))
+        val s = ProximityJson.settings("""{"suggest_nearby":false,"auto_move_on_leave":true,"auto_move_on_desktop_lock":true,"ble_opt_in":true}""")
+        assertEquals(HandoffSettings(enabled = false, autoMoveOnLeave = true, ble = true), s)
+        val body = JSONObject(ProximityJson.settingsBody(s))
+        assertEquals(setOf("suggest_nearby", "auto_move_on_leave", "ble_opt_in"), body.keys().asSequence().toSet())
+        assertTrue(body.getBoolean("ble_opt_in"))
     }
 
     @Test
-    fun theBodiesCarryTheEventAndTheHash() {
-        val left = JSONObject(ProximityJson.leftNetworkBody("reg", "call"))
-        assertEquals("left_network", left.getString("type"))
-        assertEquals("call", left.getString("call_id"))
-        assertTrue(JSONObject(ProximityJson.networkBody("reg", null)).isNull("network_hash"))
-        assertEquals(2, JSONObject(ProximityJson.bleSeenBody("reg", listOf("aa", "bb"))).getJSONArray("tokens").length())
+    fun theProximityBodyCarriesTheHashAndAtMost32Tokens() {
+        val hash = NetworkIdentity.hash("192.168.1.5", 24, "192.168.1.1", true)
+        val none = JSONObject(ProximityJson.proximityBody(hash))
+        assertEquals(hash, none.getString("network_hash"))
+        assertFalse(none.has("ble_seen"))
+        assertFalse(JSONObject(ProximityJson.proximityBody(null)).has("network_hash"))
+        val many = (1..40).map { BleSeen("%032x".format(it), -60) }
+        val seen = JSONObject(ProximityJson.proximityBody(hash, many)).getJSONArray("ble_seen")
+        assertEquals(32, seen.length())
+        assertEquals(-60, seen.getJSONObject(0).getInt("rssi"))
+        assertEquals("%032x".format(1), seen.getJSONObject(0).getString("token"))
     }
 
     @Test
-    fun bleTokensRoundTripAndAreBounded() {
-        val bytes = BleToken.toBytes("00ff10a5")
-        assertEquals("00ff10a5", BleToken.toHex(bytes!!))
-        assertNull(BleToken.toBytes(""))
-        assertNull(BleToken.toBytes("abc"))
-        assertNull(BleToken.toBytes("zz"))
-        assertNull(BleToken.toBytes("00".repeat(BleToken.MAX_BYTES + 1)))
+    fun leftNetworkIsAContextEventAndItsAnswerParses() {
+        assertEquals("left_network", JSONObject(ProximityJson.leftNetworkBody()).getString("event"))
+        val moved = ProximityJson.contextResult("""{"action":"moved","call_id":"c","move_id":"m"}""")
+        assertEquals(ContextResult("moved", "c", "m"), moved)
+        assertEquals(ContextResult("none", null, null), ProximityJson.contextResult("""{"action":"none","call_id":null,"move_id":null}"""))
     }
 
     @Test
-    fun theTokenIsRefetchedJustBeforeItExpires() {
+    fun theTokenIsTheServiceUuidAndBackAgain() {
+        val hex = "00112233445566778899aabbccddeeff"
+        val uuid = BleToken.toUuid(hex)!!
+        assertEquals("00112233-4455-6677-8899-aabbccddeeff", uuid.toString())
+        assertEquals(hex, BleToken.fromUuid(uuid))
+        assertNull(BleToken.toUuid("00112233"))
+        assertNull(BleToken.toUuid(hex.uppercase()))
+        assertNull(BleToken.toUuid("zz".repeat(16)))
+        // A standard 16-bit service (heart rate, 0x180D) is not a token.
+        assertNull(BleToken.fromUuid(java.util.UUID.fromString("0000180d-0000-1000-8000-00805f9b34fb")))
+    }
+
+    @Test
+    fun onlyTheStrongest32AreReported() {
+        val heard = (1..40).associate { "%032x".format(it) to -it }
+        val out = BleToken.strongest(heard)
+        assertEquals(32, out.size)
+        assertEquals(-1, out.first().rssi)
+    }
+
+    @Test
+    fun theTokenIsRefetchedJustBeforeItRotates() {
         assertEquals(BleToken.DEFAULT_ROTATE_MS, BleToken.refreshDelayMs(null, 0))
         assertEquals(50_000L, BleToken.refreshDelayMs(60_000L, 0))
         assertEquals(BleToken.MIN_REFRESH_MS, BleToken.refreshDelayMs(5_000L, 0))
@@ -101,8 +131,8 @@ class ProximityTest {
 
     @Test
     fun theTokenResponseParses() {
-        val t = ProximityJson.bleToken("""{"token":"0a0b","expires_at":"2026-11-25T22:00:00Z"}""")
-        assertEquals("0a0b", t.hex)
-        assertEquals(1_795_644_000_000L, t.expiresAtMillis)
+        val t = ProximityJson.bleToken("""{"token":"00112233445566778899aabbccddeeff","rotates_at":"2026-11-25T22:15:00Z"}""")
+        assertEquals("00112233445566778899aabbccddeeff", t.hex)
+        assertEquals(1_795_644_900_000L, t.expiresAtMillis)
     }
 }
