@@ -232,4 +232,5 @@
     </plurals>
     <string name="ui_settings_language">Idioma</string>
     <string name="ui_settings_language_system">Predeterminado del sistema</string>
+    <string name="ui_hold_holding_for_you">Esperando por ti</string>
 </resources>

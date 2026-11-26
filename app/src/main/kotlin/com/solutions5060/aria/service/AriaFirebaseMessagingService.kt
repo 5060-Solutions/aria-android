@@ -5,6 +5,7 @@ import com.google.firebase.messaging.FirebaseMessagingService
 import com.google.firebase.messaging.RemoteMessage
 import com.solutions5060.aria.AppScope
 import com.solutions5060.aria.call.CallManager
+import com.solutions5060.aria.hold.HoldReturnPush
 import kotlinx.coroutines.launch
 import uniffi.aria_mobile.PushCallPayload
 
@@ -59,6 +60,8 @@ class AriaFirebaseMessagingService : FirebaseMessagingService() {
         val callerName = data["callerName"] ?: data["caller_name"]
         val gatewayUrl = data["gatewayUrl"] ?: data["gateway_url"] ?: "https://push.ariaroute.com"
 
+        val holdReturn = HoldReturnPush.from(data)
+
         // Record the token as coming from a genuine push so the exported
         // MainActivity will accept it (and reject any injected/fabricated token).
         IncomingCallService.expectCallToken(callToken)
@@ -68,7 +71,7 @@ class AriaFirebaseMessagingService : FirebaseMessagingService() {
 
         // Ring first; building the engine below can take a network round-trip.
         // A repeated push for a call already handled is dropped entirely.
-        if (!CallManager.reportIncomingCall(applicationContext, callToken, callerUri, callerName)) return
+        if (!CallManager.reportIncomingCall(applicationContext, callToken, callerUri, callerName, holdReturn.id, holdReturn.name)) return
 
         // Fetch the offer so the engine knows the call: it is what lets the
         // engine report a caller who hangs up before we answer. This runs on

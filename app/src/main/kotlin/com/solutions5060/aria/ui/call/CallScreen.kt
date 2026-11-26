@@ -673,7 +673,7 @@ private fun StateLine(call: CallUiState, elapsed: Long) {
         CallPhase.RINGING -> stringResource(R.string.ui_call_ringing)
         CallPhase.HELD -> stringResource(R.string.ui_call_on_hold)
         CallPhase.ENDED -> call.movedTo?.let { stringResource(R.string.move_moved_to, it) }
-            ?: stringResource(R.string.ui_call_ended)
+            ?: if (call.heldForYou) stringResource(R.string.ui_hold_holding_for_you) else stringResource(R.string.ui_call_ended)
         CallPhase.ACTIVE -> CallStateMapping.statusText(CallPhase.ACTIVE, elapsed)
     }
     val timer = call.phase == CallPhase.ACTIVE
@@ -682,7 +682,7 @@ private fun StateLine(call: CallUiState, elapsed: Long) {
         style = if (timer) AriaType.display.copy(fontFeatureSettings = "tnum") else MaterialTheme.typography.titleMedium,
         color = when (call.phase) {
             CallPhase.HELD -> MaterialTheme.colorScheme.tertiary
-            CallPhase.ENDED -> if (call.movedTo != null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
+            CallPhase.ENDED -> if (call.movedTo != null || call.heldForYou) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
             else -> if (timer) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
         },
     )

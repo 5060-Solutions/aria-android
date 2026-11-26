@@ -84,6 +84,14 @@ data class CallUiState(
     val movedTo: String? = null,
     /** When the call began on the device it moved from, in epoch milliseconds. */
     val originalStartMillis: Long? = null,
+    /** The PBX ended this call into a Hold for me wait: show "Holding for you", not a normal end. */
+    val heldForYou: Boolean = false,
+    /** Hold for me: the wait this ring is for (the far party is back), else null. */
+    val holdReturnId: String? = null,
+    /** Hold for me: who is back, as the PBX named them. */
+    val holdReturnName: String? = null,
+    /** When this device joined a hold-return call, in epoch milliseconds; null until then. */
+    val joinedAtMillis: Long? = null,
 ) {
     /** The contact's name, else the name the network sent, else the user part of the URI. */
     val displayName: String
@@ -123,6 +131,8 @@ object CallManager {
     const val EXTRA_CALL_TOKEN = "call_token"
     const val EXTRA_CALLER_URI = "caller_uri"
     const val EXTRA_CALLER_NAME = "caller_name"
+    const val EXTRA_HOLD_RETURN_ID = "hold_return_id"
+    const val EXTRA_HOLD_RETURN_NAME = "hold_return_name"
 
     /** How long "Call Ended" stays on screen before the call screen closes. */
     private const val ENDED_LINGER_MS = 1_000L
@@ -220,6 +230,10 @@ object CallManager {
         var movedTo: String? = null
         var originalStartMillis: Long? = null
         /** A move was asked for here: stay silent until the offer says whether this INVITE is it. */
+        var holdReturnId: String? = null
+        var holdReturnName: String? = null
+        var joinedAtMillis: Long? = null
+        var heldForYou = false
         var awaitingMoveOffer = false
         var moveAutoAnswer = false
     }
@@ -276,6 +290,9 @@ object CallManager {
 
     /** `X-Aria-Move` per offered call token (null: the offer carried none). */
     private val offerMoveIds = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /** `X-Aria-Hold-Return` and its name per offered call token (absent: the offer carried none). */
+    private val offerHoldReturns = java.util.concurrent.ConcurrentHashMap<String, com.solutions5060.aria.hold.HoldReturnPush>()
 
     /** How long an INVITE waits, silent, for its offer when a move is pending. */
     private const val MOVE_OFFER_WAIT_MS = 4_000L
@@ -360,10 +377,21 @@ object CallManager {
             // The push already reported this call to Telecom; the offer only
             // fills in a display name the push may not have carried.
             offer.moveId?.takeIf { it.isNotEmpty() }?.let { offerMoveIds[offer.callToken] = it }
+            val holdId = offer.holdReturnId?.takeIf { it.isNotEmpty() }
+            val holdName = offer.holdReturnName?.takeIf { it.isNotBlank() }
+            if (holdId != null || holdName != null) {
+                offerHoldReturns[offer.callToken] = com.solutions5060.aria.hold.HoldReturnPush(holdId, holdName)
+            }
             mainHandler.post {
                 val rec = records.values.firstOrNull { it.callToken == offer.callToken } ?: return@post
                 if (rec.remoteName.isNullOrBlank() && !offer.callerName.isNullOrBlank()) {
                     rec.remoteName = offer.callerName
+                    publishAll()
+                }
+                offerHoldReturns[offer.callToken]?.let { hr ->
+                    // The offer is the gateway's word; the push may have been first.
+                    hr.id?.let { rec.holdReturnId = it }
+                    hr.name?.let { rec.holdReturnName = it }
                     publishAll()
                 }
                 applyMoveDecision(rec)
@@ -472,6 +500,7 @@ object CallManager {
         // CallInfo.duration_secs is not maintained by the core, so the call is
         // timed from here.
         rec.connectedAtElapsed = SystemClock.elapsedRealtime()
+        if (rec.holdReturnId != null) rec.joinedAtMillis = System.currentTimeMillis()
         // A moved call keeps counting from when it began on the other device.
         rec.originalStartMillis?.let { start ->
             val elapsed = (System.currentTimeMillis() - start).coerceAtLeast(0)
@@ -666,7 +695,14 @@ object CallManager {
      * when Telecom refuses the account, so there is always exactly one
      * incoming-call UI.
      */
-    fun reportIncomingCall(context: Context, callToken: String, callerUri: String, callerName: String?): Boolean {
+    fun reportIncomingCall(
+        context: Context,
+        callToken: String,
+        callerUri: String,
+        callerName: String?,
+        holdReturnId: String? = null,
+        holdReturnName: String? = null,
+    ): Boolean {
         // FCM can deliver the same push twice. A repeat for the ringing (or
         // answered, or just-ended) call would otherwise reach Telecom as a
         // second call and be rejected as busy, taking the real call with it.
@@ -678,6 +714,8 @@ object CallManager {
             putString(EXTRA_CALL_TOKEN, callToken)
             putString(EXTRA_CALLER_URI, callerUri)
             putString(EXTRA_CALLER_NAME, callerName)
+            putString(EXTRA_HOLD_RETURN_ID, holdReturnId)
+            putString(EXTRA_HOLD_RETURN_NAME, holdReturnName)
             putParcelable(
                 TelecomManager.EXTRA_INCOMING_CALL_ADDRESS,
                 Uri.fromParts("sip", callerUri.removePrefix("sip:"), null),
@@ -763,6 +801,8 @@ object CallManager {
             remoteName = callerName,
             callToken = token,
         )
+        rec.holdReturnId = extras.getString(EXTRA_HOLD_RETURN_ID)?.takeIf { it.isNotEmpty() }
+        rec.holdReturnName = extras.getString(EXTRA_HOLD_RETURN_NAME)?.takeIf { it.isNotBlank() }
         // The engine names an offered call after its token, so a caller who
         // hangs up before we answer can be matched before accept.
         if (token.isNotEmpty()) rec.callId = "incoming-$token"
@@ -1352,6 +1392,7 @@ object CallManager {
     private fun finish(rec: CallRecord, reason: EndReason) {
         if (rec.finished) return
         rec.finished = true
+        rec.heldForYou = reason == EndReason.HELD_FOR_YOU
         Log.i(TAG, "Call ${rec.key} ended: $reason")
 
         cancelRingTimeout(rec)
@@ -1462,6 +1503,10 @@ object CallManager {
         movingFrom = movingFrom,
         movedTo = movedTo,
         originalStartMillis = originalStartMillis,
+        heldForYou = heldForYou,
+        holdReturnId = holdReturnId,
+        holdReturnName = holdReturnName,
+        joinedAtMillis = joinedAtMillis,
     )
 
     /**

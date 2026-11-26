@@ -54,6 +54,9 @@ data class ServerCall(
 /** What `GET /me` says about the dial country. */
 data class MeCountry(val callingCountry: String?, val isAdmin: Boolean)
 
+/** What `GET /me` says this account can use. Absent means off (an older PBX). */
+data class MeFeatures(val holdForMe: Boolean)
+
 /** The PBX refused a value; [field] names it when the PBX said which. */
 class SelfServiceException(message: String, val code: Int, val field: String? = null) : Exception(message)
 
@@ -66,6 +69,12 @@ object SelfServiceJson {
             doNotDisturb = j.optBoolean("do_not_disturb", false),
             maxConcurrentCalls = j.optInt("max_concurrent_calls", 0),
         )
+    }
+
+    /** `GET /me` `features`: an absent or non-array field is no features. */
+    fun meFeatures(body: String): MeFeatures {
+        val a = JSONObject(body).optJSONArray("features") ?: return MeFeatures(false)
+        return MeFeatures((0 until a.length()).any { a.optString(it) == "hold_for_me" })
     }
 
     /** `GET /me`: the company's calling country (nullable) and whether the credential is an admin. */
