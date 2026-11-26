@@ -41,6 +41,7 @@ class AriaApplication : Application() {
 
     override fun onCreate() {
         super.onCreate()
+        com.solutions5060.aria.pbx.DialCountry.init(this)
         Txt.install(this)
 
         // Migrate any legacy plaintext secrets into encrypted storage before

@@ -2,7 +2,6 @@ package com.solutions5060.aria.ui.dialer
 
 import android.media.AudioManager
 import android.media.ToneGenerator
-import android.telephony.PhoneNumberUtils
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.scaleIn
@@ -33,6 +32,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
 import androidx.compose.material3.ripple
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -64,12 +64,14 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.edit
 import com.solutions5060.aria.R
 import com.solutions5060.aria.fixtures.Fixtures
+import com.solutions5060.aria.pbx.DialCountry
 import com.solutions5060.aria.service.ConnectionState
 import com.solutions5060.aria.ui.adaptive.KeypadMetrics
 import com.solutions5060.aria.ui.components.AriaIcon
 import com.solutions5060.aria.ui.components.CallActionButton
 import com.solutions5060.aria.ui.components.CallActionKind
 import com.solutions5060.aria.ui.components.DialKey
+import com.solutions5060.aria.ui.components.PhoneFormat
 import com.solutions5060.aria.ui.components.LocalSnackbarHostState
 import com.solutions5060.aria.ui.components.StatusChip
 import com.solutions5060.aria.ui.connection.ConnectionSheet
@@ -82,7 +84,6 @@ import com.solutions5060.aria.ui.theme.Spacing
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.util.Locale
 
 private const val PREFS = "aria_prefs"
 private const val KEY_LAST_DIALED = "last_dialed_number"
@@ -100,12 +101,6 @@ private val DtmfTones = mapOf(
     "7" to ToneGenerator.TONE_DTMF_7, "8" to ToneGenerator.TONE_DTMF_8, "9" to ToneGenerator.TONE_DTMF_9,
     "0" to ToneGenerator.TONE_DTMF_0, "*" to ToneGenerator.TONE_DTMF_S, "#" to ToneGenerator.TONE_DTMF_P,
 )
-
-/** The number as people read it ("(555) 201-4410"); extensions and SIP strings stay as typed. */
-private fun formatForDisplay(number: String): String {
-    if (number.length < 7 || number.any { !it.isDigit() && it != '+' }) return number
-    return PhoneNumberUtils.formatNumber(number, Locale.getDefault().country) ?: number
-}
 
 /**
  * DESIGN.md §5 Dialer: status chip, number display (auto-shrinks, formatted)
@@ -134,7 +129,7 @@ fun DialerScreen(
     val snackbar = LocalSnackbarHostState.current
 
     var number by rememberSaveable { mutableStateOf(Fixtures.current?.dialNumber ?: "") }
-    LaunchedEffect(prefill) { if (prefill != null) number = prefill }
+    LaunchedEffect(prefill) { if (prefill != null) number = PhoneFormat.sanitize(prefill) }
     var showConnection by rememberSaveable { mutableStateOf(Fixtures.current?.sheet == "connection") }
     var showPaste by remember { mutableStateOf(false) }
     val numberLabel = stringResource(R.string.ui_dialer_number)
@@ -158,6 +153,10 @@ fun DialerScreen(
     val contacts by produceState(emptyList<com.solutions5060.aria.ui.contacts.Contact>()) {
         value = withContext(Dispatchers.IO) { runCatching { ContactsSource.load(context) }.getOrDefault(emptyList()) }
     }
+    val country by DialCountry.state.collectAsState()
+    // Formatting is display only: `number` stays the typed digits and is what is dialed.
+    val shown = remember(number, country) { PhoneFormat.asYouType(number, country) }
+    val hint = remember(number, country) { PhoneFormat.hint(number, country) }
     val match = remember(number, contacts) { ContactsSource.match(number, contacts) }
 
     fun type(digit: String) {
@@ -249,7 +248,7 @@ fun DialerScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     // Always one display line, so the layout does not jump; a faint hint when empty.
                     BasicText(
-                        text = if (number.isEmpty()) stringResource(R.string.ui_dialer_hint) else formatForDisplay(number),
+                        text = if (number.isEmpty()) stringResource(R.string.ui_dialer_hint) else shown,
                         style = displayStyle.copy(
                             color = if (number.isEmpty()) {
                                 MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
@@ -263,7 +262,7 @@ fun DialerScreen(
                         modifier = Modifier.fillMaxWidth(),
                     )
                     Text(
-                        text = match?.name ?: "",
+                        text = match?.name ?: hint ?: "",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.primary,
                         maxLines = 1,
@@ -278,7 +277,7 @@ fun DialerScreen(
                                 scope.launch {
                                     val text = clipboard.getClipEntry()?.clipData?.takeIf { it.itemCount > 0 }
                                         ?.getItemAt(0)?.coerceToText(context)?.toString().orEmpty()
-                                    val digits = text.filter { it.isDigit() || it in "+*#" }
+                                    val digits = PhoneFormat.sanitize(text)
                                     if (digits.isNotEmpty()) number = digits
                                 }
                             },
