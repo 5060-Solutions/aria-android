@@ -204,6 +204,7 @@ fun AriaApp() {
                         return@MainApp
                     }
                     clearAccount()
+                    com.solutions5060.aria.move.CallMoveCoordinator.reset()
                     phase = AppPhase.SETUP
                 },
             )
@@ -451,10 +452,21 @@ private fun MainApp(
                 }
             },
         ) { innerPadding ->
+            androidx.compose.foundation.layout.Column(Modifier.padding(innerPadding)) {
+            com.solutions5060.aria.ui.move.CallMoveBanner()
+            val moveMessage by com.solutions5060.aria.move.CallMoveCoordinator.message.collectAsState()
+            val moveText = moveMessage?.let { stringResource(moveMessageRes(it)) }
+            val moveSnackbar = com.solutions5060.aria.ui.components.LocalSnackbarHostState.current
+            LaunchedEffect(moveText) {
+                moveText?.let {
+                    moveSnackbar.showSnackbar(it)
+                    com.solutions5060.aria.move.CallMoveCoordinator.clearMessage()
+                }
+            }
             NavHost(
                 navController = navController,
                 startDestination = fixture?.startTab ?: "dialer",
-                modifier = Modifier.padding(innerPadding)
+                modifier = Modifier.weight(1f),
             ) {
                 composable("dialer") {
                     DialerScreen(
@@ -528,6 +540,11 @@ private fun MainApp(
                                 CallingSection(
                                     onOpenForwarding = { navController.navigate("forwarding") },
                                     onOpenCodecs = { navController.navigate("codecs") },
+                                    more = {
+                                        com.solutions5060.aria.ui.settings.CallHandoffRow(
+                                            onOpen = { navController.navigate("call-handoff") },
+                                        )
+                                    },
                                 )
                                 com.solutions5060.aria.ui.recordings.RecordingsSection(
                                     onOpen = { navController.navigate("recordings") },
@@ -548,6 +565,9 @@ private fun MainApp(
                 composable("codecs") {
                     com.solutions5060.aria.ui.settings.CodecsScreen(onBack = { navController.popBackStack() })
                 }
+                composable("call-handoff") {
+                    com.solutions5060.aria.ui.settings.CallHandoffScreen(onBack = { navController.popBackStack() })
+                }
                 composable("forwarding") {
                     ForwardingScreen(onBack = { navController.popBackStack() })
                 }
@@ -558,6 +578,14 @@ private fun MainApp(
                     TranscriptsScreen(onBack = { navController.popBackStack() })
                 }
             }
+            }
         }
     }
+}
+
+private fun moveMessageRes(m: com.solutions5060.aria.move.MoveMessage): Int = when (m) {
+    com.solutions5060.aria.move.MoveMessage.NOT_FOUND -> R.string.move_err_not_found
+    com.solutions5060.aria.move.MoveMessage.NOT_MOVABLE -> R.string.move_err_not_movable
+    com.solutions5060.aria.move.MoveMessage.DEVICE_UNAVAILABLE -> R.string.move_err_device_unavailable
+    com.solutions5060.aria.move.MoveMessage.FAILED -> R.string.move_err_failed
 }

@@ -1,0 +1,35 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="move_banner">Appel avec %1$s sur %2$s</string>
+    <string name="move_here">Déplacer ici</string>
+    <string name="move_dismiss">Fermer</string>
+    <string name="move_continue_here">Continuer cet appel ici</string>
+    <string name="move_incoming_from">Appel déplacé depuis %1$s</string>
+    <string name="move_unknown_device">un autre appareil</string>
+    <string name="move_to">Déplacer vers…</string>
+    <string name="move_sheet_title">Déplacer cet appel vers</string>
+    <string name="move_no_devices">Aucun autre appareil n\'est en ligne.</string>
+    <string name="move_loading">Recherche de vos appareils…</string>
+    <string name="move_moved_to">Déplacé vers %1$s</string>
+    <string name="move_started_at">Commencé à %1$s</string>
+    <string name="move_err_not_found">Cet appel n\'est plus sur votre compte.</string>
+    <string name="move_err_not_movable">Cet appel ne peut pas être déplacé pour le moment. Réessayez une fois qu\'il est décroché et qu\'il n\'est pas en cours de transfert.</string>
+    <string name="move_err_device_unavailable">Cet appareil n\'est pas disponible. Vérifiez qu\'il est en ligne et réessayez.</string>
+    <string name="move_err_failed">L\'appel n\'a pas pu être déplacé. Il reste où il était.</string>
+    <string name="handoff_title">Transfert d\'appel entre appareils</string>
+    <string name="handoff_summary">Proposer de déplacer les appels vers ce téléphone</string>
+    <string name="handoff_desc">Quand un appel est en cours sur un autre de vos appareils, ce téléphone peut proposer de le reprendre.</string>
+    <string name="handoff_enabled">Proposer ce téléphone pour les appels</string>
+    <string name="handoff_auto_leave">Déplacer l\'appel quand je quitte le Wi-Fi</string>
+    <string name="handoff_auto_leave_desc">Quand ce téléphone quitte le réseau où il était pendant un appel sur un autre de vos appareils, l\'appel passe ici. Sinon, il vous est seulement proposé.</string>
+    <string name="handoff_ble">Proximité Bluetooth</string>
+    <string name="handoff_ble_desc">Désactivée par défaut. Tant que l\'application est ouverte, ce téléphone émet et écoute un code court qui change souvent, pour savoir quand vos appareils sont proches. Nécessite les autorisations Bluetooth sous Android 12 ou version ultérieure.</string>
+    <string name="handoff_ble_unsupported">La proximité Bluetooth nécessite Android 12 ou version ultérieure.</string>
+    <string name="handoff_ble_denied">L\'autorisation Bluetooth n\'a pas été accordée, la proximité reste donc désactivée.</string>
+    <string name="handoff_ble_permission_title">Autoriser le Bluetooth pour la proximité ?</string>
+    <string name="handoff_ble_permission_body">Aria n\'émet, ne scanne et ne se connecte en Bluetooth que lorsque cette option est activée et que l\'application est ouverte.</string>
+    <string name="handoff_load_failed">Impossible de charger les réglages de transfert.</string>
+    <string name="handoff_channel">Transfert d\'appel</string>
+    <string name="handoff_channel_desc">Propose de continuer un appel depuis un autre de vos appareils.</string>
+    <string name="handoff_notification_text">Appel avec %1$s sur %2$s</string>
+</resources>

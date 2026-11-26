@@ -145,6 +145,9 @@ data class CallActions(
     val onStartRecording: (consentGiven: Boolean) -> String? = { null },
     val onStopRecording: () -> Unit = {},
     val recordingConsentNeeded: () -> Boolean = { false },
+    /** The user's other online devices this call can move to. */
+    val loadMoveTargets: suspend () -> List<com.solutions5060.aria.move.MoveDevice> = { emptyList() },
+    val onMoveTo: (com.solutions5060.aria.move.MoveDevice) -> Unit = {},
 )
 
 /** What else is going on around the call on screen. */
@@ -186,6 +189,7 @@ fun CallScreen(
     var consultRequested by remember { mutableStateOf(false) }
     var showKeypad by rememberSaveable { mutableStateOf(Fixtures.current?.sheet == "keypad") }
     var showAudio by rememberSaveable { mutableStateOf(false) }
+    var showMove by rememberSaveable { mutableStateOf(false) }
     var showMore by remember { mutableStateOf(false) }
     var showRecordingNotice by remember { mutableStateOf(false) }
     // The app's snackbar host, so notices posted elsewhere ("Call dropped") show here too.
@@ -266,6 +270,17 @@ fun CallScreen(
                 consultRequested = true
                 actions.onConsult(it)
             },
+        )
+    }
+    if (showMove && !active) showMove = false
+    if (showMove) {
+        MoveToSheet(
+            loadTargets = actions.loadMoveTargets,
+            onSelect = {
+                showMove = false
+                actions.onMoveTo(it)
+            },
+            onDismiss = { showMove = false },
         )
     }
     if (showAddCall && !context.canAddCall) showAddCall = false
@@ -408,6 +423,23 @@ fun CallScreen(
                 }
                 Spacer(Modifier.height(Spacing.sm))
                 StateLine(call, elapsed)
+                call.originalStartMillis?.takeIf { call.phase == CallPhase.ACTIVE || call.phase == CallPhase.HELD }?.let { start ->
+                    Text(
+                        stringResource(
+                            R.string.move_started_at,
+                            android.text.format.DateFormat.getTimeFormat(LocalContext.current).format(java.util.Date(start)),
+                        ),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    )
+                }
+                call.movingFrom?.takeIf { call.phase == CallPhase.INCOMING }?.let { from ->
+                    Text(
+                        stringResource(R.string.move_incoming_from, from),
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary,
+                    )
+                }
                 AnimatedVisibility(call.recording) {
                     RecordingBadge(Modifier.padding(top = Spacing.sm))
                 }
@@ -452,6 +484,7 @@ fun CallScreen(
                             showAddCall = true
                         },
                         onTransfer = { showTransfer = true },
+                        onMove = { showMove = true },
                     )
                     context.transferPair?.let { pair ->
                         CompleteTransfer(pair, onComplete = actions.onCompleteTransfer)
@@ -639,7 +672,8 @@ private fun StateLine(call: CallUiState, elapsed: Long) {
         CallPhase.CONNECTING -> stringResource(R.string.ui_call_calling)
         CallPhase.RINGING -> stringResource(R.string.ui_call_ringing)
         CallPhase.HELD -> stringResource(R.string.ui_call_on_hold)
-        CallPhase.ENDED -> stringResource(R.string.ui_call_ended)
+        CallPhase.ENDED -> call.movedTo?.let { stringResource(R.string.move_moved_to, it) }
+            ?: stringResource(R.string.ui_call_ended)
         CallPhase.ACTIVE -> CallStateMapping.statusText(CallPhase.ACTIVE, elapsed)
     }
     val timer = call.phase == CallPhase.ACTIVE
@@ -648,7 +682,7 @@ private fun StateLine(call: CallUiState, elapsed: Long) {
         style = if (timer) AriaType.display.copy(fontFeatureSettings = "tnum") else MaterialTheme.typography.titleMedium,
         color = when (call.phase) {
             CallPhase.HELD -> MaterialTheme.colorScheme.tertiary
-            CallPhase.ENDED -> MaterialTheme.colorScheme.error
+            CallPhase.ENDED -> if (call.movedTo != null) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.error
             else -> if (timer) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant
         },
     )
@@ -933,6 +967,7 @@ private fun ControlGrid(
     onHold: () -> Unit,
     onAddCall: () -> Unit,
     onTransfer: () -> Unit,
+    onMove: () -> Unit,
 ) {
     val columns = if (isAccessibilityFontScale()) 2 else 3
     val route = call.audio.current
@@ -982,6 +1017,12 @@ private fun ControlGrid(
             label = stringResource(R.string.ui_call_transfer),
             enabled = call.phase == CallPhase.ACTIVE || call.phase == CallPhase.HELD,
             onClick = onTransfer,
+        )
+        CallControlButton(
+            icon = AriaIcons.Swap,
+            label = stringResource(R.string.move_to),
+            enabled = call.phase == CallPhase.ACTIVE || call.phase == CallPhase.HELD,
+            onClick = onMove,
         )
     }
 }
@@ -1230,6 +1271,8 @@ fun ManagedCallScreen(call: CallUiState) {
             onStartRecording = { consent -> CallManager.startRecording(key, consentGiven = consent) },
             onStopRecording = { CallManager.stopRecording(key) },
             recordingConsentNeeded = { CallManager.recordingConsentNeeded() },
+            loadMoveTargets = { com.solutions5060.aria.move.CallMoveCoordinator.targets(call.remoteUri) },
+            onMoveTo = { com.solutions5060.aria.move.CallMoveCoordinator.moveTo(call.remoteUri, it) },
         ),
     )
 }

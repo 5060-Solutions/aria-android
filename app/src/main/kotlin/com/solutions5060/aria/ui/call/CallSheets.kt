@@ -253,6 +253,38 @@ internal fun AudioRouteSheet(
     }
 }
 
+/** "Move to…": the user's other online devices; tapping one asks the PBX to move this call there. */
+@Composable
+internal fun MoveToSheet(
+    loadTargets: suspend () -> List<com.solutions5060.aria.move.MoveDevice>,
+    onSelect: (com.solutions5060.aria.move.MoveDevice) -> Unit,
+    onDismiss: () -> Unit,
+) {
+    var targets by remember { mutableStateOf<List<com.solutions5060.aria.move.MoveDevice>?>(null) }
+    LaunchedEffect(Unit) { targets = runCatching { loadTargets() }.getOrDefault(emptyList()) }
+    CallSheet(title = stringResource(R.string.move_sheet_title), onDismiss = onDismiss) {
+        val list = targets
+        if (list == null || list.isEmpty()) {
+            Text(
+                stringResource(if (list == null) R.string.move_loading else R.string.move_no_devices),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+            )
+        } else {
+            Column(verticalArrangement = Arrangement.spacedBy(Spacing.rowGap)) {
+                list.forEach { device ->
+                    AriaListItem(
+                        headline = device.label,
+                        leading = { RowIcon(AriaIcons.Swap) },
+                        onClick = { onSelect(device) },
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    )
+                }
+            }
+        }
+    }
+}
+
 /** In-call keypad (DTMF): slides up as a sheet over the controls; shows what was sent. */
 @Composable
 internal fun KeypadSheet(onDigit: (String) -> Unit, onDismiss: () -> Unit) {

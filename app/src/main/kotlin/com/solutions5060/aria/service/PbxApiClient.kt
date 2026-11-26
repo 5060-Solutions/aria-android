@@ -281,6 +281,53 @@ class PbxApiClient(private val baseUrl: String) {
     fun extensionCalls(jwt: String, extensionId: String, limit: Int = 100): String =
         send(jwt, "GET", "/api/v1/extensions/${encode(extensionId)}/cdrs?limit=${limit.coerceIn(1, 200)}")
 
+    // ── Call move (call-move contract, 2026-11-25) ──────────────────────
+
+    /** GET /api/v1/me/calls/active — the user's answered calls, on any device. */
+    fun activeCalls(jwt: String): String = send(jwt, "GET", "/api/v1/me/calls/active")
+
+    /** GET /api/v1/me/devices?sip_instance= — the user's registered devices, with nearness to [sipInstance]. */
+    fun devices(jwt: String, sipInstance: String): String =
+        send(jwt, "GET", "/api/v1/me/devices?sip_instance=${encode(sipInstance)}")
+
+    /** GET /api/v1/me/devices/current?sip_instance= — this client's own device. 404 when none matches. */
+    fun currentDevice(jwt: String, sipInstance: String): String =
+        send(jwt, "GET", "/api/v1/me/devices/current?sip_instance=${encode(sipInstance)}")
+
+    /**
+     * POST /api/v1/me/calls/{id}/move `{"to_registration_id"}` — 202 `{"move_id"}`.
+     * 404 not the user's call, 409 not answered or in a transfer, 422 device unknown or offline.
+     */
+    fun moveCall(jwt: String, callId: String, toRegistrationId: String): String {
+        val body = JSONObject().put("to_registration_id", toRegistrationId)
+        return send(jwt, "POST", "/api/v1/me/calls/${encode(callId)}/move", body.toString().toRequestBody(JSON_MEDIA))
+    }
+
+    // ── Call handoff and proximity ──────────────────────────────────────
+    // Every devices/current/* route names this device by its +sip.instance
+    // (`urn:uuid:<pbx device id>`), which must be registered: 422 if missing,
+    // 404 if no registered device has it.
+
+    /** GET /api/v1/me/call-handoff */
+    fun callHandoff(jwt: String): String = send(jwt, "GET", "/api/v1/me/call-handoff")
+
+    /** PUT /api/v1/me/call-handoff — the fields given are set, the rest kept. */
+    fun setCallHandoff(jwt: String, json: String): String =
+        send(jwt, "PUT", "/api/v1/me/call-handoff", json.toRequestBody(JSON_MEDIA))
+
+    /** POST /api/v1/me/devices/current/proximity?sip_instance= `{"network_hash","ble_seen"}` — 200 `{"nearby":[…]}`. */
+    fun reportProximity(jwt: String, sipInstance: String, json: String) {
+        send(jwt, "POST", "/api/v1/me/devices/current/proximity?sip_instance=${encode(sipInstance)}", json.toRequestBody(JSON_MEDIA))
+    }
+
+    /** POST /api/v1/me/devices/current/context?sip_instance= `{"event":"left_network"}` — `{"action","call_id","move_id"}`. */
+    fun postContext(jwt: String, sipInstance: String, json: String): String =
+        send(jwt, "POST", "/api/v1/me/devices/current/context?sip_instance=${encode(sipInstance)}", json.toRequestBody(JSON_MEDIA))
+
+    /** GET /api/v1/me/devices/current/ble-token?sip_instance= — `{"token","rotates_at"}`; 403 unless `ble_opt_in`. */
+    fun bleToken(jwt: String, sipInstance: String): String =
+        send(jwt, "GET", "/api/v1/me/devices/current/ble-token?sip_instance=${encode(sipInstance)}")
+
     // ── Messaging (SMS/MMS inboxes) ─────────────────────────────────────
 
     /** GET .../messaging/inboxes — the numbers this seat may read and reply on. */

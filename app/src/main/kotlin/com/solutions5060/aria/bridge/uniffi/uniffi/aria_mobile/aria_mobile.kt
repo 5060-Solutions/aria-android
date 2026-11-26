@@ -3808,7 +3808,11 @@ data class CallOffer (
     var `callToken`: kotlin.String, 
     var `callerUri`: kotlin.String, 
     var `callerName`: kotlin.String?, 
-    var `sdpOffer`: kotlin.String
+    var `sdpOffer`: kotlin.String, 
+    /**
+     * The INVITE's X-Aria-Move value when the PBX is moving a call here.
+     */
+    var `moveId`: kotlin.String?
 ) {
     
     companion object
@@ -3824,6 +3828,7 @@ public object FfiConverterTypeCallOffer: FfiConverterRustBuffer<CallOffer> {
             FfiConverterString.read(buf),
             FfiConverterOptionalString.read(buf),
             FfiConverterString.read(buf),
+            FfiConverterOptionalString.read(buf),
         )
     }
 
@@ -3831,7 +3836,8 @@ public object FfiConverterTypeCallOffer: FfiConverterRustBuffer<CallOffer> {
             FfiConverterString.allocationSize(value.`callToken`) +
             FfiConverterString.allocationSize(value.`callerUri`) +
             FfiConverterOptionalString.allocationSize(value.`callerName`) +
-            FfiConverterString.allocationSize(value.`sdpOffer`)
+            FfiConverterString.allocationSize(value.`sdpOffer`) +
+            FfiConverterOptionalString.allocationSize(value.`moveId`)
     )
 
     override fun write(value: CallOffer, buf: ByteBuffer) {
@@ -3839,6 +3845,7 @@ public object FfiConverterTypeCallOffer: FfiConverterRustBuffer<CallOffer> {
             FfiConverterString.write(value.`callerUri`, buf)
             FfiConverterOptionalString.write(value.`callerName`, buf)
             FfiConverterString.write(value.`sdpOffer`, buf)
+            FfiConverterOptionalString.write(value.`moveId`, buf)
     }
 }
 

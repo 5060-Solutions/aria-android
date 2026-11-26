@@ -9,6 +9,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.callbackFlow
 import kotlinx.coroutines.flow.flowOn
+import kotlinx.coroutines.flow.mapNotNull
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.currentCoroutineContext
@@ -27,10 +28,19 @@ import okhttp3.WebSocketListener
  */
 object MessagingLive {
 
-    private const val TAG = "MessagingLive"
+    fun events(context: Context): Flow<SmsEvent> = EventSocket.texts(context).mapNotNull { MessagingJson.smsEvent(it) }
+}
+
+/**
+ * The raw text frames of `/api/v1/ws`, for every feature that reads an event
+ * (texts, call moves). One socket per collector.
+ */
+object EventSocket {
+
+    private const val TAG = "EventSocket"
     private val BACKOFF_MS = listOf(1_000L, 2_000L, 5_000L, 15_000L, 30_000L)
 
-    fun events(context: Context): Flow<SmsEvent> = callbackFlow {
+    fun texts(context: Context): Flow<String> = callbackFlow {
         val auth = StoredPbxAuth(context)
         var attempt = 0
         while (currentCoroutineContext().isActive) {
@@ -47,7 +57,7 @@ object MessagingLive {
                         }
 
                         override fun onMessage(webSocket: WebSocket, text: String) {
-                            MessagingJson.smsEvent(text)?.let { trySendBlocking(it) }
+                            trySendBlocking(text)
                         }
 
                         override fun onClosing(webSocket: WebSocket, code: Int, reason: String) {

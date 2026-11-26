@@ -78,6 +78,12 @@ data class CallUiState(
     val contactName: String? = null,
     /** The negotiated codec by its SDP name ("PCMU", "PCMA", "opus", "G729"); null before media. */
     val codec: String? = null,
+    /** The device a call that is being moved here comes from, when it rings for the user to decide. */
+    val movingFrom: String? = null,
+    /** The device this call was moved to; the call ended here because of it. */
+    val movedTo: String? = null,
+    /** When the call began on the device it moved from, in epoch milliseconds. */
+    val originalStartMillis: Long? = null,
 ) {
     /** The contact's name, else the name the network sent, else the user part of the URI. */
     val displayName: String
@@ -210,6 +216,12 @@ object CallManager {
         var recording = false
         var contactName: String? = null
         var codec: String? = null
+        var movingFrom: String? = null
+        var movedTo: String? = null
+        var originalStartMillis: Long? = null
+        /** A move was asked for here: stay silent until the offer says whether this INVITE is it. */
+        var awaitingMoveOffer = false
+        var moveAutoAnswer = false
     }
 
     /** Every call by record key, oldest first. Main-thread only. */
@@ -259,6 +271,70 @@ object CallManager {
 
     fun init(context: Context) {
         appContext = context.applicationContext
+        com.solutions5060.aria.move.CallMoveCoordinator.init(appContext)
+    }
+
+    /** `X-Aria-Move` per offered call token (null: the offer carried none). */
+    private val offerMoveIds = java.util.concurrent.ConcurrentHashMap<String, String>()
+
+    /** How long an INVITE waits, silent, for its offer when a move is pending. */
+    private const val MOVE_OFFER_WAIT_MS = 4_000L
+
+    /** Records that the call [callId] (the PBX's id) was moved to [label], for "Moved to …". */
+    fun markMoved(callId: String, label: String) {
+        // The PBX's call id is not the engine's; the leg that is up here is the one.
+        mainHandler.post { liveRecords().firstOrNull { it.phase == CallPhase.ACTIVE || it.phase == CallPhase.HELD }?.let { it.movedTo = label; publishAll() } }
+    }
+
+    /** The user asked to move the call with [remoteNumber] to [label]; its end here will say so. */
+    fun markMovedForNumber(remoteNumber: String?, label: String) {
+        mainHandler.post {
+            val rec = liveRecords().firstOrNull {
+                remoteNumber == null || com.solutions5060.aria.move.CallMovePolicy.sameNumber(it.remoteUri, remoteNumber)
+            } ?: return@post
+            rec.movedTo = label
+            publishAll()
+        }
+    }
+
+    /**
+     * Decide an incoming call once its offer is known: ring, ring labelled
+     * "Moving call from …", or (for the move this device asked for) answer
+     * with no ring, with Telecom told the call is active straight away.
+     */
+    private fun applyMoveDecision(rec: CallRecord) {
+        if (rec.finished || rec.phase != CallPhase.INCOMING) return
+        val token = rec.callToken.orEmpty()
+        val moveId = offerMoveIds[token]
+        val pending = com.solutions5060.aria.move.CallMoveCoordinator.pendingMove()
+        when (val d = com.solutions5060.aria.move.CallMovePolicy.decide(moveId, pending, System.currentTimeMillis())) {
+            is com.solutions5060.aria.move.MoveDecision.AutoAnswer -> {
+                rec.awaitingMoveOffer = false
+                rec.moveAutoAnswer = true
+                rec.originalStartMillis = d.callStartedAtMillis
+                com.solutions5060.aria.move.CallMoveCoordinator.claim(moveId.orEmpty())
+                cancelRingTimeout(rec)
+                rec.connection?.let { if (it.state != Connection.STATE_ACTIVE) it.setActive() }
+                answer(rec)
+            }
+            com.solutions5060.aria.move.MoveDecision.RingMoving -> {
+                rec.movingFrom = com.solutions5060.aria.move.CallMoveCoordinator.movingFromLabel(rec.remoteUri)
+                    ?: Txt.get(R.string.move_unknown_device, "another device")
+                ringAfterMoveCheck(rec)
+            }
+            com.solutions5060.aria.move.MoveDecision.Ring -> ringAfterMoveCheck(rec)
+        }
+    }
+
+    private fun ringAfterMoveCheck(rec: CallRecord) {
+        if (!rec.awaitingMoveOffer) {
+            publishAll()
+            return
+        }
+        rec.awaitingMoveOffer = false
+        rec.connection?.setRinging()
+        publishAll()
+        showIncoming(rec)
     }
 
     fun clearError() {
@@ -274,6 +350,8 @@ object CallManager {
     /** Installed on every engine by [EngineManager]. */
     val eventHandler: MobileEventHandler = object : MobileEventHandler {
         override fun onRegistrationChanged(deviceId: String, status: String, error: String?) {
+            // A new registration may be a new PBX registration id.
+            com.solutions5060.aria.move.CallMoveCoordinator.forgetOwnRegistration()
             Log.i(TAG, "Registration $status${error?.let { " ($it)" } ?: ""}")
             com.solutions5060.aria.service.GatewayConnection.onCoreRegistration(appContext, deviceId, status, error)
         }
@@ -281,12 +359,14 @@ object CallManager {
         override fun onIncomingCall(offer: CallOffer) {
             // The push already reported this call to Telecom; the offer only
             // fills in a display name the push may not have carried.
+            offer.moveId?.takeIf { it.isNotEmpty() }?.let { offerMoveIds[offer.callToken] = it }
             mainHandler.post {
                 val rec = records.values.firstOrNull { it.callToken == offer.callToken } ?: return@post
                 if (rec.remoteName.isNullOrBlank() && !offer.callerName.isNullOrBlank()) {
                     rec.remoteName = offer.callerName
                     publishAll()
                 }
+                applyMoveDecision(rec)
             }
         }
 
@@ -392,6 +472,11 @@ object CallManager {
         // CallInfo.duration_secs is not maintained by the core, so the call is
         // timed from here.
         rec.connectedAtElapsed = SystemClock.elapsedRealtime()
+        // A moved call keeps counting from when it began on the other device.
+        rec.originalStartMillis?.let { start ->
+            val elapsed = (System.currentTimeMillis() - start).coerceAtLeast(0)
+            rec.connectedAtElapsed = SystemClock.elapsedRealtime() - elapsed
+        }
         cancelRingTimeout(rec)
         syncIncomingNotifier()
         val callId = rec.callId ?: return
@@ -616,7 +701,23 @@ object CallManager {
     fun onIncomingConnectionCreated(connection: AriaConnection, extras: Bundle?): Boolean {
         val rec = createIncomingRecord(extras ?: Bundle()) ?: return false
         rec.connection = connection
+        val token = rec.callToken.orEmpty()
+        if (com.solutions5060.aria.move.CallMoveCoordinator.mayWaitForMove(rec.remoteUri)) {
+            // A move to this device is on its way and this call is from the
+            // far party being moved: do not ring until the offer says whether
+            // it is the move. If the offer is slow, ring. Any other call rings now.
+            rec.awaitingMoveOffer = true
+            if (offerMoveIds.containsKey(token)) {
+                applyMoveDecision(rec)
+            } else {
+                mainHandler.postDelayed({
+                    if (rec.awaitingMoveOffer && !rec.finished && rec.phase == CallPhase.INCOMING) ringAfterMoveCheck(rec)
+                }, MOVE_OFFER_WAIT_MS)
+            }
+            return true
+        }
         connection.setRinging()
+        if (offerMoveIds.containsKey(token)) applyMoveDecision(rec)
         return true
     }
 
@@ -676,7 +777,7 @@ object CallManager {
     /** Telecom asked us to show our ringing UI (self-managed calls draw their own). */
     fun onShowIncomingCallUi(connection: AriaConnection) {
         val rec = recordFor(connection) ?: return
-        if (rec.phase != CallPhase.INCOMING) return
+        if (rec.phase != CallPhase.INCOMING || rec.awaitingMoveOffer || rec.moveAutoAnswer) return
         showIncoming(rec)
     }
 
@@ -684,7 +785,8 @@ object CallManager {
         // Next to another call this is call waiting: a quieter alert, since
         // the user is already on the phone.
         val waiting = liveRecords().any { it !== rec }
-        IncomingCallNotifier.show(appContext, rec.key, rec.displayName(), rec.callToken ?: "", waiting)
+        val label = rec.movingFrom?.let { Txt.get(R.string.move_incoming_from, "Moving call from %1\$s", it) }
+        IncomingCallNotifier.show(appContext, rec.key, label ?: rec.displayName(), rec.callToken ?: "", waiting)
     }
 
     /**
@@ -1357,6 +1459,9 @@ object CallManager {
         recording = recording,
         contactName = contactName,
         codec = codec,
+        movingFrom = movingFrom,
+        movedTo = movedTo,
+        originalStartMillis = originalStartMillis,
     )
 
     /**
