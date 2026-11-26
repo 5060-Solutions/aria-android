@@ -264,4 +264,7 @@
     <string name="ui_hold_transcript_title">Ce qui a été dit</string>
     <string name="ui_hold_speaker_assistant">Assistant</string>
     <string name="ui_hold_speaker_caller">Interlocuteur</string>
+    <string name="ui_hold_settings_greeting">Message d\'« Attendre pour moi »</string>
+    <string name="ui_hold_call_again">Rappeler</string>
+    <string name="ui_hold_missed_title">%1$s a répondu pendant votre absence</string>
 </resources>

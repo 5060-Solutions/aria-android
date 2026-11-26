@@ -262,4 +262,7 @@
     <string name="ui_hold_transcript_title">Was gesagt wurde</string>
     <string name="ui_hold_speaker_assistant">Assistent</string>
     <string name="ui_hold_speaker_caller">Gegenüber</string>
+    <string name="ui_hold_settings_greeting">Begrüßung bei „Für mich warten“</string>
+    <string name="ui_hold_call_again">Erneut anrufen</string>
+    <string name="ui_hold_missed_title">%1$s hat abgenommen, während Sie weg waren</string>
 </resources>

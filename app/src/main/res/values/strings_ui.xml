@@ -292,4 +292,7 @@
     <string name="ui_hold_transcript_title">What they said</string>
     <string name="ui_hold_speaker_assistant">Assistant</string>
     <string name="ui_hold_speaker_caller">Them</string>
+    <string name="ui_hold_settings_greeting">Hold for me greeting</string>
+    <string name="ui_hold_call_again">Call again</string>
+    <string name="ui_hold_missed_title">%1$s picked up while you were away</string>
 </resources>

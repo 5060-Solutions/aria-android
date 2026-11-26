@@ -456,6 +456,7 @@ private fun MainApp(
             androidx.compose.foundation.layout.Column(Modifier.padding(innerPadding)) {
             com.solutions5060.aria.ui.move.CallMoveBanner()
             com.solutions5060.aria.ui.hold.HoldWaitCards()
+            com.solutions5060.aria.ui.hold.HoldNoticeBanner(onCallAgain = { placeCall(it) })
             val moveMessage by com.solutions5060.aria.move.CallMoveCoordinator.message.collectAsState()
             val moveText = moveMessage?.let { stringResource(moveMessageRes(it)) }
             val moveSnackbar = com.solutions5060.aria.ui.components.LocalSnackbarHostState.current
@@ -546,6 +547,7 @@ private fun MainApp(
                                         com.solutions5060.aria.ui.settings.CallHandoffRow(
                                             onOpen = { navController.navigate("call-handoff") },
                                         )
+                                        com.solutions5060.aria.ui.settings.HoldForMeRow()
                                     },
                                 )
                                 com.solutions5060.aria.ui.recordings.RecordingsSection(

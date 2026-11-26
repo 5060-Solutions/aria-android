@@ -353,6 +353,21 @@ class AriaUiTest {
         compose.onNodeWithTag(HoldTags.CARD).assertDoesNotExist()
     }
 
+    @Test
+    fun settingsShowsTheGreetingOnlyWithTheFlag() {
+        launch("hold-waiting", tab = "settings")
+        compose.onNodeWithTag(com.solutions5060.aria.ui.settings.HoldSettingsTags.ROW).performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText(str(R.string.ui_hold_settings_greeting)).assertIsDisplayed()
+        compose.onNodeWithTag(com.solutions5060.aria.ui.settings.HoldSettingsTags.ROW).performClick()
+        compose.onNodeWithTag(com.solutions5060.aria.ui.settings.HoldSettingsTags.option(HoldGreeting.SILENCE)).performClick()
+        scenario?.close()
+        Fixtures.clear()
+
+        launch("hold-waiting", tab = "settings", noHoldForMe = true)
+        compose.onNodeWithTag(CallingSectionTags.DND).assertExists()
+        compose.onNodeWithTag(com.solutions5060.aria.ui.settings.HoldSettingsTags.ROW).assertDoesNotExist()
+    }
+
     // ── Launch permissions ───────────────────────────────────────────
 
     @Test

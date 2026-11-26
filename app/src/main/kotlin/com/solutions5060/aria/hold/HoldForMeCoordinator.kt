@@ -53,6 +53,26 @@ object HoldForMeCoordinator {
     /** Why the last start was refused, until [clearRefusal]. */
     val refusal: StateFlow<HoldRefusal?> = _refusal.asStateFlow()
 
+    private val _notice = MutableStateFlow<HoldNotice?>(null)
+
+    /** A hold-wait alert (missed pickup and the like) the app shows as a banner with Call again, until [clearNotice]. */
+    val notice: StateFlow<HoldNotice?> = _notice.asStateFlow()
+
+    /** Shows [n] (a tapped notification, which can only come from a PBX that offers the feature). */
+    fun showNotice(n: HoldNotice) {
+        _notice.value = n
+    }
+
+    /** A `hold_wait` alert push while the app is in the foreground: shown only when the feature is on. */
+    fun onForegroundPush(data: Map<String, String>) {
+        val n = HoldNotificationJson.parse(data) ?: return
+        if (_available.value && inForeground()) _notice.value = n
+    }
+
+    fun clearNotice() {
+        _notice.value = null
+    }
+
     /** Keeps the ongoing notifications in step with [waits]; nothing is shown while the feature is off. */
     private fun publish() {
         val open = if (_available.value) _waits.value.values.toList() else emptyList()
@@ -96,6 +116,7 @@ object HoldForMeCoordinator {
         _waits.value = emptyMap()
         _transcripts.value = emptyMap()
         _refusal.value = null
+        _notice.value = null
         publish()
     }
 

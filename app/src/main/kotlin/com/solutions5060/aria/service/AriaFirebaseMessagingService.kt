@@ -53,6 +53,13 @@ class AriaFirebaseMessagingService : FirebaseMessagingService() {
         // A text message (`type: sms`): a notification that opens the thread.
         if (com.solutions5060.aria.messaging.MessagingNotifier.handlePush(applicationContext, data)) return
 
+        // A Hold for me alert (missed pickup and the like): a banner with Call again while the app is open.
+        // In the background the system's notification shows it and a tap delivers `data` to MainActivity.
+        if (data["type"] == "hold_wait") {
+            com.solutions5060.aria.hold.HoldForMeCoordinator.onForegroundPush(data)
+            return
+        }
+
         // Check if this is a VoIP call notification
         // Gateway sends camelCase keys
         val callToken = data["callToken"] ?: data["call_token"] ?: return
