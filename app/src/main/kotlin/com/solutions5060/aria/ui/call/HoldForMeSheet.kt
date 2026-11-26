@@ -45,9 +45,10 @@ internal fun HoldForMeSheet(
     onStart: (HoldGreeting) -> Unit,
     onDismiss: () -> Unit,
 ) {
-    var selected by remember(settings) {
-        mutableStateOf(settings.greeting.takeUnless { it == HoldGreeting.ASSISTANT && !settings.assistantAvailable } ?: HoldGreeting.LINE)
-    }
+    // The user's own pick wins over the default, even if the settings arrive after it.
+    var chosen by remember { mutableStateOf<HoldGreeting?>(null) }
+    val default = settings.greeting.takeUnless { it == HoldGreeting.ASSISTANT && !settings.assistantAvailable } ?: HoldGreeting.LINE
+    val selected = chosen?.takeUnless { it == HoldGreeting.ASSISTANT && !settings.assistantAvailable } ?: default
     CallSheet(title = stringResource(R.string.ui_hold_title), onDismiss = onDismiss) {
         Text(
             stringResource(R.string.ui_hold_sheet_body),
@@ -78,7 +79,7 @@ internal fun HoldForMeSheet(
                     } else {
                         null
                     },
-                    onClick = if (enabled) ({ selected = g }) else null,
+                    onClick = if (enabled) ({ chosen = g }) else null,
                     containerColor = if (isSelected) MaterialTheme.colorScheme.secondaryContainer else MaterialTheme.colorScheme.surfaceContainer,
                     modifier = Modifier
                         .testTag(HoldTags.greeting(g))

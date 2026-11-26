@@ -114,7 +114,7 @@ class HoldForMeTest {
 
     @Test
     fun cancelUsesTheActionQuery() {
-        repeat(5) { server.enqueue(MockResponse().setResponseCode(202).setBody(waitJson)) }
+        repeat(4) { server.enqueue(MockResponse().setResponseCode(202).setBody(waitJson)) }
         api().holdCancel("jwt", "call-1", "rejoin")
         val del = server.takeRequest()
         assertEquals("DELETE", del.method)
@@ -125,8 +125,6 @@ class HoldForMeTest {
         val still = server.takeRequest()
         assertEquals("POST", still.method)
         assertEquals("/api/v1/me/calls/call-1/hold-for-me/still-on-hold", still.path)
-        api().holdWait("jwt", "call-1")
-        assertEquals("/api/v1/me/calls/call-1/hold-for-me", server.takeRequest().path)
         api().holdWaits("jwt")
         assertEquals("/api/v1/me/hold-waits", server.takeRequest().path)
     }

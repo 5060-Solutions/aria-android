@@ -322,9 +322,6 @@ class PbxApiClient(private val baseUrl: String) {
         return send(jwt, "POST", "/api/v1/me/calls/${encode(callId)}/hold-for-me", body.toString().toRequestBody(JSON_MEDIA))
     }
 
-    /** GET /api/v1/me/calls/{id}/hold-for-me — the latest wait on that call. */
-    fun holdWait(jwt: String, callId: String): String = send(jwt, "GET", "/api/v1/me/calls/${encode(callId)}/hold-for-me")
-
     /** DELETE /api/v1/me/calls/{id}/hold-for-me?action=rejoin|hang_up — 202 `HoldWait`. */
     fun holdCancel(jwt: String, callId: String, action: String): String =
         send(jwt, "DELETE", "/api/v1/me/calls/${encode(callId)}/hold-for-me?action=${encode(action)}")
@@ -342,14 +339,6 @@ class PbxApiClient(private val baseUrl: String) {
     /** PUT /api/v1/me/hold-for-me/settings `{"greeting"}` — 200, the same shape as GET. */
     fun setHoldGreeting(jwt: String, greeting: String): String =
         send(jwt, "PUT", "/api/v1/me/hold-for-me/settings", JSONObject().put("greeting", greeting).toString().toRequestBody(JSON_MEDIA))
-
-    /** GET /api/v1/tenants/{id}/hold-for-me/settings (tenant admin) — `{"max_wait_secs","assistant_enabled"}`. */
-    fun tenantHoldSettings(jwt: String, tenantId: String): String =
-        send(jwt, "GET", "/api/v1/tenants/${encode(tenantId)}/hold-for-me/settings")
-
-    /** PUT /api/v1/tenants/{id}/hold-for-me/settings (tenant admin); `max_wait_secs` 600..14400, else 422. */
-    fun setTenantHoldSettings(jwt: String, tenantId: String, json: String): String =
-        send(jwt, "PUT", "/api/v1/tenants/${encode(tenantId)}/hold-for-me/settings", json.toRequestBody(JSON_MEDIA))
 
     // ── Call handoff and proximity ──────────────────────────────────────
     // Every devices/current/* route names this device by its +sip.instance

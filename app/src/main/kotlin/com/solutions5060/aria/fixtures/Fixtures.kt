@@ -377,7 +377,14 @@ object FakeHoldApi : HoldApi {
     /** A snapshot of the calls made, oldest first. */
     val calls: List<String> get() = synchronized(log) { log.toList() }
 
-    fun reset() = log.clear()
+    /** Test hook: the next `start` is refused with this status and body, as the PBX would. */
+    @Volatile
+    var refuseNextStart: Pair<Int, String>? = null
+
+    fun reset() {
+        log.clear()
+        refuseNextStart = null
+    }
 
     private fun wait(callId: String, state: String, greeting: HoldGreeting = HoldGreeting.LINE, ended: String? = null) = HoldWait(
         holdWaitId = "fixture-wait",
@@ -395,6 +402,10 @@ object FakeHoldApi : HoldApi {
     )
 
     override suspend fun start(callId: String, greeting: HoldGreeting?, displayName: String?): HoldWait {
+        refuseNextStart?.let { (code, body) ->
+            refuseNextStart = null
+            throw com.solutions5060.aria.service.PbxApiClient.HttpException(code, "refused", body = body)
+        }
         log.add("start:${greeting?.wire ?: "default"}")
         return wait(callId, "waiting", greeting ?: HoldGreeting.LINE)
     }

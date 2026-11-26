@@ -292,7 +292,8 @@ fun CallScreen(
     }
     if (showHold && !(active && context.holdForMeAvailable)) showHold = false
     if (showHold) {
-        var holdSettings by remember { mutableStateOf<com.solutions5060.aria.hold.HoldSettings?>(null) }
+        // Opens at once on the default; the account's settings replace it when they arrive.
+        var holdSettings by remember { mutableStateOf(com.solutions5060.aria.hold.HoldSettings.Opening) }
         LaunchedEffect(Unit) {
             holdSettings = try {
                 actions.loadHoldSettings()
@@ -302,17 +303,14 @@ fun CallScreen(
                 com.solutions5060.aria.hold.HoldSettings.Fallback
             }
         }
-        // The sheet opens once the greeting in effect is known, so the choice starts on it.
-        holdSettings?.let { settings ->
-            HoldForMeSheet(
-                settings = settings,
-                onStart = {
-                    showHold = false
-                    actions.onHoldForMe(it)
-                },
-                onDismiss = { showHold = false },
-            )
-        }
+        HoldForMeSheet(
+            settings = holdSettings,
+            onStart = {
+                showHold = false
+                actions.onHoldForMe(it)
+            },
+            onDismiss = { showHold = false },
+        )
     }
     if (showAddCall && !context.canAddCall) showAddCall = false
     if (showAddCall) {
@@ -1290,8 +1288,12 @@ fun ManagedCallScreen(call: CallUiState) {
     val snackbar = com.solutions5060.aria.ui.components.LocalSnackbarHostState.current
     LaunchedEffect(refusalText) {
         refusalText?.let {
-            com.solutions5060.aria.hold.HoldForMeCoordinator.clearRefusal()
-            snackbar.showSnackbar(it)
+            // Show first: clearing changes the key and would cancel the snackbar mid-show.
+            try {
+                snackbar.showSnackbar(it)
+            } finally {
+                com.solutions5060.aria.hold.HoldForMeCoordinator.clearRefusal()
+            }
         }
     }
     CallScreen(

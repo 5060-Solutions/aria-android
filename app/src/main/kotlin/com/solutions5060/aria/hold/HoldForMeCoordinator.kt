@@ -141,9 +141,9 @@ object HoldForMeCoordinator {
 
     /** Start waiting on [call]. A refusal leaves the call as it was and sets [refusal]. */
     suspend fun start(call: CallUiState, greeting: HoldGreeting) {
-        val service = service() ?: return
+        val service = service()
         val id = pbxCallId(call)
-        if (id == null) {
+        if (service == null || id == null) {
             _refusal.value = HoldRefusal.OTHER
             return
         }

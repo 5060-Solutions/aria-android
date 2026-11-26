@@ -52,6 +52,9 @@ data class HoldSettings(val greeting: HoldGreeting, val assistantAvailable: Bool
     companion object {
         /** What the sheet offers when the settings could not be read. */
         val Fallback = HoldSettings(HoldGreeting.LINE, assistantAvailable = false, maxWaitSecs = 10_800)
+
+        /** What the sheet shows while the settings are loading: the plain message, the assistant not ruled out. */
+        val Opening = HoldSettings(HoldGreeting.LINE, assistantAvailable = true, maxWaitSecs = 10_800)
     }
 }
 

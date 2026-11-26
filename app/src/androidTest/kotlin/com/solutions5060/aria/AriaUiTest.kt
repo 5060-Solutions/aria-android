@@ -298,6 +298,20 @@ class AriaUiTest {
     }
 
     @Test
+    fun aRefusedHoldForMeClosesTheSheetAndShowsItsReason() {
+        launch("in-call-hold-for-me")
+        FakeHoldApi.refuseNextStart = 409 to """{"error":"refused","reason":"emergency"}"""
+        compose.onNodeWithContentDescription(str(R.string.ui_call_more)).performClick()
+        compose.onNodeWithTag(HoldTags.OVERFLOW).performClick()
+        compose.onNodeWithTag(HoldTags.START).performClick()
+        compose.waitUntil(5_000) {
+            compose.onAllNodesWithText(str(R.string.ui_hold_error_emergency)).fetchSemanticsNodes().isNotEmpty()
+        }
+        compose.onNodeWithTag(HoldTags.START).assertDoesNotExist()
+        assertEquals(emptyList<String>(), FakeHoldApi.calls)
+    }
+
+    @Test
     fun holdForMeIsHiddenWithoutTheFlag() {
         launch("in-call-hold-for-me", noHoldForMe = true)
         compose.onNodeWithContentDescription(str(R.string.ui_call_more)).performClick()
