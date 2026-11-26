@@ -55,14 +55,24 @@ fun HoldNoticeBanner(onCallAgain: (String) -> Unit, modifier: Modifier = Modifie
                 Modifier.padding(start = Spacing.md, top = Spacing.xs, bottom = Spacing.xs, end = Spacing.xs),
                 verticalAlignment = Alignment.CenterVertically,
             ) {
-                // Only a missed pickup has the fixed "picked up" copy; the other events (the business hung up, the wait ended) name who it was.
-                Text(
-                    if (n.event == "missed") stringResource(R.string.ui_hold_missed_title, n.title) else n.title,
-                    style = MaterialTheme.typography.bodyMedium,
-                    maxLines = 2,
-                    overflow = TextOverflow.Ellipsis,
-                    modifier = Modifier.weight(1f),
-                )
+                // The push's own title and body when it came in the foreground; else only a missed pickup has
+                // the fixed "picked up" copy, and the other events (the business hung up, the wait ended) name who it was.
+                Column(Modifier.weight(1f)) {
+                    Text(
+                        n.headline(stringResource(R.string.ui_hold_missed_title)),
+                        style = MaterialTheme.typography.bodyMedium,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                    )
+                    n.pushBody?.let {
+                        Text(
+                            it,
+                            style = MaterialTheme.typography.bodySmall,
+                            maxLines = 3,
+                            overflow = TextOverflow.Ellipsis,
+                        )
+                    }
+                }
                 TextButton(
                     onClick = {
                         HoldForMeCoordinator.clearNotice()

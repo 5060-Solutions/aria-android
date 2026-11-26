@@ -55,7 +55,27 @@ data class HoldSettings(val greeting: HoldGreeting, val assistantAvailable: Bool
 
         /** What the sheet shows while the settings are loading: the plain message, the assistant not ruled out. */
         val Opening = HoldSettings(HoldGreeting.LINE, assistantAvailable = true, maxWaitSecs = 10_800)
+
+        /** [Opening], showing the default greeting last mirrored on this phone when there is one. */
+        fun opening(mirrored: HoldGreeting?): HoldSettings = mirrored?.let { Opening.copy(greeting = it) } ?: Opening
     }
+}
+
+/** What the Hold for me sheet shows selected, and what Start sends. */
+object HoldSheetChoice {
+    /** The row shown selected: the user's pick, else the account's default (the assistant only when available). */
+    fun shown(chosen: HoldGreeting?, settings: HoldSettings): HoldGreeting {
+        fun ok(g: HoldGreeting?) = g?.takeUnless { it == HoldGreeting.ASSISTANT && !settings.assistantAvailable }
+        return ok(chosen) ?: ok(settings.greeting) ?: HoldGreeting.LINE
+    }
+
+    /**
+     * What Start sends: only a row the user picked. Without a pick the request
+     * leaves `greeting` out and the PBX applies the user's default, even when
+     * the settings have not loaded yet.
+     */
+    fun toSend(chosen: HoldGreeting?, settings: HoldSettings): HoldGreeting? =
+        chosen?.takeUnless { it == HoldGreeting.ASSISTANT && !settings.assistantAvailable }
 }
 
 data class TranscriptLine(
@@ -164,12 +184,15 @@ object HoldForMePolicy {
     const val MAX_NAME = 64
 
     /**
-     * Needs the feature flag, an outgoing call that is connected and not in a
-     * conference, and the PBX's id for it ([pbxCallId], from `CallMovePolicy.ownCall`).
+     * Needs the feature flag, a connected call that is not in a conference,
+     * and the PBX's id for it ([pbxCallId], from `CallMovePolicy.holdCall`).
+     * The call is outgoing, or a rejoined hold return: its leg here is
+     * incoming, but the PBX call is still the original outgoing one, so the
+     * business can be held for again (the PBX's 409 `not_outgoing` decides).
      */
     fun canHold(available: Boolean, call: CallUiState, inConference: Boolean, pbxCallId: String?): Boolean =
         available &&
-            call.direction == CallDirection.OUTBOUND &&
+            (call.direction == CallDirection.OUTBOUND || call.holdReturnId != null) &&
             call.phase == CallPhase.ACTIVE &&
             call.connectedAtElapsed != null &&
             !inConference &&

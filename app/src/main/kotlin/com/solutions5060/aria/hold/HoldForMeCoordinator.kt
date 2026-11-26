@@ -63,10 +63,16 @@ object HoldForMeCoordinator {
         _notice.value = n
     }
 
-    /** A `hold_wait` alert push while the app is in the foreground: shown only when the feature is on. */
-    fun onForegroundPush(data: Map<String, String>) {
-        val n = HoldNotificationJson.parse(data) ?: return
-        if (_available.value && inForeground()) _notice.value = n
+    /**
+     * A `hold_wait` alert push while the app is in the foreground, where the
+     * system shows no notification: the banner is the only signal, so it
+     * carries the push's own [title] and [body] (the PBX's localised copy).
+     * Like a tapped notification, it can only come from a PBX that offers the
+     * feature, so it is not gated on [available].
+     */
+    fun onForegroundPush(data: Map<String, String>, title: String? = null, body: String? = null) {
+        val n = HoldNotificationJson.parse(data, title, body) ?: return
+        if (inForeground()) _notice.value = n
     }
 
     fun clearNotice() {
@@ -121,7 +127,7 @@ object HoldForMeCoordinator {
     }
 
     /** The PBX's id for this app's own call, or null while unknown. */
-    fun pbxCallId(call: CallUiState): String? = CallMoveCoordinator.ownCallFor(call.remoteUri)?.id
+    fun pbxCallId(call: CallUiState): String? = CallMoveCoordinator.holdCallFor(call.remoteUri)?.id
 
     fun canHoldForMe(call: CallUiState, inConference: Boolean): Boolean =
         HoldForMePolicy.canHold(_available.value, call, inConference, pbxCallId(call))
@@ -176,9 +182,15 @@ object HoldForMeCoordinator {
 
     // ── Acting ─────────────────────────────────────────────────────────
 
-    /** Start waiting on [call]. A refusal leaves the call as it was and sets [refusal]. */
-    suspend fun start(call: CallUiState, greeting: HoldGreeting) {
+    /**
+     * Start waiting on [call]. [greeting] is null unless the user picked one
+     * (the PBX then applies the user's default). A refusal leaves the call as
+     * it was and sets [refusal].
+     */
+    suspend fun start(call: CallUiState, greeting: HoldGreeting?) {
         val service = service()
+        // The list can be up to a poll old: read it again so the id is this call's, not another one's.
+        if (api == null) CallMoveCoordinator.refreshNow()
         val id = pbxCallId(call)
         if (service == null || id == null) {
             _refusal.value = HoldRefusal.OTHER
@@ -264,7 +276,18 @@ object HoldForMeCoordinator {
      */
     suspend fun ensureListening(context: Context) {
         val driver = com.solutions5060.aria.move.CallMoveDriver
-        if (PushListener.shouldStart(driver.isRunning())) {
+        val pendingRelease = releaseJob?.takeIf { it.isActive }
+        if (pendingRelease != null) {
+            // An earlier push's driver is still settling before it stops: this push keeps it.
+            pendingRelease.cancel()
+            releaseJob = null
+            pushStartedDriver = true
+            pushListenerTimeout?.cancel()
+            pushListenerTimeout = AppScope.scope.launch {
+                kotlinx.coroutines.delay(PushListener.MAX_MS)
+                releasePushListener(context)
+            }
+        } else if (PushListener.shouldStart(driver.isRunning())) {
             driver.start(context)
             pushStartedDriver = true
             // The foreground owns the driver from here; otherwise let go when the call ends or after a bound.
@@ -280,18 +303,36 @@ object HoldForMeCoordinator {
     @Volatile
     private var pushStartedDriver = false
     private var pushListenerTimeout: kotlinx.coroutines.Job? = null
+    private var releaseJob: kotlinx.coroutines.Job? = null
 
     private fun inForeground(): Boolean = androidx.lifecycle.ProcessLifecycleOwner.get().lifecycle
         .currentState.isAtLeast(androidx.lifecycle.Lifecycle.State.STARTED)
 
-    /** The hold-return call ended: stop the driver a push started, unless the app is in the foreground. */
+    /**
+     * The hold-return call ended: once the PBX has settled, read the open
+     * waits (the socket stops with the driver, so a wait that ended now, such
+     * as a missed pickup, would otherwise leave its notification up), then stop
+     * the driver a push started, unless the app is in the foreground.
+     */
     fun releasePushListener(context: Context) {
         if (!pushStartedDriver) return
-        val stop = PushListener.shouldStop(pushStartedDriver, inForeground())
         pushStartedDriver = false
         pushListenerTimeout?.cancel()
         pushListenerTimeout = null
-        if (stop) com.solutions5060.aria.move.CallMoveDriver.stop(context)
+        releaseJob = AppScope.scope.launch {
+            reconcileThenRelease(PushListener.SETTLE_MS) {
+                if (PushListener.shouldStop(startedByPush = true, foreground = inForeground())) {
+                    com.solutions5060.aria.move.CallMoveDriver.stop(context)
+                }
+            }
+        }
+    }
+
+    /** Wait [settleMs], [reconcile], then [stop]: the order [releasePushListener] needs. */
+    internal suspend fun reconcileThenRelease(settleMs: Long, stop: () -> Unit) {
+        kotlinx.coroutines.delay(settleMs)
+        reconcile()
+        stop()
     }
 
     private val stillTaps = java.util.Collections.synchronizedSet(mutableSetOf<String>())
@@ -313,7 +354,7 @@ object HoldForMeCoordinator {
     }
 
     /** Fire-and-forget [start] for the call screen. */
-    fun startAsync(call: CallUiState, greeting: HoldGreeting) {
+    fun startAsync(call: CallUiState, greeting: HoldGreeting?) {
         AppScope.scope.launch { start(call, greeting) }
     }
 }

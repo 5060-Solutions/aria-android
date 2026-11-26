@@ -31,6 +31,7 @@ import com.solutions5060.aria.AppScope
 import com.solutions5060.aria.R
 import com.solutions5060.aria.hold.HoldForMeCoordinator
 import com.solutions5060.aria.hold.HoldWait
+import com.solutions5060.aria.hold.HoldWaitPresentation
 import com.solutions5060.aria.ui.call.HoldTags
 import com.solutions5060.aria.ui.theme.Spacing
 import kotlinx.coroutines.delay
@@ -54,7 +55,7 @@ internal fun holdElapsed(millis: Long): String {
 fun HoldWaitCards(modifier: Modifier = Modifier) {
     val available by HoldForMeCoordinator.available.collectAsState()
     val waits by HoldForMeCoordinator.waits.collectAsState()
-    val open = waits.values.filter { it.isOpen }
+    val open = HoldWaitPresentation.shown(waits.values)
     if (!available || open.isEmpty()) return
     var now by remember { mutableLongStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) {
@@ -83,10 +84,12 @@ fun HoldWaitCards(modifier: Modifier = Modifier) {
 @Composable
 fun HoldWaitCard(wait: HoldWait, now: Long, modifier: Modifier = Modifier, onCancel: (rejoin: Boolean) -> Unit) {
     var asking by remember { mutableStateOf(false) }
-    val title = when (wait.state) {
-        "human_detected" -> stringResource(R.string.ui_hold_someone_answered)
-        "ringing" -> stringResource(R.string.ui_hold_ringing_you)
-        else -> stringResource(R.string.ui_hold_waiting, holdElapsed(now - (wait.startedAtMillis ?: now)))
+    // joined and ended are filtered out before this; never offer Hang up on a call the user is on.
+    val presentation = HoldWaitPresentation.of(wait.state) ?: return
+    val title = if (presentation == HoldWaitPresentation.WAITING) {
+        stringResource(presentation.title, holdElapsed(now - (wait.startedAtMillis ?: now)))
+    } else {
+        stringResource(presentation.title)
     }
     Surface(
         color = MaterialTheme.colorScheme.secondaryContainer,

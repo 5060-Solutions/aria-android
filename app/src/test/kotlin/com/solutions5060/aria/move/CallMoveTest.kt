@@ -141,6 +141,26 @@ class CallMoveTest {
     }
 
     @Test
+    fun holdForMeResolvesTheCallByNumberAmongThisDevicesCalls() {
+        // Two calls on this phone: the bank (held) and a second, active one.
+        val bank = call(id = "bank", reg = "reg-phone", number = "+18005550100")
+        val other = call(id = "other", reg = "reg-phone", number = "+13035550199")
+        val calls = listOf(other, bank, call(id = "desk", reg = "reg-desk", number = "+18005550100"))
+        assertEquals("bank", CallMovePolicy.holdCall(calls, "reg-phone", "sip:+18005550100@pbx")?.id)
+        assertEquals("other", CallMovePolicy.holdCall(calls, "reg-phone", "3035550199")?.id)
+        // call-move's own pick ignores the number and takes the first: Hold for me must not.
+        assertEquals("other", CallMovePolicy.ownCall(calls, "reg-phone", emptySet(), "+18005550100")?.id)
+        // No match on this device, or no number: hidden.
+        assertNull(CallMovePolicy.holdCall(calls, "reg-phone", "+14155550000"))
+        assertNull(CallMovePolicy.holdCall(calls, "reg-phone", null))
+        // Two calls to the same number on this device: ambiguous, hidden.
+        assertNull(CallMovePolicy.holdCall(calls + call(id = "bank-2", reg = "reg-phone", number = "8005550100"), "reg-phone", "+18005550100"))
+        // Registration unknown: all calls, and still only a single match.
+        assertEquals("other", CallMovePolicy.holdCall(calls, null, "+13035550199")?.id)
+        assertNull(CallMovePolicy.holdCall(calls, null, "+18005550100"))
+    }
+
+    @Test
     fun ownCallFindsTheLegOnThisRegistrationFirst() {
         val mine = call(id = "mine", reg = "reg-phone")
         assertEquals("mine", CallMovePolicy.ownCall(listOf(call(), mine), "reg-phone", emptySet(), null)?.id)

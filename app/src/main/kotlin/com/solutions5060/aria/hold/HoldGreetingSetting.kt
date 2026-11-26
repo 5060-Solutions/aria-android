@@ -1,6 +1,7 @@
 package com.solutions5060.aria.hold
 
 import android.content.Context
+import androidx.core.content.edit
 import com.solutions5060.aria.service.EngineManager
 import kotlinx.coroutines.CancellationException
 
@@ -17,7 +18,12 @@ class PrefsGreetingMirror(context: Context) : GreetingMirror {
     override fun get(): HoldGreeting? = prefs.getString(KEY, null)?.let(HoldGreeting::fromWire)
 
     override fun set(g: HoldGreeting) {
-        prefs.edit().putString(KEY, g.wire).apply()
+        prefs.edit { putString(KEY, g.wire) }
+    }
+
+    /** Sign-out: the default belongs to the account. */
+    fun clear() {
+        prefs.edit { remove(KEY) }
     }
 
     companion object {
@@ -61,22 +67,52 @@ class HoldGreetingSetting(private val api: HoldApi, private val mirror: Greeting
     }
 }
 
-/** What a tapped (or foreground) `hold_wait` alert push says. */
-data class HoldNotice(val event: String, val remoteNumber: String, val remoteName: String) {
+/**
+ * What a tapped (or foreground) `hold_wait` alert push says. [pushTitle] and
+ * [pushBody] are the push's own notification text (the PBX's localised copy),
+ * known only for a push received in the foreground; a tapped notification
+ * delivers just the data.
+ */
+data class HoldNotice(
+    val event: String,
+    val remoteNumber: String,
+    val remoteName: String,
+    val pushTitle: String? = null,
+    val pushBody: String? = null,
+) {
     /** The name the banner uses: `remote_name` when there is one, else the number. */
     val title: String get() = remoteName.ifEmpty { remoteNumber }
+
+    /**
+     * The banner's headline: the push's own title when there is one, else
+     * [missedTemplate] (`ui_hold_missed_title`) for a missed pickup, else the name.
+     */
+    fun headline(missedTemplate: String): String =
+        pushTitle ?: if (event == "missed") String.format(missedTemplate, title) else title
 }
 
 object HoldNotificationJson {
     private val EVENTS = setOf("far_hung_up", "missed", "max_wait", "lost")
     private const val MAX = 64
+    private const val MAX_TITLE = 160
+    private const val MAX_BODY = 400
 
-    /** The alert push's `data` (FCM extras on a tap); null when it is not a well-formed `hold_wait`. */
-    fun parse(extras: Map<String, String>): HoldNotice? {
+    /**
+     * The alert push's `data` (FCM extras on a tap), plus its notification
+     * [title] and [body] when the push arrived in the foreground; null when it
+     * is not a well-formed `hold_wait`. A blank title or body counts as absent.
+     */
+    fun parse(extras: Map<String, String>, title: String? = null, body: String? = null): HoldNotice? {
         if (extras["type"] != "hold_wait") return null
         val event = extras["event"]?.takeIf { it in EVENTS } ?: return null
         val number = extras["remote_number"]?.trim()?.take(MAX)?.takeIf { it.isNotEmpty() } ?: return null
         val name = extras["remote_name"]?.trim()?.take(MAX).orEmpty()
-        return HoldNotice(event, number, name)
+        return HoldNotice(
+            event,
+            number,
+            name,
+            pushTitle = title?.trim()?.take(MAX_TITLE)?.ifEmpty { null },
+            pushBody = body?.trim()?.take(MAX_BODY)?.ifEmpty { null },
+        )
     }
 }

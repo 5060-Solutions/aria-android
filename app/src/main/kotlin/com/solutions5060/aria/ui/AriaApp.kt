@@ -147,6 +147,8 @@ fun AriaApp() {
         com.solutions5060.aria.messaging.MessagesMonitor.clear(context)
         com.solutions5060.aria.ui.messages.AttachmentCache.clear()
         SelfServiceState.clear()
+        // The mirrored Hold for me default is the account's too.
+        com.solutions5060.aria.hold.PrefsGreetingMirror(context).clear()
     }
 
     var manualSetup by rememberSaveable { mutableStateOf(false) }

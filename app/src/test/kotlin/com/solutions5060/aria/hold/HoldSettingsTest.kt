@@ -111,4 +111,43 @@ class HoldSettingsTest {
         // Another app's extras cannot stuff the banner.
         assertEquals(64, HoldNotificationJson.parse(extras(name = "x".repeat(500)))!!.remoteName.length)
     }
+
+    @Test
+    fun aForegroundAlertCarriesThePushsOwnText() {
+        val missed = "%1\$s picked up while you were away"
+        // In the foreground: the PBX's localised title and body.
+        val fg = HoldNotificationJson.parse(extras(event = "max_wait"), "Hold for me ended", "We waited 3 hours for Acme Bank. Call again?")!!
+        assertEquals("Hold for me ended", fg.headline(missed))
+        assertEquals("We waited 3 hours for Acme Bank. Call again?", fg.pushBody)
+        // A title alone.
+        val titleOnly = HoldNotificationJson.parse(extras(event = "far_hung_up"), "Acme Bank hung up", null)!!
+        assertEquals("Acme Bank hung up", titleOnly.headline(missed))
+        assertNull(titleOnly.pushBody)
+        // Blank text counts as absent; a tapped notification (data only) keeps the fallback.
+        val blank = HoldNotificationJson.parse(extras(), "  ", "")!!
+        assertNull(blank.pushTitle)
+        assertNull(blank.pushBody)
+        assertEquals("Acme Bank picked up while you were away", blank.headline(missed))
+        assertEquals("Acme Bank", HoldNotificationJson.parse(extras(event = "lost"))!!.headline(missed))
+        // Bounded.
+        assertEquals(400, HoldNotificationJson.parse(extras(), "t", "x".repeat(5_000))!!.pushBody!!.length)
+    }
+
+    @Test
+    fun theSheetSendsAGreetingOnlyWhenTheUserPickedOne() {
+        val loading = HoldSettings.opening(null)
+        // Start before the settings load: nothing is sent, the PBX applies the user's default.
+        assertNull(HoldSheetChoice.toSend(null, loading))
+        assertNull(HoldSheetChoice.toSend(null, HoldSettings(HoldGreeting.SILENCE, true, 10_800)))
+        // A row the user picked is sent.
+        assertEquals(HoldGreeting.SILENCE, HoldSheetChoice.toSend(HoldGreeting.SILENCE, loading))
+        assertEquals(HoldGreeting.ASSISTANT, HoldSheetChoice.toSend(HoldGreeting.ASSISTANT, loading))
+        // ...unless it turned out unavailable.
+        assertNull(HoldSheetChoice.toSend(HoldGreeting.ASSISTANT, HoldSettings.Fallback))
+        // The first selection is the mirrored default.
+        assertEquals(HoldGreeting.SILENCE, HoldSheetChoice.shown(null, HoldSettings.opening(HoldGreeting.SILENCE)))
+        assertEquals(HoldGreeting.LINE, HoldSheetChoice.shown(null, HoldSettings.opening(null)))
+        assertEquals(HoldGreeting.ASSISTANT, HoldSheetChoice.shown(HoldGreeting.ASSISTANT, loading))
+        assertEquals(HoldGreeting.LINE, HoldSheetChoice.shown(HoldGreeting.ASSISTANT, HoldSettings.Fallback))
+    }
 }

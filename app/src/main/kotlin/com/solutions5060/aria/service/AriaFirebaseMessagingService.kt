@@ -53,10 +53,15 @@ class AriaFirebaseMessagingService : FirebaseMessagingService() {
         // A text message (`type: sms`): a notification that opens the thread.
         if (com.solutions5060.aria.messaging.MessagingNotifier.handlePush(applicationContext, data)) return
 
-        // A Hold for me alert (missed pickup and the like): a banner with Call again while the app is open.
+        // A Hold for me alert (missed pickup and the like): a banner with Call again while the app is open,
+        // carrying the push's own title and body since the system shows no notification in the foreground.
         // In the background the system's notification shows it and a tap delivers `data` to MainActivity.
         if (data["type"] == "hold_wait") {
-            com.solutions5060.aria.hold.HoldForMeCoordinator.onForegroundPush(data)
+            com.solutions5060.aria.hold.HoldForMeCoordinator.onForegroundPush(
+                data,
+                message.notification?.title,
+                message.notification?.body,
+            )
             return
         }
 

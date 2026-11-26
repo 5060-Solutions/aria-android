@@ -466,4 +466,141 @@ class HoldForMeTest {
             HoldForMeCoordinator.clearFixture()
         }
     }
+
+    // ── Final review fixes ─────────────────────────────────────────────
+
+    @Test
+    fun theNotificationTimeoutIsBoundedPerState() {
+        val started = java.time.Instant.parse("2026-11-26T15:04:05Z").toEpochMilli()
+        val since = java.time.Instant.parse("2026-11-26T15:04:06Z").toEpochMilli()
+        val now = started + 60_000L
+        // Waiting, requested and someone answered: the maximum wait plus 5 min from the start.
+        val waitBound = started + 10_800_000L + 300_000L - now
+        for (state in listOf("waiting", "requested", "human_detected")) {
+            assertEquals(state, waitBound, HoldWaitNotifier.timeoutAfterMs(wait("w", state), now))
+        }
+        // Ringing: about 2 min from when it started ringing.
+        assertEquals(since + 120_000L - now, HoldWaitNotifier.timeoutAfterMs(wait("w", "ringing"), now))
+        // Not shown: no timeout.
+        assertNull(HoldWaitNotifier.timeoutAfterMs(wait("w", "joined"), now))
+        assertNull(HoldWaitNotifier.timeoutAfterMs(wait("w", "ended"), now))
+        // Already overdue: gone almost at once, never a non-positive timeout.
+        assertEquals(1_000L, HoldWaitNotifier.timeoutAfterMs(wait("w", "ringing"), since + 10 * 60_000L))
+        // No timestamps: counted from now.
+        val bare = wait("w", "waiting").copy(startedAtMillis = null)
+        assertEquals(10_800_000L + 300_000L, HoldWaitNotifier.timeoutAfterMs(bare, now))
+    }
+
+    @Test
+    fun releasingThePushListenerReconcilesBeforeItStops() {
+        val fake = FakeNotifications()
+        HoldWaitNotifier.override = fake
+        val api = StaleApi(listOf(wait("w-1", "ringing")))
+        HoldForMeCoordinator.installFixture(api, available = true, waits = listOf(wait("w-1", "ringing")))
+        try {
+            assertEquals(setOf("w-1"), fake.shown.keys)
+            // The pickup was missed in the background: the PBX ended the wait, and no socket event came.
+            api.open = emptyList()
+            kotlinx.coroutines.runBlocking {
+                HoldForMeCoordinator.reconcileThenRelease(settleMs = 10L) { fake.log.add("stop") }
+            }
+            assertTrue(fake.shown.isEmpty())
+            assertEquals(listOf("cancel:w-1", "stop"), fake.log.takeLast(2))
+            assertTrue(PushListener.SETTLE_MS in 1_000L..10_000L)
+        } finally {
+            HoldWaitNotifier.override = null
+            HoldForMeCoordinator.clearFixture()
+        }
+    }
+
+    @Test
+    fun onlyAPersonBackIsTheyreBack() {
+        val call = hold("hw-1", "Acme Bank")
+        val back = "They're back — %1\$s"
+        val announce = "They're back, %1\$s"
+        // A person answered, or the wait is not known yet (push only): "They're back".
+        for (reason in listOf("human", null)) {
+            assertEquals("They're back — Acme Bank", HoldReturn.label(back, call, reason))
+            assertEquals("They're back, Acme Bank", HoldReturn.announcement(announce, call, reason))
+        }
+        // Rejoin now and the final ring: the plain name.
+        for (reason in listOf("rejoin", "max_wait")) {
+            assertEquals("Acme Bank", HoldReturn.label(back, call, reason))
+            assertEquals("Acme Bank", HoldReturn.announcement(announce, call, reason))
+        }
+        assertNull(HoldReturn.label(back, hold(null, null), "max_wait"))
+    }
+
+    @Test
+    fun theHoldReturnStatusFollowsTheRingReason() {
+        assertEquals(HoldReturn.Status.StillWaiting(3), HoldReturn.status("max_wait", 10_800))
+        assertEquals(HoldReturn.Status.StillWaiting(4), HoldReturn.status("max_wait", 14_400))
+        assertEquals(HoldReturn.Status.StillWaiting(1), HoldReturn.status("max_wait", 600))
+        assertEquals(HoldReturn.Status.Incoming, HoldReturn.status("rejoin", 10_800))
+        assertEquals(HoldReturn.Status.TapToRejoin, HoldReturn.status("human", 10_800))
+        assertEquals(HoldReturn.Status.TapToRejoin, HoldReturn.status(null, null))
+    }
+
+    @Test
+    fun stillOnHoldIsNotOfferedOnRejoinOrFinalRings() {
+        val ringing = hold("hw-1", "Acme")
+        assertTrue(stillOnHoldVisible(ringing, 0L, "human"))
+        assertTrue(stillOnHoldVisible(ringing, 0L, null))
+        assertFalse(stillOnHoldVisible(ringing, 0L, "rejoin"))
+        assertFalse(stillOnHoldVisible(ringing, 0L, "max_wait"))
+        val joined = hold("hw-1", "Acme", CallPhase.ACTIVE, joined = 100_000L)
+        assertFalse(stillOnHoldVisible(joined, 100_001L, "max_wait"))
+        assertTrue(stillOnHoldVisible(joined, 100_001L, "human"))
+    }
+
+    @Test
+    fun theCardAndNotificationShareOnePresentation() {
+        assertEquals(HoldWaitPresentation.WAITING, HoldWaitPresentation.of("requested"))
+        assertEquals(HoldWaitPresentation.WAITING, HoldWaitPresentation.of("waiting"))
+        assertEquals(HoldWaitPresentation.SOMEONE_ANSWERED, HoldWaitPresentation.of("human_detected"))
+        assertEquals(HoldWaitPresentation.RINGING, HoldWaitPresentation.of("ringing"))
+        assertNull(HoldWaitPresentation.of("joined"))
+        assertNull(HoldWaitPresentation.of("ended"))
+        assertEquals(R.string.ui_hold_waiting, HoldWaitPresentation.WAITING.title)
+        assertEquals(R.string.ui_hold_someone_answered, HoldWaitPresentation.SOMEONE_ANSWERED.title)
+        assertEquals(R.string.ui_hold_ringing_you, HoldWaitPresentation.RINGING.title)
+        val all = listOf("requested", "waiting", "human_detected", "ringing", "joined", "ended").map { wait(it, it) }
+        assertEquals(listOf("requested", "waiting", "human_detected", "ringing"), HoldWaitPresentation.shown(all).map { it.state })
+    }
+
+    @Test
+    fun aJoinedWaitHasNoNotification() {
+        val fake = FakeNotifications()
+        HoldWaitNotifier.override = fake
+        try {
+            HoldWaitNotifier.sync(null, listOf(wait("a", "ringing")))
+            assertEquals(setOf("a"), fake.shown.keys)
+            // The user joined: no "Waiting on hold" with Hang up on the call they are on.
+            HoldWaitNotifier.sync(null, listOf(wait("a", "joined")))
+            assertTrue(fake.shown.isEmpty())
+        } finally {
+            HoldWaitNotifier.override = null
+        }
+    }
+
+    @Test
+    fun aRejoinedHoldReturnCanBeHeldForAgain() {
+        // The leg here is incoming, but the PBX call is still the original outgoing one.
+        val rejoined = hold("hw-1", "Acme Bank", CallPhase.ACTIVE, joined = 100_000L).copy(connectedAtElapsed = 5L)
+        assertTrue(HoldForMePolicy.canHold(true, rejoined, inConference = false, pbxCallId = "pbx-9"))
+        // An ordinary incoming call still cannot.
+        assertFalse(HoldForMePolicy.canHold(true, rejoined.copy(holdReturnId = null), inConference = false, pbxCallId = "pbx-9"))
+        // Still needs the flag, the PBX's id, and no conference.
+        assertFalse(HoldForMePolicy.canHold(false, rejoined, inConference = false, pbxCallId = "pbx-9"))
+        assertFalse(HoldForMePolicy.canHold(true, rejoined, inConference = false, pbxCallId = null))
+        assertFalse(HoldForMePolicy.canHold(true, rejoined, inConference = true, pbxCallId = "pbx-9"))
+    }
+
+    @Test
+    fun maxWaitHoursNeverReadZero() {
+        assertEquals(1, HoldReturn.hours(600))
+        assertEquals(1, HoldReturn.hours(0))
+        assertEquals(3, HoldReturn.hours(10_800))
+        assertEquals(4, HoldReturn.hours(14_400))
+    }
 }

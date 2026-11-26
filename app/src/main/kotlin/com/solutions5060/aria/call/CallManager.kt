@@ -229,13 +229,13 @@ object CallManager {
         var movingFrom: String? = null
         var movedTo: String? = null
         var originalStartMillis: Long? = null
-        /** A move was asked for here: stay silent until the offer says whether this INVITE is it. */
         var holdReturnId: String? = null
         var holdReturnName: String? = null
         var joinedAtMillis: Long? = null
         /** The incoming-call notification has been posted for this record. */
         var incomingShown = false
         var heldForYou = false
+        /** A move was asked for here: stay silent until the offer says whether this INVITE is it. */
         var awaitingMoveOffer = false
         var moveAutoAnswer = false
     }
@@ -837,9 +837,14 @@ object CallManager {
         // the user is already on the phone.
         val waiting = liveRecords().any { it !== rec }
         val label = rec.movingFrom?.let { Txt.get(R.string.move_incoming_from, "Moving call from %1\$s", it) }
-            // The far party of a Hold for me wait is back; the push alone says so.
-            ?: rec.holdReturnId?.let {
-                com.solutions5060.aria.hold.HoldReturn.label(Txt.get(R.string.ui_hold_theyre_back, "They're back — %1\$s"), rec.toUiState())
+            // The far party of a Hold for me wait is back; the push alone says so. Once the wait is
+            // known, a Rejoin now or final ring is labelled with the plain name: nobody is back.
+            ?: rec.holdReturnId?.let { holdId ->
+                com.solutions5060.aria.hold.HoldReturn.label(
+                    Txt.get(R.string.ui_hold_theyre_back, "They're back — %1\$s"),
+                    rec.toUiState(),
+                    com.solutions5060.aria.hold.HoldForMeCoordinator.waitForHoldReturn(holdId)?.ringReason,
+                )
             }
         IncomingCallNotifier.show(appContext, rec.key, label ?: rec.displayName(), rec.callToken ?: "", waiting)
     }

@@ -124,6 +124,22 @@ object CallMovePolicy {
             ?: calls.firstOrNull { it.sipCallId != null && it.sipCallId in ownSipCallIds }
             ?: localRemoteNumber?.let { n -> calls.singleOrNull { sameNumber(n, it.remoteNumber) } }
 
+    /**
+     * The server-side call behind this app's own call, for Hold for me: among
+     * this device's calls (every call while the registration is unknown), the
+     * single one whose far party is [localRemoteNumber]. Null when none or more
+     * than one match, so a second call on this phone is never picked by mistake.
+     */
+    fun holdCall(
+        calls: List<ActiveCall>,
+        ownRegistrationId: String?,
+        localRemoteNumber: String?,
+    ): ActiveCall? {
+        val number = localRemoteNumber ?: return null
+        val mine = if (ownRegistrationId != null) calls.filter { it.deviceRegistrationId == ownRegistrationId } else calls
+        return mine.singleOrNull { sameNumber(number, it.remoteNumber) }
+    }
+
     /** Devices a call can move to: online, and not the one it is on. */
     fun targets(devices: List<MoveDevice>, currentRegistrationId: String?, ownRegistrationId: String?): List<MoveDevice> =
         devices.filter { it.online && it.registrationId != currentRegistrationId && it.registrationId != ownRegistrationId }

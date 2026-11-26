@@ -19,6 +19,7 @@ import androidx.compose.ui.semantics.semantics
 import com.solutions5060.aria.R
 import com.solutions5060.aria.hold.HoldGreeting
 import com.solutions5060.aria.hold.HoldSettings
+import com.solutions5060.aria.hold.HoldSheetChoice
 import com.solutions5060.aria.ui.components.AriaButton
 import com.solutions5060.aria.ui.components.AriaIcon
 import com.solutions5060.aria.ui.components.AriaListItem
@@ -40,18 +41,18 @@ object HoldTags {
 
 /**
  * "Hold for me": what the far party hears when they pick up, then Start.
- * The assistant is offered only when the account has it.
+ * The assistant is offered only when the account has it. [onStart] gets the
+ * row the user picked, or null when they kept the default (the PBX applies it).
  */
 @Composable
 internal fun HoldForMeSheet(
     settings: HoldSettings,
-    onStart: (HoldGreeting) -> Unit,
+    onStart: (HoldGreeting?) -> Unit,
     onDismiss: () -> Unit,
 ) {
     // The user's own pick wins over the default, even if the settings arrive after it.
     var chosen by remember { mutableStateOf<HoldGreeting?>(null) }
-    val default = settings.greeting.takeUnless { it == HoldGreeting.ASSISTANT && !settings.assistantAvailable } ?: HoldGreeting.LINE
-    val selected = chosen?.takeUnless { it == HoldGreeting.ASSISTANT && !settings.assistantAvailable } ?: default
+    val selected = HoldSheetChoice.shown(chosen, settings)
     CallSheet(title = stringResource(R.string.ui_hold_title), onDismiss = onDismiss) {
         Text(
             stringResource(R.string.ui_hold_sheet_body),
@@ -92,7 +93,7 @@ internal fun HoldForMeSheet(
         }
         AriaButton(
             text = stringResource(R.string.ui_hold_start),
-            onClick = { onStart(selected) },
+            onClick = { onStart(HoldSheetChoice.toSend(chosen, settings)) },
             icon = AriaIcons.Hourglass,
             modifier = Modifier
                 .fillMaxWidth()
