@@ -6,6 +6,8 @@ import android.os.Build
 import android.util.Log
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.layout.consumeWindowInsets
+import androidx.compose.foundation.layout.statusBars
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Dialpad
@@ -463,10 +465,21 @@ private fun MainApp(
                     com.solutions5060.aria.move.CallMoveCoordinator.clearMessage()
                 }
             }
+            // With the banner showing, it took the status bar inset: the
+            // screens below must not pad for it again.
+            val moveBannerShown by com.solutions5060.aria.move.CallMoveCoordinator.banner.collectAsState()
             NavHost(
                 navController = navController,
                 startDestination = fixture?.startTab ?: "dialer",
-                modifier = Modifier.weight(1f),
+                modifier = Modifier.weight(1f).then(
+                    if (moveBannerShown.isNotEmpty()) {
+                        Modifier.consumeWindowInsets(
+                            androidx.compose.foundation.layout.WindowInsets.statusBars,
+                        )
+                    } else {
+                        Modifier
+                    },
+                ),
             ) {
                 composable("dialer") {
                     DialerScreen(
