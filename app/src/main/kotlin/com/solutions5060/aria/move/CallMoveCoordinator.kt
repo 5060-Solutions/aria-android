@@ -60,6 +60,23 @@ object CallMoveCoordinator {
     /** The last thing to tell the user (a refused move), cleared with [clearMessage]. */
     val message: StateFlow<MoveMessage?> = _message.asStateFlow()
 
+    private val _messageDetail = MutableStateFlow<String?>(null)
+
+    /** The PBX's reason accompanying [message] when a started move failed, if it gave one. */
+    val messageDetail: StateFlow<String?> = _messageDetail.asStateFlow()
+
+    private val watcher = MoveWatcher(
+        scope = AppScope.scope,
+        fetch = { id ->
+            withContext(Dispatchers.IO) {
+                val auth = StoredPbxAuth(appContext)
+                MoveWatcher.parse(auth.withAuth { PbxApiClient(auth.apiUrl()).moveStatus(it, id) })
+            }
+        },
+        onFailed = { id, detail -> moveFailed(id, detail) },
+        onMoved = { id -> Log.i(TAG, "Move completed") ; refresh() },
+    )
+
     private val _devices = MutableStateFlow<List<MoveDevice>>(emptyList())
     val devices: StateFlow<List<MoveDevice>> = _devices.asStateFlow()
 
@@ -77,6 +94,17 @@ object CallMoveCoordinator {
 
     fun clearMessage() {
         _message.value = null
+        _messageDetail.value = null
+    }
+
+    /** A move that was accepted did not happen: stop waiting for its INVITE and say so. */
+    private fun moveFailed(moveId: String, detail: String?) {
+        val p = pending.get()
+        if (p != null && p.moveId.equals(moveId, ignoreCase = true)) pending.compareAndSet(p, null)
+        DiagLog.log("call", "move failed")
+        _messageDetail.value = detail
+        _message.value = MoveMessage.FAILED
+        refresh()
     }
 
     /** The user closed the banner for [callId]. */
@@ -117,9 +145,13 @@ object CallMoveCoordinator {
                 _calls.update { list -> list.filterNot { it.id == event.callId } }
                 if (_suggested.value?.id == event.callId) _suggested.value = null
                 dismissed.remove(event.callId)
+                watcher.onCallEnded(event.callId)
+                pending.get()?.takeIf { it.callId == event.callId }?.let { pending.compareAndSet(it, null) }
                 recompute()
             }
+            is MoveEvent.CallMoveFailed -> watcher.onFailedEvent(event.callId, event.moveId, event.detail)
             is MoveEvent.CallMoved -> {
+                watcher.onMovedEvent(event.callId)
                 // This device's leg was the one given up: remember where it went.
                 if (event.fromRegistrationId.isNotEmpty() && event.fromRegistrationId == ownRegistrationId) {
                     val label = deviceNames[event.toRegistrationId]
@@ -167,6 +199,7 @@ object CallMoveCoordinator {
         if (result.action == "moved" && result.callId != null && result.moveId != null) {
             val call = _calls.value.firstOrNull { it.id == result.callId }
             pending.set(PendingMove(result.moveId, result.callId, call?.startedAtMillis, System.currentTimeMillis(), call?.remoteNumber))
+            watcher.start(result.moveId, result.callId)
             DiagLog.log("call", "move started by a left_network report")
         }
     }
@@ -274,6 +307,7 @@ object CallMoveCoordinator {
                 val json = auth.withAuth { PbxApiClient(auth.apiUrl()).moveCall(it, call.id, own) }
                 val moveId = MoveJson.moveId(json)
                 pending.set(PendingMove(moveId, call.id, call.startedAtMillis, System.currentTimeMillis(), call.remoteNumber))
+                watcher.start(moveId, call.id)
                 DiagLog.log("call", "move requested to this device")
                 _suggested.value = null
             } catch (e: CancellationException) {
@@ -295,7 +329,10 @@ object CallMoveCoordinator {
                 _calls.value = calls
                 val call = CallMovePolicy.ownCall(calls, own, emptySet(), localRemoteNumber)
                     ?: throw PbxApiClient.HttpException(404, "No such call")
-                auth.withAuth { PbxApiClient(auth.apiUrl()).moveCall(it, call.id, target.registrationId) }
+                val moveId = MoveJson.moveId(
+                    auth.withAuth { PbxApiClient(auth.apiUrl()).moveCall(it, call.id, target.registrationId) },
+                )
+                watcher.start(moveId, call.id)
                 withContext(Dispatchers.Main) { CallManager.markMovedForNumber(localRemoteNumber, target.label) }
             } catch (e: CancellationException) {
                 throw e
@@ -367,6 +404,7 @@ object CallMoveCoordinator {
     }
 
     fun reset() {
+        watcher.cancel()
         pending.set(null)
         ownRegistrationId = null
         _calls.value = emptyList()
@@ -375,12 +413,7 @@ object CallMoveCoordinator {
         dismissed.clear()
     }
 
-    private fun messageFor(e: Exception): MoveMessage = when ((e as? PbxApiClient.HttpException)?.code) {
-        404 -> MoveMessage.NOT_FOUND
-        409 -> MoveMessage.NOT_MOVABLE
-        422 -> MoveMessage.DEVICE_UNAVAILABLE
-        else -> MoveMessage.FAILED
-    }
+    private fun messageFor(e: Exception): MoveMessage = MoveMessage.forHttp((e as? PbxApiClient.HttpException)?.code)
 
     /** Polls while [active]: used from a lifecycle-aware effect. */
     suspend fun pollWhile() {
@@ -392,4 +425,16 @@ object CallMoveCoordinator {
 }
 
 /** Why a move did not start; the UI maps each to a string. */
-enum class MoveMessage { NOT_FOUND, NOT_MOVABLE, DEVICE_UNAVAILABLE, FAILED }
+enum class MoveMessage {
+    NOT_FOUND, NOT_MOVABLE, DEVICE_UNAVAILABLE, FAILED;
+
+    companion object {
+        /** POST /me/calls/{id}/move: 404 call ended, 409 not movable now, 422 target offline or unknown. */
+        fun forHttp(code: Int?): MoveMessage = when (code) {
+            404 -> NOT_FOUND
+            409 -> NOT_MOVABLE
+            422 -> DEVICE_UNAVAILABLE
+            else -> FAILED
+        }
+    }
+}

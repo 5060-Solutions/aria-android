@@ -174,6 +174,8 @@ dependencies {
     testImplementation("junit:junit:4.13.2")
     // The android.jar stubs throw for org.json; tests need the real thing.
     testImplementation("org.json:json:20240303")
+    // Fake time for the move watcher
+    testImplementation("org.jetbrains.kotlinx:kotlinx-coroutines-test:1.10.2")
     // PBX repositories against a local HTTP server
     testImplementation(libs.okhttp.mockwebserver)
 

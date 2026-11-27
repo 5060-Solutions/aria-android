@@ -12,10 +12,10 @@
     <string name="move_loading">Buscando tus dispositivos…</string>
     <string name="move_moved_to">Movida a %1$s</string>
     <string name="move_started_at">Iniciada a las %1$s</string>
-    <string name="move_err_not_found">Esa llamada ya no está en tu cuenta.</string>
-    <string name="move_err_not_movable">Esta llamada no se puede mover ahora. Inténtalo cuando esté contestada y no se esté transfiriendo.</string>
-    <string name="move_err_device_unavailable">Ese dispositivo no está disponible. Comprueba que esté conectado e inténtalo de nuevo.</string>
-    <string name="move_err_failed">No se pudo mover la llamada. Sigue donde estaba.</string>
+    <string name="move_err_not_found">Esa llamada ha terminado.</string>
+    <string name="move_err_not_movable">La llamada no se puede mover ahora.</string>
+    <string name="move_err_device_unavailable">Ese dispositivo está sin conexión.</string>
+    <string name="move_err_failed">No se pudo mover la llamada</string>
     <string name="handoff_title">Traspaso de llamadas</string>
     <string name="handoff_summary">Sugerir mover llamadas a este teléfono</string>
     <string name="handoff_desc">Cuando una llamada está en otro de tus dispositivos, este teléfono puede ofrecerse a asumirla.</string>

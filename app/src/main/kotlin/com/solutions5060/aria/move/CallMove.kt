@@ -48,6 +48,7 @@ sealed interface MoveEvent {
     data class CallActiveElsewhere(val call: ActiveCall) : MoveEvent
     data class CallMoved(val callId: String, val fromRegistrationId: String, val toRegistrationId: String) : MoveEvent
     data class CallEnded(val callId: String) : MoveEvent
+    data class CallMoveFailed(val callId: String, val moveId: String?, val detail: String?) : MoveEvent
 
     /** The PBX suggests moving [callId] to [toRegistrationId] (`reason`: nearby, left_network or desktop_locked). */
     data class HandoffSuggested(val callId: String, val toRegistrationId: String, val reason: String) : MoveEvent
@@ -222,6 +223,11 @@ object MoveJson {
                 callId = o.optString("call_id", "").ifEmpty { return null },
                 fromRegistrationId = o.optString("from_registration_id", ""),
                 toRegistrationId = o.optString("to_registration_id", ""),
+            )
+            "call_move_failed" -> MoveEvent.CallMoveFailed(
+                callId = o.optString("call_id", "").ifEmpty { return null },
+                moveId = o.optString("move_id", "").ifEmpty { null },
+                detail = o.optString("detail", "").ifEmpty { null },
             )
             "call_ended" -> MoveEvent.CallEnded(o.optString("call_id", "").ifEmpty { return null })
             else -> null

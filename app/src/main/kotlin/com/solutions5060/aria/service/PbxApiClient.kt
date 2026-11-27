@@ -309,6 +309,10 @@ class PbxApiClient(private val baseUrl: String) {
         return send(jwt, "POST", "/api/v1/me/calls/${encode(callId)}/move", body.toString().toRequestBody(JSON_MEDIA))
     }
 
+    /** GET /api/v1/me/moves/{id} — `{"status":"pending|ringing|moved|failed","detail"}`. */
+    fun moveStatus(jwt: String, moveId: String): String =
+        send(jwt, "GET", "/api/v1/me/moves/${encode(moveId)}")
+
     // ── Hold for me (2026-11-26 contract, C2) ───────────────────────────
 
     /**

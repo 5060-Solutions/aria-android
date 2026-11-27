@@ -475,7 +475,9 @@ private fun MainApp(
                 com.solutions5060.aria.ui.hold.HoldNoticeBanner(onCallAgain = { placeCall(it) })
             }
             val moveMessage by com.solutions5060.aria.move.CallMoveCoordinator.message.collectAsState()
-            val moveText = moveMessage?.let { stringResource(moveMessageRes(it)) }
+            val moveDetail by com.solutions5060.aria.move.CallMoveCoordinator.messageDetail.collectAsState()
+            val moveBase = moveMessage?.let { stringResource(moveMessageRes(it)) }
+            val moveText = if (moveBase != null && moveDetail != null) "$moveBase ($moveDetail)" else moveBase
             val moveSnackbar = com.solutions5060.aria.ui.components.LocalSnackbarHostState.current
             LaunchedEffect(moveText) {
                 moveText?.let {

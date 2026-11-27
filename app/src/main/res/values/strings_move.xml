@@ -12,10 +12,10 @@
     <string name="move_loading">Looking for your devices…</string>
     <string name="move_moved_to">Moved to %1$s</string>
     <string name="move_started_at">Started %1$s</string>
-    <string name="move_err_not_found">That call is no longer on your account.</string>
-    <string name="move_err_not_movable">This call can\'t be moved right now. Try again once it is answered and not being transferred.</string>
-    <string name="move_err_device_unavailable">That device isn\'t available. Check it is online and try again.</string>
-    <string name="move_err_failed">The call couldn\'t be moved. It is still where it was.</string>
+    <string name="move_err_not_found">That call has ended.</string>
+    <string name="move_err_not_movable">The call can\'t be moved right now.</string>
+    <string name="move_err_device_unavailable">That device is offline.</string>
+    <string name="move_err_failed">Couldn\'t move the call</string>
     <string name="handoff_title">Call handoff</string>
     <string name="handoff_summary">Suggest moving calls to this phone</string>
     <string name="handoff_desc">When a call is on another of your devices, this phone can offer to take it over.</string>
