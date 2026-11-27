@@ -72,7 +72,7 @@ class MoveWatcher(
     /** True when [moveId] was the one being watched (and is not any more). */
     private fun end(moveId: String): Boolean = synchronized(lock) {
         val w = current
-        if (w != null && w.moveId == moveId) {
+        if (w != null && w.moveId.equals(moveId, ignoreCase = true)) {
             current = null
             true
         } else {
@@ -80,14 +80,24 @@ class MoveWatcher(
         }
     }
 
-    /** `call_move_failed` over the WebSocket. */
-    fun onFailedEvent(callId: String, moveId: String?, detail: String?) {
+    /**
+     * `call_move_failed` over the WebSocket. Matched on the move id only: a
+     * stale failure for an older move of the same call must not end this one.
+     */
+    fun onFailedEvent(moveId: String?, detail: String?) {
+        if (moveId.isNullOrEmpty()) return
         val w = synchronized(lock) { current } ?: return
-        if (w.callId != callId && w.moveId != moveId) return
+        if (!w.moveId.equals(moveId, ignoreCase = true)) return
         if (end(w.moveId)) {
             w.job.cancel()
             onFailed(w.moveId, detail)
         }
+    }
+
+    /** The INVITE of the move this device asked for was answered: the watch has done its job. */
+    fun onAnswered(moveId: String) {
+        val w = synchronized(lock) { current } ?: return
+        if (w.moveId.equals(moveId, ignoreCase = true) && end(w.moveId)) w.job.cancel()
     }
 
     /** `call_ended` for the call: nothing is left to move; no failure message. */

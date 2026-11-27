@@ -32,4 +32,5 @@
     <string name="handoff_channel">Call handoff</string>
     <string name="handoff_channel_desc">Offers to continue a call from another of your devices.</string>
     <string name="handoff_notification_text">Call with %1$s on %2$s</string>
+    <string name="move_err_with_detail">%1$s (%2$s)</string>
 </resources>

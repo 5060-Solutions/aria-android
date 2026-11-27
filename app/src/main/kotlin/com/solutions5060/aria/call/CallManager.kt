@@ -327,7 +327,15 @@ object CallManager {
         val token = rec.callToken.orEmpty()
         val moveId = offerMoveIds[token]
         val pending = com.solutions5060.aria.move.CallMoveCoordinator.pendingMove()
-        when (val d = com.solutions5060.aria.move.CallMovePolicy.decide(moveId, pending, System.currentTimeMillis())) {
+        when (val d = com.solutions5060.aria.move.CallMovePolicy.decide(
+            moveId, pending, System.currentTimeMillis(),
+            recentlyFailed = com.solutions5060.aria.move.CallMoveCoordinator.recentlyFailed(moveId),
+        )) {
+            com.solutions5060.aria.move.MoveDecision.Reject -> {
+                // The move this device asked for already failed: do not ring it as "Moving call from…".
+                rec.awaitingMoveOffer = false
+                reject(rec)
+            }
             is com.solutions5060.aria.move.MoveDecision.AutoAnswer -> {
                 rec.awaitingMoveOffer = false
                 rec.moveAutoAnswer = true

@@ -62,6 +62,9 @@ sealed interface MoveDecision {
     /** The move this device asked for: answer with no ring. */
     data class AutoAnswer(val callStartedAtMillis: Long?) : MoveDecision
 
+    /** A move this device asked for that already failed or timed out: refuse it, do not ring. */
+    data object Reject : MoveDecision
+
     /** Another device's move (or one that timed out here): ring, labelled. */
     data object RingMoving : MoveDecision
 }
@@ -76,8 +79,14 @@ object CallMovePolicy {
      * device was given for a move it asked for, and that request is still
      * live. Any other `X-Aria-Move` rings.
      */
-    fun decide(offerMoveId: String?, pending: PendingMove?, nowMillis: Long): MoveDecision = when {
+    fun decide(
+        offerMoveId: String?,
+        pending: PendingMove?,
+        nowMillis: Long,
+        recentlyFailed: Boolean = false,
+    ): MoveDecision = when {
         offerMoveId.isNullOrEmpty() -> MoveDecision.Ring
+        recentlyFailed -> MoveDecision.Reject
         pending != null &&
             pending.moveId.equals(offerMoveId, ignoreCase = true) &&
             nowMillis - pending.requestedAtMillis <= PENDING_TTL_MS ->

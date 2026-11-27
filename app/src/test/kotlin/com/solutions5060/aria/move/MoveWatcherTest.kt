@@ -58,7 +58,7 @@ class MoveWatcherTest {
         val h = Harness(this) { pending() }
         h.watcher.start("m1", "c1")
         advanceTimeBy(2_500); runCurrent()
-        h.watcher.onFailedEvent("c1", "m1", "declined")
+        h.watcher.onFailedEvent("m1", "declined")
         assertEquals(listOf("m1" to "declined"), h.failed)
         val seen = h.polls
         advanceTimeBy(60_000); runCurrent()
@@ -70,10 +70,32 @@ class MoveWatcherTest {
     fun aFailureForAnotherCallIsIgnored() = runTest {
         val h = Harness(this) { pending() }
         h.watcher.start("m1", "c1")
-        h.watcher.onFailedEvent("other", "other-move", null)
+        h.watcher.onFailedEvent("other-move", null)
         assertTrue(h.failed.isEmpty())
         assertTrue(h.watcher.isWatching())
         h.watcher.cancel()
+    }
+
+    @Test
+    fun aStaleFailureForTheSameCallButAnOlderMoveIsIgnored() = runTest {
+        val h = Harness(this) { pending() }
+        h.watcher.start("m2", "c1")
+        h.watcher.onFailedEvent("m1", "old")
+        h.watcher.onFailedEvent(null, "no id")
+        assertTrue(h.failed.isEmpty())
+        assertTrue(h.watcher.isWatching())
+        h.watcher.cancel()
+    }
+
+    @Test
+    fun answeredEndsTheWatchQuietly() = runTest {
+        val h = Harness(this) { pending() }
+        h.watcher.start("m1", "c1")
+        advanceTimeBy(2_500); runCurrent()
+        h.watcher.onAnswered("m1")
+        advanceTimeBy(60_000); runCurrent()
+        assertTrue(h.failed.isEmpty())
+        assertEquals(1, h.polls)
     }
 
     @Test

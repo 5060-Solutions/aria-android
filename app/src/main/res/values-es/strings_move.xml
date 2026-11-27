@@ -32,4 +32,5 @@
     <string name="handoff_channel">Traspaso de llamadas</string>
     <string name="handoff_channel_desc">Ofrece continuar una llamada desde otro de tus dispositivos.</string>
     <string name="handoff_notification_text">Llamada con %1$s en %2$s</string>
+    <string name="move_err_with_detail">%1$s (%2$s)</string>
 </resources>
