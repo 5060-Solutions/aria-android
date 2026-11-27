@@ -474,13 +474,16 @@ private fun MainApp(
                 com.solutions5060.aria.ui.hold.HoldWaitCards()
                 com.solutions5060.aria.ui.hold.HoldNoticeBanner(onCallAgain = { placeCall(it) })
             }
-            val moveMessage by com.solutions5060.aria.move.CallMoveCoordinator.message.collectAsState()
-            val moveText = moveMessage?.let { stringResource(moveMessageRes(it)) }
             val moveSnackbar = com.solutions5060.aria.ui.components.LocalSnackbarHostState.current
-            LaunchedEffect(moveText) {
-                moveText?.let {
-                    moveSnackbar.showSnackbar(it)
-                    com.solutions5060.aria.move.CallMoveCoordinator.clearMessage()
+            val moveTexts = com.solutions5060.aria.move.MoveMessage.entries.associateWith { stringResource(moveMessageRes(it)) }
+            val moveWithDetail = stringResource(R.string.move_err_with_detail, "%1\$s", "%2\$s")
+            val currentMoveTexts by androidx.compose.runtime.rememberUpdatedState(moveTexts to moveWithDetail)
+            LaunchedEffect(Unit) {
+                com.solutions5060.aria.move.CallMoveCoordinator.notices.collect { notice ->
+                    val (texts, withDetail) = currentMoveTexts
+                    val base = texts.getValue(notice.message)
+                    val text = notice.detail?.let { withDetail.replace("%1\$s", base).replace("%2\$s", it) } ?: base
+                    moveSnackbar.showSnackbar(text)
                 }
             }
             NavHost(

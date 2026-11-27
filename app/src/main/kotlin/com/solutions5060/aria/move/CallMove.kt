@@ -48,6 +48,7 @@ sealed interface MoveEvent {
     data class CallActiveElsewhere(val call: ActiveCall) : MoveEvent
     data class CallMoved(val callId: String, val fromRegistrationId: String, val toRegistrationId: String) : MoveEvent
     data class CallEnded(val callId: String) : MoveEvent
+    data class CallMoveFailed(val callId: String, val moveId: String?, val detail: String?) : MoveEvent
 
     /** The PBX suggests moving [callId] to [toRegistrationId] (`reason`: nearby, left_network or desktop_locked). */
     data class HandoffSuggested(val callId: String, val toRegistrationId: String, val reason: String) : MoveEvent
@@ -60,6 +61,9 @@ sealed interface MoveDecision {
 
     /** The move this device asked for: answer with no ring. */
     data class AutoAnswer(val callStartedAtMillis: Long?) : MoveDecision
+
+    /** A move this device asked for that already failed or timed out: refuse it, do not ring. */
+    data object Reject : MoveDecision
 
     /** Another device's move (or one that timed out here): ring, labelled. */
     data object RingMoving : MoveDecision
@@ -75,8 +79,14 @@ object CallMovePolicy {
      * device was given for a move it asked for, and that request is still
      * live. Any other `X-Aria-Move` rings.
      */
-    fun decide(offerMoveId: String?, pending: PendingMove?, nowMillis: Long): MoveDecision = when {
+    fun decide(
+        offerMoveId: String?,
+        pending: PendingMove?,
+        nowMillis: Long,
+        recentlyFailed: Boolean = false,
+    ): MoveDecision = when {
         offerMoveId.isNullOrEmpty() -> MoveDecision.Ring
+        recentlyFailed -> MoveDecision.Reject
         pending != null &&
             pending.moveId.equals(offerMoveId, ignoreCase = true) &&
             nowMillis - pending.requestedAtMillis <= PENDING_TTL_MS ->
@@ -222,6 +232,11 @@ object MoveJson {
                 callId = o.optString("call_id", "").ifEmpty { return null },
                 fromRegistrationId = o.optString("from_registration_id", ""),
                 toRegistrationId = o.optString("to_registration_id", ""),
+            )
+            "call_move_failed" -> MoveEvent.CallMoveFailed(
+                callId = o.optString("call_id", "").ifEmpty { return null },
+                moveId = o.optString("move_id", "").ifEmpty { null },
+                detail = o.optString("detail", "").ifEmpty { null },
             )
             "call_ended" -> MoveEvent.CallEnded(o.optString("call_id", "").ifEmpty { return null })
             else -> null

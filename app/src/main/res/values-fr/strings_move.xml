@@ -12,10 +12,10 @@
     <string name="move_loading">Recherche de vos appareils…</string>
     <string name="move_moved_to">Déplacé vers %1$s</string>
     <string name="move_started_at">Commencé à %1$s</string>
-    <string name="move_err_not_found">Cet appel n\'est plus sur votre compte.</string>
-    <string name="move_err_not_movable">Cet appel ne peut pas être déplacé pour le moment. Réessayez une fois qu\'il est décroché et qu\'il n\'est pas en cours de transfert.</string>
-    <string name="move_err_device_unavailable">Cet appareil n\'est pas disponible. Vérifiez qu\'il est en ligne et réessayez.</string>
-    <string name="move_err_failed">L\'appel n\'a pas pu être déplacé. Il reste où il était.</string>
+    <string name="move_err_not_found">Cet appel est terminé.</string>
+    <string name="move_err_not_movable">L\'appel ne peut pas être déplacé pour le moment.</string>
+    <string name="move_err_device_unavailable">Cet appareil est hors ligne.</string>
+    <string name="move_err_failed">L\'appel n\'a pas pu être déplacé</string>
     <string name="handoff_title">Transfert d\'appel entre appareils</string>
     <string name="handoff_summary">Proposer de déplacer les appels vers ce téléphone</string>
     <string name="handoff_desc">Quand un appel est en cours sur un autre de vos appareils, ce téléphone peut proposer de le reprendre.</string>
@@ -32,4 +32,5 @@
     <string name="handoff_channel">Transfert d\'appel</string>
     <string name="handoff_channel_desc">Propose de continuer un appel depuis un autre de vos appareils.</string>
     <string name="handoff_notification_text">Appel avec %1$s sur %2$s</string>
+    <string name="move_err_with_detail">%1$s (%2$s)</string>
 </resources>

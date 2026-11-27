@@ -12,10 +12,10 @@
     <string name="move_loading">Geräte werden gesucht…</string>
     <string name="move_moved_to">Verschoben auf %1$s</string>
     <string name="move_started_at">Begonnen um %1$s</string>
-    <string name="move_err_not_found">Dieser Anruf gehört nicht mehr zu Ihrem Konto.</string>
-    <string name="move_err_not_movable">Dieser Anruf lässt sich gerade nicht verschieben. Versuchen Sie es erneut, sobald er angenommen ist und nicht weitergeleitet wird.</string>
-    <string name="move_err_device_unavailable">Dieses Gerät ist nicht verfügbar. Prüfen Sie, ob es online ist, und versuchen Sie es erneut.</string>
-    <string name="move_err_failed">Der Anruf konnte nicht verschoben werden. Er bleibt, wo er war.</string>
+    <string name="move_err_not_found">Dieser Anruf wurde beendet.</string>
+    <string name="move_err_not_movable">Der Anruf lässt sich gerade nicht verschieben.</string>
+    <string name="move_err_device_unavailable">Dieses Gerät ist offline.</string>
+    <string name="move_err_failed">Der Anruf konnte nicht verschoben werden</string>
     <string name="handoff_title">Anrufübergabe</string>
     <string name="handoff_summary">Anrufe auf dieses Telefon vorschlagen</string>
     <string name="handoff_desc">Wenn ein Anruf auf einem anderen Ihrer Geräte läuft, kann dieses Telefon anbieten, ihn zu übernehmen.</string>
@@ -32,4 +32,5 @@
     <string name="handoff_channel">Anrufübergabe</string>
     <string name="handoff_channel_desc">Bietet an, einen Anruf von einem anderen Ihrer Geräte fortzusetzen.</string>
     <string name="handoff_notification_text">Anruf mit %1$s auf %2$s</string>
+    <string name="move_err_with_detail">%1$s (%2$s)</string>
 </resources>
