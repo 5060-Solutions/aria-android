@@ -23,7 +23,7 @@ class MoveSession(
     pollMs: Long = MoveWatcher.POLL_MS,
     timeoutMs: Long = MoveWatcher.TIMEOUT_MS,
 ) {
-    private class Label(val remoteNumber: String?, val label: String)
+    private class Label(val callId: String, val remoteNumber: String?, val label: String)
 
     val pending = AtomicReference<PendingMove?>(null)
 
@@ -52,7 +52,7 @@ class MoveSession(
     ) {
         synchronized(lock) {
             labels.clear()
-            if (label != null) labels[move.moveId.lowercase()] = Label(label.first, label.second)
+            if (label != null) labels[move.moveId.lowercase()] = Label(move.callId, label.first, label.second)
         }
         pending.set(if (asPending) move else null)
         watcher.start(move.moveId, move.callId)
@@ -70,10 +70,25 @@ class MoveSession(
     fun onMovedEvent(callId: String) = watcher.onMovedEvent(callId)
 
     fun onCallEnded(callId: String) {
+        // The whole call is over: a move INVITE still on its way for it is refused, not rung.
+        val endedMoves = listOfNotNull(
+            watcher.watchedMove()?.takeIf { it.second == callId }?.first,
+            pending.get()?.takeIf { it.callId == callId }?.moveId,
+        )
         watcher.onCallEnded(callId)
         pending.get()?.takeIf { it.callId == callId }?.let { pending.compareAndSet(it, null) }
-        synchronized(lock) { labels.clear() }
+        val now = clock()
+        synchronized(lock) {
+            labels.entries.removeAll { it.value.callId == callId }
+            endedMoves.forEach { failed[it.lowercase()] = now }
+        }
     }
+
+    /**
+     * The "Moved to" label held for [callId]'s move-to, until it is confirmed
+     * or fails (the leg here may end first, when the PBX hangs it up).
+     */
+    fun heldLabel(callId: String): String? = synchronized(lock) { labels.values.firstOrNull { it.callId == callId }?.label }
 
     /** True for a move that failed or timed out in the last [FAILED_TTL_MS]: its INVITE is refused. */
     fun recentlyFailed(moveId: String?): Boolean {

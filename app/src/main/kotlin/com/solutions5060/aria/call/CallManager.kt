@@ -228,6 +228,7 @@ object CallManager {
         var codec: String? = null
         var movingFrom: String? = null
         var movedTo: String? = null
+        var finishedAtElapsed: Long? = null
         var originalStartMillis: Long? = null
         var holdReturnId: String? = null
         var holdReturnName: String? = null
@@ -242,6 +243,14 @@ object CallManager {
 
     /** Every call by record key, oldest first. Main-thread only. */
     private val records = LinkedHashMap<String, CallRecord>()
+
+    /** The most recently ended record matching [match] that ended within [MOVED_LABEL_WINDOW_MS]. */
+    private fun recentlyFinished(match: (CallRecord) -> Boolean): CallRecord? {
+        val now = SystemClock.elapsedRealtime()
+        return records.values.lastOrNull {
+            it.finished && it.movedTo == null && it.finishedAtElapsed?.let { t -> now - t <= MOVED_LABEL_WINDOW_MS } == true && match(it)
+        }
+    }
 
     private fun liveRecords(): List<CallRecord> = records.values.filter { !it.finished }
 
@@ -300,18 +309,27 @@ object CallManager {
     /** How long an INVITE waits, silent, for its offer when a move is pending. */
     private const val MOVE_OFFER_WAIT_MS = 4_000L
 
+    /** How long after a leg ends here a confirmed move may still label it "Moved to …". */
+    private const val MOVED_LABEL_WINDOW_MS = 30_000L
+
     /** Records that the call [callId] (the PBX's id) was moved to [label], for "Moved to …". */
     fun markMoved(callId: String, label: String) {
         // The PBX's call id is not the engine's; the leg that is up here is the one.
-        mainHandler.post { liveRecords().firstOrNull { it.phase == CallPhase.ACTIVE || it.phase == CallPhase.HELD }?.let { it.movedTo = label; publishAll() } }
+        mainHandler.post {
+            val rec = liveRecords().firstOrNull { it.phase == CallPhase.ACTIVE || it.phase == CallPhase.HELD }
+                ?: recentlyFinished { true }
+            rec?.let { it.movedTo = label; publishAll() }
+        }
     }
 
     /** The user asked to move the call with [remoteNumber] to [label]; its end here will say so. */
     fun markMovedForNumber(remoteNumber: String?, label: String) {
         mainHandler.post {
-            val rec = liveRecords().firstOrNull {
-                remoteNumber == null || com.solutions5060.aria.move.CallMovePolicy.sameNumber(it.remoteUri, remoteNumber)
-            } ?: return@post
+            val matches = { r: CallRecord ->
+                remoteNumber == null || com.solutions5060.aria.move.CallMovePolicy.sameNumber(r.remoteUri, remoteNumber)
+            }
+            // The PBX hangs this leg up when the move completes, which can be before the confirmation arrives.
+            val rec = liveRecords().firstOrNull(matches) ?: recentlyFinished(matches) ?: return@post
             rec.movedTo = label
             publishAll()
         }
@@ -1420,6 +1438,7 @@ object CallManager {
     private fun finish(rec: CallRecord, reason: EndReason) {
         if (rec.finished) return
         rec.finished = true
+        rec.finishedAtElapsed = SystemClock.elapsedRealtime()
         rec.heldForYou = reason == EndReason.HELD_FOR_YOU
         Log.i(TAG, "Call ${rec.key} ended: $reason")
 

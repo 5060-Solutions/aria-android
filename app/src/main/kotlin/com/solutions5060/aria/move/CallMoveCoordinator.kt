@@ -137,10 +137,11 @@ object CallMoveCoordinator {
             }
             is MoveEvent.CallMoveFailed -> session.onFailedEvent(event.moveId, event.detail)
             is MoveEvent.CallMoved -> {
+                val held = session.heldLabel(event.callId)
                 session.onMovedEvent(event.callId)
                 // This device's leg was the one given up: remember where it went.
                 if (event.fromRegistrationId.isNotEmpty() && event.fromRegistrationId == ownRegistrationId) {
-                    val label = deviceNames[event.toRegistrationId]
+                    val label = deviceNames[event.toRegistrationId] ?: held
                     if (label != null) CallManager.markMoved(event.callId, label) else refreshDevices()
                 }
                 refresh()

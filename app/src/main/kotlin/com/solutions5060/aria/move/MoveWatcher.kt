@@ -115,6 +115,9 @@ class MoveWatcher(
         }
     }
 
+    /** The move being watched, if any. */
+    fun watchedMove(): Pair<String, String>? = synchronized(lock) { current?.let { it.moveId to it.callId } }
+
     fun isWatching(): Boolean = synchronized(lock) { current != null }
 
     /** Stop polling (sign-out, scope cleared). */

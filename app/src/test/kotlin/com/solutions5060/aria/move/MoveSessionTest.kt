@@ -137,4 +137,38 @@ class MoveSessionTest {
         assertEquals(MoveDecision.RingMoving, CallMovePolicy.decide("other", null, 1_000L, recentlyFailed = false))
         assertEquals(MoveDecision.Ring, CallMovePolicy.decide(null, p, 1_000L, recentlyFailed = false))
     }
+
+    @Test
+    fun theLabelSurvivesTheLegEndingAndIsAppliedOnConfirmation() = runTest {
+        val h = H(this)
+        h.session.begin(move("m1"), asPending = false, label = "+13035550100" to "Desk phone")
+        // The leg here ends (the PBX's BYE) before the confirmation: the label is still held.
+        advanceTimeBy(3_000); runCurrent()
+        assertEquals("Desk phone", h.session.heldLabel("c1"))
+        assertNull(h.session.heldLabel("other"))
+        h.progress = MoveProgress(MoveStatus.MOVED, null)
+        advanceTimeBy(2_000); runCurrent()
+        assertEquals(listOf<Pair<String?, String>>("+13035550100" to "Desk phone"), h.labels)
+        assertNull(h.session.heldLabel("c1"))
+    }
+
+    @Test
+    fun aCallEndedRefusesTheLateInviteOfItsMove() = runTest {
+        val h = H(this)
+        h.session.begin(move("m1"), asPending = true)
+        h.session.onCallEnded("c1")
+        assertNull(h.session.pending.get())
+        assertTrue(h.session.recentlyFailed("m1"))
+        assertTrue(h.notices.isEmpty())
+    }
+
+    @Test
+    fun aCallEndedForAnotherCallChangesNothing() = runTest {
+        val h = H(this)
+        h.session.begin(move("m1"), asPending = true)
+        h.session.onCallEnded("other")
+        assertFalse(h.session.recentlyFailed("m1"))
+        assertEquals("m1", h.session.pending.get()?.moveId)
+        h.session.reset()
+    }
 }
